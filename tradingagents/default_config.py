@@ -9,10 +9,14 @@ DEFAULT_CONFIG = {
         "dataflows/data_cache",
     ),
     # LLM settings
+    # Options: "openai", "google" (Gemini), "anthropic" (Claude), "openrouter", "ollama"
     "llm_provider": "openai",
+    # For OpenAI: "gpt-4o-mini", "gpt-4o", "o4-mini", "o3-mini", etc.
+    # For Google/Gemini: "gemini-2.0-flash-lite", "gemini-2.0-flash", "gemini-2.5-flash", etc.
+    # For Anthropic: "claude-3-5-haiku-latest", "claude-3-5-sonnet-latest", etc.
     "deep_think_llm": "o4-mini",
     "quick_think_llm": "gpt-4o-mini",
-    "backend_url": "https://api.openai.com/v1",
+    "backend_url": "https://api.openai.com/v1",  # Only used for OpenAI/Anthropic/OpenRouter
     # Debate and discussion settings
     "max_debate_rounds": 1,
     "max_risk_discuss_rounds": 1,

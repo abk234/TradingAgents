@@ -1,7 +1,10 @@
 import questionary
 from typing import List, Optional, Tuple, Dict
+from rich.console import Console
 
 from cli.models import AnalystType
+
+console = Console()
 
 ANALYST_ORDER = [
     ("Market Analyst", AnalystType.MARKET),
@@ -150,8 +153,15 @@ def select_shallow_thinking_agent(provider) -> str:
             ("google/gemini-2.0-flash-exp:free - Gemini Flash 2.0 offers a significantly faster time to first token", "google/gemini-2.0-flash-exp:free"),
         ],
         "ollama": [
-            ("llama3.1 local", "llama3.1"),
-            ("llama3.2 local", "llama3.2"),
+            # Small & Fast Models (Quick Thinking)
+            ("llama3.2 - 3.2B, fastest, lightweight", "llama3.2"),
+            ("gemma3 - 4.3B, efficient and fast", "gemma3"),
+            ("qwen2.5:7b-instruct - 7.6B, instruction-tuned", "qwen2.5:7b-instruct-q4_K_M"),
+            ("mistral - 7.2B, balanced performance", "mistral"),
+            ("llama3.1 - 8.0B, reliable baseline", "llama3.1"),
+            ("qwen3 - 8.2B, strong reasoning", "qwen3"),
+            ("deepseek-r1 - 8.2B, reasoning model", "deepseek-r1"),
+            ("0xroyce/plutus - 8.0B, financial-focused", "0xroyce/plutus"),
         ]
     }
 
@@ -212,8 +222,20 @@ def select_deep_thinking_agent(provider) -> str:
             ("Deepseek - latest iteration of the flagship chat model family from the DeepSeek team.", "deepseek/deepseek-chat-v3-0324:free"),
         ],
         "ollama": [
-            ("llama3.1 local", "llama3.1"),
-            ("qwen3", "qwen3"),
+            # Medium Models (Balanced)
+            ("llama3.1 - 8.0B, reliable baseline", "llama3.1"),
+            ("qwen3 - 8.2B, strong reasoning", "qwen3"),
+            ("deepseek-r1 - 8.2B, reasoning model", "deepseek-r1"),
+            ("0xroyce/plutus - 8.0B, financial-focused", "0xroyce/plutus"),
+            ("qwen2.5:7b-instruct - 7.6B, instruction-tuned", "qwen2.5:7b-instruct-q4_K_M"),
+            # Large Models (Deep Thinking)
+            ("codestral - 22.2B, coding & reasoning", "codestral"),
+            ("devstral:24b - 23.6B, advanced coding", "devstral:24b"),
+            ("deepseek-coder-v2 - 15.7B, coding specialist", "deepseek-coder-v2"),
+            ("codellama:34b - 34B, large coding model", "codellama:34b"),
+            # Very Large Models (Maximum Capability)
+            ("llama3.3 - 70.6B, most capable", "llama3.3"),
+            ("llama3.3:70b-instruct - 70.6B, instruction-tuned", "llama3.3:70b-instruct-q4_K_M"),
         ]
     }
     
