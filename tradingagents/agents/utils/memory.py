@@ -24,7 +24,8 @@ class FinancialSituationMemory:
         elif config["backend_url"] == "http://localhost:11434/v1":
             self.use_embeddings = True
             self.embedding = "nomic-embed-text"
-            self.client = OpenAI(base_url=config["backend_url"])
+            # Ollama's OpenAI-compatible API doesn't require an API key
+            self.client = OpenAI(base_url=config["backend_url"], api_key="ollama")
         else:
             self.use_embeddings = True
             self.embedding = "text-embedding-3-small"
