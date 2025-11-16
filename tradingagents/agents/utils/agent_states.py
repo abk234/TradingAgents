@@ -53,6 +53,11 @@ class AgentState(MessagesState):
 
     sender: Annotated[str, "Agent that sent this message"]
 
+    # Historical intelligence from RAG system
+    historical_context: Annotated[
+        Optional[str], "Formatted historical context from similar past analyses"
+    ]
+
     # research step
     market_report: Annotated[str, "Report from the Market Analyst"]
     sentiment_report: Annotated[str, "Report from the Social Media Analyst"]

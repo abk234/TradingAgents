@@ -234,6 +234,18 @@ def route_to_vendor(method: str, *args, **kwargs):
     # Final result summary
     if not results:
         print(f"FAILURE: All {vendor_attempt_count} vendor attempts failed for method '{method}'")
+
+        # For news-related and fundamental methods, return a placeholder instead of failing
+        # This allows analysis to continue with limited data
+        optional_methods = [
+            'get_news', 'get_global_news', 'get_insider_sentiment', 'get_insider_transactions',
+            'get_fundamentals', 'get_balance_sheet', 'get_cashflow', 'get_income_statement'
+        ]
+        if method in optional_methods:
+            print(f"INFO: Returning placeholder for optional method '{method}' - analysis will continue with limited data")
+            return f"Data unavailable for '{method}'. All vendors require API keys or local data files that are not configured. Analysis will proceed using available technical and price data."
+
+        # For other critical methods, still raise an error
         raise RuntimeError(f"All vendor implementations failed for method '{method}'")
     else:
         print(f"FINAL: Method '{method}' completed with {len(results)} result(s) from {vendor_attempt_count} vendor attempt(s)")

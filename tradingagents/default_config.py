@@ -10,13 +10,14 @@ DEFAULT_CONFIG = {
     ),
     # LLM settings
     # Options: "openai", "google" (Gemini), "anthropic" (Claude), "openrouter", "ollama"
-    "llm_provider": "openai",
+    "llm_provider": "ollama",
+    # For Ollama: "llama3.1", "llama3.3", "mistral", "qwen2.5", etc.
     # For OpenAI: "gpt-4o-mini", "gpt-4o", "o4-mini", "o3-mini", etc.
     # For Google/Gemini: "gemini-2.0-flash-lite", "gemini-2.0-flash", "gemini-2.5-flash", etc.
     # For Anthropic: "claude-3-5-haiku-latest", "claude-3-5-sonnet-latest", etc.
-    "deep_think_llm": "o4-mini",
-    "quick_think_llm": "gpt-4o-mini",
-    "backend_url": "https://api.openai.com/v1",  # Only used for OpenAI/Anthropic/OpenRouter
+    "deep_think_llm": "llama3.3",
+    "quick_think_llm": "llama3.1",
+    "backend_url": "http://localhost:11434/v1",  # Ollama's OpenAI-compatible endpoint
     # Debate and discussion settings
     "max_debate_rounds": 1,
     "max_risk_discuss_rounds": 1,
@@ -26,8 +27,8 @@ DEFAULT_CONFIG = {
     "data_vendors": {
         "core_stock_apis": "yfinance",       # Options: yfinance, alpha_vantage, local
         "technical_indicators": "yfinance",  # Options: yfinance, alpha_vantage, local
-        "fundamental_data": "alpha_vantage", # Options: openai, alpha_vantage, local
-        "news_data": "alpha_vantage",        # Options: openai, alpha_vantage, google, local
+        "fundamental_data": "yfinance",      # Options: yfinance, alpha_vantage, local (using yfinance - no API key needed)
+        "news_data": "yfinance",             # Options: yfinance, alpha_vantage, google, local (using yfinance - no API key needed)
     },
     # Tool-level configuration (takes precedence over category-level)
     "tool_vendors": {
