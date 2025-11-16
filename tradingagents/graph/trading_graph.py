@@ -104,17 +104,21 @@ class TradingAgentsGraph:
         if self.config["llm_provider"].lower() == "openai" or self.config["llm_provider"] == "ollama" or self.config["llm_provider"] == "openrouter":
             # For Ollama, we need to set a dummy API key since it doesn't require authentication
             api_key = "ollama" if self.config["llm_provider"] == "ollama" else None
+            # Set generous timeout for local Ollama or API calls
+            timeout = 120  # 2 minutes timeout for LLM responses
             self.deep_thinking_llm = ChatOpenAI(
                 model=self.config["deep_think_llm"],
                 base_url=self.config["backend_url"],
                 api_key=api_key,
-                temperature=0.7
+                temperature=0.7,
+                timeout=timeout
             )
             self.quick_thinking_llm = ChatOpenAI(
                 model=self.config["quick_think_llm"],
                 base_url=self.config["backend_url"],
                 api_key=api_key,
-                temperature=0.7
+                temperature=0.7,
+                timeout=timeout
             )
         elif self.config["llm_provider"].lower() == "anthropic":
             self.deep_thinking_llm = ChatAnthropic(model=self.config["deep_think_llm"], base_url=self.config["backend_url"])

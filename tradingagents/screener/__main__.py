@@ -42,6 +42,84 @@ def cmd_run(args):
         report = screener.generate_report(results, top_n=args.top)
         print(report)
 
+        # Run AI analysis if requested
+        if args.with_analysis:
+            analysis_limit = args.analysis_limit or args.top
+
+            print("\n" + "="*70)
+            print("AI INVESTMENT RECOMMENDATIONS")
+            print("="*70)
+            print(f"Analyzing top {analysis_limit} stocks with AI...")
+            print(f"Portfolio value: ${args.portfolio_value:,.0f}")
+            print("="*70 + "\n")
+
+            # Initialize analyzer
+            try:
+                from tradingagents.analyze import DeepAnalyzer
+                from datetime import date
+
+                # Choose configuration based on --fast flag
+                if args.fast:
+                    from tradingagents.fast_config import FAST_CONFIG
+                    config = FAST_CONFIG
+                    print("🚀 Fast mode enabled - skipping news, using optimized settings")
+                else:
+                    from tradingagents.default_config import DEFAULT_CONFIG
+                    config = DEFAULT_CONFIG
+
+                # Enable/disable RAG based on --no-rag flag
+                enable_rag = not args.no_rag
+                if args.no_rag:
+                    print("⚡ RAG disabled for faster analysis")
+
+                analyzer = DeepAnalyzer(
+                    config=config,
+                    enable_rag=enable_rag,
+                    debug=False
+                )
+
+                # Analyze top N stocks
+                for i, result in enumerate(results[:analysis_limit], 1):
+                    symbol = result['symbol']
+                    score = result['priority_score']
+
+                    print(f"\n{'='*70}")
+                    print(f"[{i}/{analysis_limit}] Analyzing {symbol} (Priority Score: {score})")
+                    print("="*70 + "\n")
+
+                    try:
+                        # Run analysis
+                        analysis_results = analyzer.analyze(
+                            ticker=symbol,
+                            analysis_date=date.today(),
+                            store_results=not args.no_store
+                        )
+
+                        # Print results in plain English
+                        analyzer.print_results(
+                            analysis_results,
+                            verbose=False,
+                            plain_english=True,
+                            portfolio_value=args.portfolio_value
+                        )
+
+                    except Exception as e:
+                        logger.error(f"Error analyzing {symbol}: {e}")
+                        print(f"⚠️  Failed to analyze {symbol}: {e}\n")
+                        continue
+
+                # Cleanup
+                analyzer.close()
+
+                print("\n" + "="*70)
+                print("AI ANALYSIS COMPLETE")
+                print("="*70 + "\n")
+
+            except Exception as e:
+                logger.error(f"Failed to initialize AI analyzer: {e}")
+                print(f"\n⚠️  Could not run AI analysis: {e}\n")
+                print("Tip: Make sure you have the analyze module properly configured.\n")
+
     return 0
 
 
@@ -138,6 +216,32 @@ def main():
         '--quiet',
         action='store_true',
         help='Do not print report'
+    )
+    run_parser.add_argument(
+        '--with-analysis',
+        action='store_true',
+        help='Include AI investment recommendations (slower but more insightful)'
+    )
+    run_parser.add_argument(
+        '--analysis-limit',
+        type=int,
+        help='Number of stocks to analyze (default: same as --top)'
+    )
+    run_parser.add_argument(
+        '--portfolio-value',
+        type=float,
+        default=100000,
+        help='Portfolio value for position sizing recommendations (default: 100000)'
+    )
+    run_parser.add_argument(
+        '--fast',
+        action='store_true',
+        help='Fast mode: skips news, uses cached data, optimized for speed'
+    )
+    run_parser.add_argument(
+        '--no-rag',
+        action='store_true',
+        help='Disable RAG (historical context) for faster analysis'
     )
     run_parser.set_defaults(func=cmd_run)
 

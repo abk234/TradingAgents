@@ -383,6 +383,93 @@ def get_income_statement(
         return f"Error retrieving income statement for {ticker}: {str(e)}"
 
 
+def get_fundamentals(
+    ticker: Annotated[str, "ticker symbol of the company"],
+    curr_date: Annotated[str, "Current date (not used for yfinance but kept for compatibility)"] = None
+):
+    """Get fundamental data from yfinance.
+
+    Returns key fundamental metrics including P/E ratio, market cap, revenue,
+    profit margins, and other important financial indicators.
+    """
+    try:
+        ticker_obj = yf.Ticker(ticker.upper())
+        info = ticker_obj.info
+
+        if not info:
+            return f"No fundamental data found for symbol '{ticker}'"
+
+        # Extract key fundamental metrics
+        fundamentals = {
+            # Valuation Metrics
+            "Market Cap": info.get("marketCap"),
+            "Enterprise Value": info.get("enterpriseValue"),
+            "Trailing P/E": info.get("trailingPE"),
+            "Forward P/E": info.get("forwardPE"),
+            "PEG Ratio": info.get("pegRatio"),
+            "Price to Book": info.get("priceToBook"),
+            "Price to Sales": info.get("priceToSalesTrailing12Months"),
+            "Enterprise to Revenue": info.get("enterpriseToRevenue"),
+            "Enterprise to EBITDA": info.get("enterpriseToEbitda"),
+
+            # Profitability Metrics
+            "Profit Margin": info.get("profitMargins"),
+            "Operating Margin": info.get("operatingMargins"),
+            "Gross Margin": info.get("grossMargins"),
+            "ROE": info.get("returnOnEquity"),
+            "ROA": info.get("returnOnAssets"),
+
+            # Financial Health
+            "Total Revenue": info.get("totalRevenue"),
+            "Revenue Per Share": info.get("revenuePerShare"),
+            "Total Cash": info.get("totalCash"),
+            "Total Debt": info.get("totalDebt"),
+            "Debt to Equity": info.get("debtToEquity"),
+            "Current Ratio": info.get("currentRatio"),
+            "Quick Ratio": info.get("quickRatio"),
+
+            # Growth Metrics
+            "Revenue Growth": info.get("revenueGrowth"),
+            "Earnings Growth": info.get("earningsGrowth"),
+
+            # Dividend Info
+            "Dividend Yield": info.get("dividendYield"),
+            "Payout Ratio": info.get("payoutRatio"),
+
+            # Company Info
+            "Sector": info.get("sector"),
+            "Industry": info.get("industry"),
+            "Full Time Employees": info.get("fullTimeEmployees"),
+            "Business Summary": info.get("longBusinessSummary"),
+        }
+
+        # Format output
+        header = f"# Fundamental Data for {ticker.upper()}\n"
+        header += f"# Data retrieved on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
+
+        output = header
+        for key, value in fundamentals.items():
+            if value is not None:
+                # Format numbers nicely
+                if isinstance(value, (int, float)) and key != "Full Time Employees":
+                    if value > 1_000_000_000:
+                        formatted = f"${value/1_000_000_000:.2f}B"
+                    elif value > 1_000_000:
+                        formatted = f"${value/1_000_000:.2f}M"
+                    elif isinstance(value, float):
+                        formatted = f"{value:.4f}"
+                    else:
+                        formatted = f"{value:,}"
+                else:
+                    formatted = str(value)
+                output += f"{key}: {formatted}\n"
+
+        return output
+
+    except Exception as e:
+        return f"Error retrieving fundamentals for {ticker}: {str(e)}"
+
+
 def get_insider_transactions(
     ticker: Annotated[str, "ticker symbol of the company"]
 ):
@@ -390,18 +477,18 @@ def get_insider_transactions(
     try:
         ticker_obj = yf.Ticker(ticker.upper())
         data = ticker_obj.insider_transactions
-        
+
         if data is None or data.empty:
             return f"No insider transactions data found for symbol '{ticker}'"
-            
+
         # Convert to CSV string for consistency with other functions
         csv_string = data.to_csv()
-        
+
         # Add header information
         header = f"# Insider Transactions data for {ticker.upper()}\n"
         header += f"# Data retrieved on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
-        
+
         return header + csv_string
-        
+
     except Exception as e:
         return f"Error retrieving insider transactions for {ticker}: {str(e)}"

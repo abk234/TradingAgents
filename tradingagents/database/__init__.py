@@ -9,6 +9,7 @@ from .ticker_ops import TickerOperations
 from .analysis_ops import AnalysisOperations
 from .rag_ops import RAGOperations
 from .scan_ops import ScanOperations
+from .portfolio_ops import PortfolioOperations
 
 __all__ = [
     'DatabaseConnection',
@@ -17,4 +18,5 @@ __all__ = [
     'AnalysisOperations',
     'RAGOperations',
     'ScanOperations',
+    'PortfolioOperations',
 ]

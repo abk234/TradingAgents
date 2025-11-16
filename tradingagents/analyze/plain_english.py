@@ -7,7 +7,10 @@ that anyone can understand.
 
 from typing import Dict, Any, List
 from datetime import date, timedelta
+from decimal import Decimal
 import logging
+
+from tradingagents.portfolio import PositionSizer
 
 logger = logging.getLogger(__name__)
 
@@ -62,7 +65,7 @@ class PlainEnglishReport:
             lines.append("💰 HOW MUCH TO INVEST")
             lines.append("-" * 70)
             lines.extend(PlainEnglishReport._format_position_size(
-                decision, confidence, portfolio_value, max_position_pct, ticker
+                decision, confidence, portfolio_value, max_position_pct, ticker, results
             ))
             lines.append("")
 
@@ -75,7 +78,7 @@ class PlainEnglishReport:
         # 5. TIMING (When to buy/sell?)
         lines.append("⏰ TIMING")
         lines.append("-" * 70)
-        lines.extend(PlainEnglishReport._format_timing(decision, ticker))
+        lines.extend(PlainEnglishReport._format_timing(decision, ticker, results, portfolio_value))
         lines.append("")
 
         # 6. THE REASONS (Why this recommendation?)
@@ -177,42 +180,100 @@ class PlainEnglishReport:
         confidence: int,
         portfolio_value: float,
         max_position_pct: float,
-        ticker: str
+        ticker: str,
+        results: Dict[str, Any] = None
     ) -> List[str]:
-        """Format position sizing recommendation."""
+        """Format position sizing recommendation using PositionSizer."""
         lines = []
 
         if decision not in ['BUY']:
             lines.append("Not applicable - we're not recommending buying right now.")
             return lines
 
-        # Calculate position size based on confidence
-        if confidence >= 80:
-            target_pct = max_position_pct  # 5%
-        elif confidence >= 70:
-            target_pct = max_position_pct * 0.6  # 3%
-        elif confidence >= 60:
-            target_pct = max_position_pct * 0.4  # 2%
+        # Extract price data from results
+        current_price = None
+        volatility = None
+
+        if results and 'full_state' in results:
+            full_state = results['full_state']
+
+            # Try to get current price from market data
+            try:
+                market_data = full_state.get('market_data', {})
+                if isinstance(market_data, dict):
+                    # Get latest close price
+                    if 'Close' in market_data:
+                        close_prices = market_data['Close']
+                        if close_prices:
+                            current_price = float(list(close_prices.values())[-1])
+
+                    # Calculate volatility from price data if available
+                    if 'Close' in market_data and len(market_data['Close']) > 20:
+                        import numpy as np
+                        prices = list(market_data['Close'].values())
+                        returns = np.diff(np.log(prices))
+                        volatility = float(np.std(returns) * np.sqrt(252) * 100)  # Annualized volatility
+            except Exception as e:
+                logger.debug(f"Could not extract price data: {e}")
+
+        # Use PositionSizer for sophisticated position sizing
+        if current_price:
+            sizer = PositionSizer(
+                portfolio_value=Decimal(str(portfolio_value)),
+                max_position_pct=Decimal(str(max_position_pct)),
+                risk_tolerance='moderate',  # Could be made configurable
+                cash_reserve_pct=Decimal('20.0')
+            )
+
+            sizing_result = sizer.calculate_position_size(
+                confidence=confidence,
+                current_price=Decimal(str(current_price)),
+                volatility=Decimal(str(volatility)) if volatility else None
+            )
+
+            amount = float(sizing_result['recommended_amount'])
+            shares = sizing_result['recommended_shares']
+            position_pct = float(sizing_result['position_size_pct'])
+
+            lines.append(f"Recommended investment: ${amount:,.0f}")
+            lines.append(f"(That's {position_pct:.1f}% of your ${portfolio_value:,.0f} portfolio)")
+            lines.append("")
+            lines.append(f"Number of shares: {shares} shares")
+            lines.append(f"Price per share: ${current_price:.2f}")
+            lines.append(f"Total cost: ${amount:,.0f}")
+            lines.append("")
+            lines.append("Why this amount?")
+            lines.append(sizing_result['sizing_reasoning'])
+
+            # Add expected returns if available
+            if sizing_result.get('expected_return_pct'):
+                lines.append("")
+                lines.append(f"Expected return: {sizing_result['expected_return_pct']:.1f}%")
+                if sizing_result.get('risk_reward_ratio'):
+                    lines.append(f"Risk/reward ratio: {sizing_result['risk_reward_ratio']:.1f}:1")
         else:
-            target_pct = max_position_pct * 0.2  # 1%
+            # Fallback to simple calculation if no price data
+            if confidence >= 80:
+                target_pct = max_position_pct
+            elif confidence >= 70:
+                target_pct = max_position_pct * 0.6
+            elif confidence >= 60:
+                target_pct = max_position_pct * 0.4
+            else:
+                target_pct = max_position_pct * 0.2
 
-        amount = portfolio_value * (target_pct / 100)
+            amount = portfolio_value * (target_pct / 100)
 
-        lines.append(f"Recommended investment: ${amount:,.0f}")
-        lines.append(f"(That's {target_pct:.1f}% of your ${portfolio_value:,.0f} portfolio)")
-        lines.append("")
-        lines.append("Why this amount?")
-        lines.append(f"• Based on our {confidence}/100 confidence level")
-        lines.append(f"• Keeps you diversified (not putting all eggs in one basket)")
-        lines.append(f"• Limits risk if the stock doesn't perform as expected")
-        lines.append("")
-        lines.append("Example:")
-        # Assume $175 per share for illustration
-        example_price = 175
-        shares = int(amount / example_price)
-        lines.append(f"If {ticker} is trading at ${example_price}/share:")
-        lines.append(f"  → Buy approximately {shares} shares")
-        lines.append(f"  → Total cost: ${shares * example_price:,.0f}")
+            lines.append(f"Recommended investment: ${amount:,.0f}")
+            lines.append(f"(That's {target_pct:.1f}% of your ${portfolio_value:,.0f} portfolio)")
+            lines.append("")
+            lines.append("Why this amount?")
+            lines.append(f"• Based on our {confidence}/100 confidence level")
+            lines.append(f"• Keeps you diversified (not putting all eggs in one basket)")
+            lines.append(f"• Limits risk if the stock doesn't perform as expected")
+            lines.append("")
+            lines.append("Note: Specific share count will depend on current market price.")
+            lines.append(f"Check {ticker} current price and divide ${amount:,.0f} by the price.")
 
         return lines
 
@@ -272,24 +333,123 @@ class PlainEnglishReport:
         return lines
 
     @staticmethod
-    def _format_timing(decision: str, ticker: str) -> List[str]:
-        """Format timing recommendations."""
+    def _format_timing(decision: str, ticker: str, results: Dict[str, Any] = None, portfolio_value: float = None) -> List[str]:
+        """Format timing recommendations using PositionSizer."""
         lines = []
 
-        if decision == 'BUY':
-            lines.append("⏰ WHEN TO BUY:")
-            lines.append("")
-            lines.append("Option 1: Buy Soon (Within 1-5 Days)")
-            lines.append("  ✓ If you're okay with current price")
-            lines.append("  ✓ Reduces risk of missing the opportunity")
-            lines.append("  ✓ Simpler - just buy and hold")
-            lines.append("")
-            lines.append("Option 2: Wait for a Dip (1-2 Weeks)")
-            lines.append("  ✓ Try to get a better price (5-10% lower)")
-            lines.append("  ✗ Risk: Stock might go up and you miss it")
-            lines.append("  ✗ More complex - requires monitoring")
-            lines.append("")
-            lines.append("💡 For beginners: Option 1 is usually easier and less stressful.")
+        if decision == 'BUY' and results and portfolio_value:
+            # Try to extract technical indicators for entry timing
+            current_price = None
+            support_level = None
+            resistance_level = None
+            rsi = None
+            moving_avg_50 = None
+            moving_avg_200 = None
+
+            if 'full_state' in results:
+                full_state = results['full_state']
+
+                try:
+                    market_data = full_state.get('market_data', {})
+                    if isinstance(market_data, dict) and 'Close' in market_data:
+                        close_prices = market_data['Close']
+                        if close_prices:
+                            current_price = float(list(close_prices.values())[-1])
+
+                    # Extract technical indicators
+                    technical_indicators = full_state.get('technical_indicators', {})
+                    if isinstance(technical_indicators, dict):
+                        if 'RSI' in technical_indicators:
+                            rsi_data = technical_indicators['RSI']
+                            if rsi_data:
+                                rsi = float(list(rsi_data.values())[-1])
+
+                        if 'SMA_50' in technical_indicators:
+                            sma_data = technical_indicators['SMA_50']
+                            if sma_data:
+                                moving_avg_50 = float(list(sma_data.values())[-1])
+
+                        if 'SMA_200' in technical_indicators:
+                            sma_data = technical_indicators['SMA_200']
+                            if sma_data:
+                                moving_avg_200 = float(list(sma_data.values())[-1])
+
+                        # Try to extract support/resistance from market report
+                        # This would be extracted from the Market Analyst's report
+                        # For now, we can estimate based on recent price range
+                        if 'Close' in market_data and len(market_data['Close']) > 20:
+                            recent_prices = list(market_data['Close'].values())[-20:]
+                            support_level = float(min(recent_prices))
+                            resistance_level = float(max(recent_prices))
+
+                except Exception as e:
+                    logger.debug(f"Could not extract technical data for timing: {e}")
+
+            # Use PositionSizer for entry timing if we have price data
+            if current_price:
+                sizer = PositionSizer(
+                    portfolio_value=Decimal(str(portfolio_value)),
+                    max_position_pct=Decimal('5.0'),
+                    risk_tolerance='moderate'
+                )
+
+                timing_result = sizer.calculate_entry_timing(
+                    current_price=Decimal(str(current_price)),
+                    support_level=Decimal(str(support_level)) if support_level else None,
+                    resistance_level=Decimal(str(resistance_level)) if resistance_level else None,
+                    moving_avg_50=Decimal(str(moving_avg_50)) if moving_avg_50 else None,
+                    moving_avg_200=Decimal(str(moving_avg_200)) if moving_avg_200 else None,
+                    rsi=Decimal(str(rsi)) if rsi else None
+                )
+
+                timing_recommendation = timing_result['timing']
+                ideal_min = timing_result.get('ideal_entry_min')
+                ideal_max = timing_result.get('ideal_entry_max')
+
+                lines.append(f"⏰ ENTRY TIMING: {timing_recommendation.replace('_', ' ')}")
+                lines.append("")
+                lines.append(timing_result['timing_reasoning'])
+                lines.append("")
+
+                if ideal_min and ideal_max:
+                    lines.append(f"Ideal Entry Range: ${ideal_min:.2f} - ${ideal_max:.2f}")
+                    lines.append(f"Current Price: ${current_price:.2f}")
+                    lines.append("")
+
+                if timing_recommendation == 'BUY_NOW':
+                    lines.append("✓ Action: Place your order within the next 1-5 days")
+                    lines.append("✓ Entry is favorable at current levels")
+                elif timing_recommendation == 'WAIT_FOR_DIP':
+                    lines.append("⏳ Action: Set a price alert and wait for pullback")
+                    lines.append(f"⏳ Target entry: ${ideal_min:.2f} - ${ideal_max:.2f}")
+                    lines.append("⏳ Monitor for 1-2 weeks")
+                elif timing_recommendation == 'WAIT_FOR_BREAKOUT':
+                    lines.append("⏳ Action: Wait for price to break above resistance")
+                    if ideal_min:
+                        lines.append(f"⏳ Watch for move above: ${ideal_min:.2f}")
+                    lines.append("⏳ Confirm with volume increase")
+                else:  # WAIT
+                    lines.append("⛔ Action: Hold off for now")
+                    lines.append("⛔ Re-evaluate in 2-4 weeks")
+
+                lines.append("")
+                lines.append("💡 For beginners: If timing says 'BUY NOW', don't overthink it.")
+                lines.append("   Trying to time the perfect entry often backfires.")
+            else:
+                # Fallback if no technical data
+                lines.append("⏰ WHEN TO BUY:")
+                lines.append("")
+                lines.append("Option 1: Buy Soon (Within 1-5 Days)")
+                lines.append("  ✓ If you're okay with current price")
+                lines.append("  ✓ Reduces risk of missing the opportunity")
+                lines.append("  ✓ Simpler - just buy and hold")
+                lines.append("")
+                lines.append("Option 2: Wait for a Dip (1-2 Weeks)")
+                lines.append("  ✓ Try to get a better price (5-10% lower)")
+                lines.append("  ✗ Risk: Stock might go up and you miss it")
+                lines.append("  ✗ More complex - requires monitoring")
+                lines.append("")
+                lines.append("💡 For beginners: Option 1 is usually easier and less stressful.")
 
         elif decision == 'WAIT':
             lines.append("⏰ WHEN TO RE-EVALUATE:")
