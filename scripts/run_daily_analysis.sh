@@ -28,8 +28,8 @@ echo "=================================================="
 echo
 
 # Activate virtual environment
-if [ -f ".venv/bin/activate" ]; then
-    source .venv/bin/activate
+if [ -f "venv/bin/activate" ]; then
+    source venv/bin/activate
 fi
 
 # Default settings
@@ -57,7 +57,7 @@ echo "Portfolio value: \$$PORTFOLIO_VALUE"
 echo
 
 # Run screener with analysis
-PYTHONPATH="$PROJECT_DIR" .venv/bin/python -m tradingagents.screener run \
+PYTHONPATH="$PROJECT_DIR" venv/bin/python -m tradingagents.screener run \
     --with-analysis \
     $FAST_MODE \
     --analysis-limit $ANALYSIS_LIMIT \

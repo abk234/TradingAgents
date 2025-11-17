@@ -21,9 +21,9 @@ PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 cd "$PROJECT_DIR"
 
 # Activate virtual environment if it exists
-if [ -f ".venv/bin/activate" ]; then
-    source .venv/bin/activate
+if [ -f "venv/bin/activate" ]; then
+    source venv/bin/activate
 fi
 
 # Run the evaluation CLI with all arguments passed through
-PYTHONPATH="$PROJECT_DIR" "$PROJECT_DIR/.venv/bin/python" -m tradingagents.evaluate "$@"
+PYTHONPATH="$PROJECT_DIR" "$PROJECT_DIR/venv/bin/python" -m tradingagents.evaluate "$@"

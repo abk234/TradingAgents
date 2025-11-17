@@ -24,12 +24,12 @@ echo "=================================================="
 echo
 
 # Activate virtual environment if it exists
-if [ -f ".venv/bin/activate" ]; then
-    source .venv/bin/activate
+if [ -f "venv/bin/activate" ]; then
+    source venv/bin/activate
 fi
 
 # Run the evaluation update
-PYTHONPATH="$PROJECT_DIR" .venv/bin/python -m tradingagents.evaluate update --days 90
+PYTHONPATH="$PROJECT_DIR" venv/bin/python -m tradingagents.evaluate update --days 90
 
 echo
 echo "=================================================="

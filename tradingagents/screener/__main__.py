@@ -288,8 +288,8 @@ def main():
     run_parser.add_argument(
         '--top',
         type=int,
-        default=5,
-        help='Number of top opportunities to show (default: 5)'
+        default=20,
+        help='Number of top opportunities to show (default: 20)'
     )
     run_parser.add_argument(
         '--quiet',

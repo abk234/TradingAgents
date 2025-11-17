@@ -121,29 +121,66 @@ class TradingAgent:
             from langchain_core.messages import HumanMessage
             inputs["messages"].append(HumanMessage(content=message))
 
+            if self.debug:
+                logger.info(f"Starting astream for: {message[:50]}...")
+
             # Track what we've already yielded to avoid duplication
             previous_content = ""
+            chunks_processed = 0
+            last_yield_time = None
 
-            # Stream response
+            # Stream response with better chunk handling
             async for chunk in self.agent.astream(inputs):
-                # Extract content from the chunk
-                if "messages" in chunk and len(chunk["messages"]) > 0:
-                    last_message = chunk["messages"][-1]
-                    if hasattr(last_message, 'content') and last_message.content:
-                        current_content = last_message.content
+                chunks_processed += 1
+                
+                # Log progress every 10 chunks
+                if chunks_processed % 10 == 0:
+                    logger.debug(f"Processed {chunks_processed} chunks...")
+                
+                # Handle different chunk formats
+                if isinstance(chunk, dict):
+                    # Check for messages in chunk
+                    if "messages" in chunk and len(chunk["messages"]) > 0:
+                        last_message = chunk["messages"][-1]
+                        
+                        # Handle AIMessage with content
+                        if hasattr(last_message, 'content') and last_message.content:
+                            current_content = str(last_message.content)
+                            
+                            # Only yield the new part (incremental)
+                            if current_content != previous_content:
+                                if current_content.startswith(previous_content):
+                                    # Yield only the new portion
+                                    new_content = current_content[len(previous_content):]
+                                    if new_content.strip():
+                                        yield new_content
+                                        last_yield_time = chunks_processed
+                                else:
+                                    # Content changed completely, yield all
+                                    if current_content.strip():
+                                        yield current_content
+                                        last_yield_time = chunks_processed
+                                
+                                previous_content = current_content
+                        
+                        # Handle tool calls - yield indicator
+                        elif hasattr(last_message, 'tool_calls') and last_message.tool_calls:
+                            tool_names = [tc.get('name', 'tool') if isinstance(tc, dict) else getattr(tc, 'name', 'tool') for tc in last_message.tool_calls]
+                            yield f"\n\n🔧 Using tools: {', '.join(tool_names)}...\n"
+                            last_yield_time = chunks_processed
+                
+                # If we haven't yielded anything in a while, yield a progress indicator
+                if last_yield_time and (chunks_processed - last_yield_time) > 50:
+                    yield "."
+                    last_yield_time = chunks_processed
 
-                        # Only yield the new part (incremental)
-                        if current_content != previous_content:
-                            if current_content.startswith(previous_content):
-                                # Yield only the new portion
-                                new_content = current_content[len(previous_content):]
-                                if new_content:
-                                    yield new_content
-                            else:
-                                # Content changed completely, yield all
-                                yield current_content
+            if self.debug:
+                logger.info(f"Streaming completed. Processed {chunks_processed} chunks, yielded content: {bool(previous_content)}")
 
-                            previous_content = current_content
+            # If no content was yielded, the agent might have used tools without final response
+            if not previous_content:
+                logger.warning("No content yielded from astream - agent may have only made tool calls")
+                yield "\n\n⚠️ Processing complete, but no text response was generated. The agent may have used tools. Try asking a more specific question."
 
         except Exception as e:
             logger.error(f"Error in agent.astream: {e}", exc_info=True)

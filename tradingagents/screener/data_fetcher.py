@@ -256,46 +256,117 @@ class DataFetcher:
         logger.info(f"Update complete: {stats['successful']}/{stats['total']} successful")
         return stats
 
-    def get_latest_quote(self, symbol: str) -> Optional[Dict[str, Any]]:
+    def get_latest_quote(self, symbol: str, use_database: bool = True) -> Optional[Dict[str, Any]]:
         """
-        Get the latest quote for a ticker (real-time).
+        Get the latest quote for a ticker from database (fast) or real-time API (slow).
 
         Args:
             symbol: Ticker symbol
+            use_database: If True, use database data (fast). If False, fetch real-time (slow).
 
         Returns:
             Dictionary with current price, volume, etc.
         """
-        try:
-            ticker = yf.Ticker(symbol)
-            info = ticker.info
+        # Try database first (fast, no API calls)
+        if use_database:
+            try:
+                # Get ticker_id
+                ticker_query = "SELECT ticker_id FROM tickers WHERE symbol = %s AND active = true"
+                ticker_result = self.db.execute_dict_query(ticker_query, (symbol,), fetch_one=True)
+                
+                if not ticker_result:
+                    logger.warning(f"Ticker {symbol} not found in database, falling back to API")
+                    use_database = False
+                else:
+                    ticker_id = ticker_result['ticker_id']
+                    
+                    # Get latest price from database
+                    price_query = """
+                        SELECT price_date, close as price, open, high, low, volume
+                        FROM daily_prices
+                        WHERE ticker_id = %s
+                        ORDER BY price_date DESC
+                        LIMIT 1
+                    """
+                    price_result = self.db.execute_dict_query(price_query, (ticker_id,), fetch_one=True)
+                    
+                    if price_result:
+                        # Get company info from database
+                        # market_cap is in tickers table, pe_ratio/forward_pe are in daily_scans
+                        ticker_info_query = """
+                            SELECT market_cap
+                            FROM tickers
+                            WHERE ticker_id = %s
+                        """
+                        ticker_info = self.db.execute_dict_query(ticker_info_query, (ticker_id,), fetch_one=True)
+                        
+                        # Get latest scan data for pe_ratio and forward_pe
+                        scan_info_query = """
+                            SELECT pe_ratio, forward_pe
+                            FROM daily_scans
+                            WHERE ticker_id = %s
+                            ORDER BY scan_date DESC
+                            LIMIT 1
+                        """
+                        scan_info = self.db.execute_dict_query(scan_info_query, (ticker_id,), fetch_one=True)
+                        
+                        quote = {
+                            'symbol': symbol,
+                            'price': float(price_result['price']),
+                            'open': float(price_result['open']),
+                            'high': float(price_result['high']),
+                            'low': float(price_result['low']),
+                            'volume': int(price_result['volume']),
+                            'timestamp': price_result['price_date'],
+                            'market_cap': float(ticker_info['market_cap']) if ticker_info and ticker_info.get('market_cap') else None,
+                            'pe_ratio': float(scan_info['pe_ratio']) if scan_info and scan_info.get('pe_ratio') else None,
+                            'forward_pe': float(scan_info['forward_pe']) if scan_info and scan_info.get('forward_pe') else None,
+                        }
+                        
+                        logger.debug(f"Got quote for {symbol} from database (date: {price_result['price_date']})")
+                        return quote
+                    else:
+                        logger.warning(f"No price data in database for {symbol}, falling back to API")
+                        use_database = False
+            except Exception as e:
+                logger.warning(f"Error getting quote from database for {symbol}: {e}, falling back to API")
+                use_database = False
+        
+        # Fallback to real-time API (only if database fails)
+        if not use_database:
+            try:
+                logger.info(f"Fetching real-time quote for {symbol} (database unavailable)")
+                ticker = yf.Ticker(symbol)
+                info = ticker.info
 
-            # Get today's data
-            today_data = ticker.history(period='1d')
+                # Get today's data
+                today_data = ticker.history(period='1d')
 
-            if today_data.empty:
+                if today_data.empty:
+                    return None
+
+                latest = today_data.iloc[-1]
+
+                quote = {
+                    'symbol': symbol,
+                    'price': float(latest['Close']),
+                    'open': float(latest['Open']),
+                    'high': float(latest['High']),
+                    'low': float(latest['Low']),
+                    'volume': int(latest['Volume']),
+                    'timestamp': datetime.now(),
+                    'market_cap': info.get('marketCap'),
+                    'pe_ratio': info.get('trailingPE'),
+                    'forward_pe': info.get('forwardPE'),
+                }
+
+                return quote
+
+            except Exception as e:
+                logger.error(f"Error getting quote for {symbol}: {e}")
                 return None
-
-            latest = today_data.iloc[-1]
-
-            quote = {
-                'symbol': symbol,
-                'price': float(latest['Close']),
-                'open': float(latest['Open']),
-                'high': float(latest['High']),
-                'low': float(latest['Low']),
-                'volume': int(latest['Volume']),
-                'timestamp': datetime.now(),
-                'market_cap': info.get('marketCap'),
-                'pe_ratio': info.get('trailingPE'),
-                'forward_pe': info.get('forwardPE'),
-            }
-
-            return quote
-
-        except Exception as e:
-            logger.error(f"Error getting quote for {symbol}: {e}")
-            return None
+        
+        return None
 
     def get_price_history(
         self,

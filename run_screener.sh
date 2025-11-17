@@ -10,8 +10,8 @@ cd "$SCRIPT_DIR"
 # Activate virtual environment
 if [ -f "venv/bin/activate" ]; then
     source venv/bin/activate
-elif [ -f ".venv/bin/activate" ]; then
-    source .venv/bin/activate
+elif [ -f "venv/bin/activate" ]; then
+    source venv/bin/activate
 fi
 
 # Run screener with all arguments passed through

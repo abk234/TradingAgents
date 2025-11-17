@@ -15,7 +15,7 @@ CYAN='\033[0;36m'
 NC='\033[0m' # No Color
 
 # Check if virtual environment exists
-if [ ! -d "venv" ] && [ ! -d ".venv" ]; then
+if [ ! -d "venv" ] && [ ! -d "venv" ]; then
     echo -e "${RED}Error: Virtual environment not found.${NC}"
     echo "Please run: python run.py (this will create the venv and install dependencies)"
     exit 1
@@ -24,8 +24,8 @@ fi
 # Activate virtual environment
 if [ -d "venv" ]; then
     source venv/bin/activate
-elif [ -d ".venv" ]; then
-    source .venv/bin/activate
+elif [ -d "venv" ]; then
+    source venv/bin/activate
 fi
 
 # Function to display main menu

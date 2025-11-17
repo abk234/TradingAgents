@@ -8,7 +8,17 @@ from io import StringIO
 API_BASE_URL = "https://www.alphavantage.co/query"
 
 def get_api_key() -> str:
-    """Retrieve the API key for Alpha Vantage from environment variables."""
+    """Retrieve the API key for Alpha Vantage from secure storage or environment variables."""
+    try:
+        from tradingagents.utils.secrets_manager import get_api_key as get_secure_key
+        api_key = get_secure_key('alpha_vantage')
+        if api_key:
+            return api_key
+    except Exception as e:
+        # Fall back to environment variable if secrets manager fails
+        pass
+    
+    # Fallback to environment variable
     api_key = os.getenv("ALPHA_VANTAGE_API_KEY")
     if not api_key:
         raise ValueError("ALPHA_VANTAGE_API_KEY environment variable is not set.")

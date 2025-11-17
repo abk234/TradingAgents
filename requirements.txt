@@ -1,6 +1,7 @@
 # Core Dependencies
 python-dotenv>=1.0.0
 typing-extensions>=4.0.0
+keyring>=24.0.0
 
 # Database
 psycopg2-binary>=2.9.0

@@ -59,12 +59,12 @@ echo "=================================================="
 echo
 
 # Activate virtual environment
-if [ -f ".venv/bin/activate" ]; then
-    source .venv/bin/activate
+if [ -f "venv/bin/activate" ]; then
+    source venv/bin/activate
 fi
 
 # Build screener command based on options
-SCREENER_CMD="PYTHONPATH=$PROJECT_DIR .venv/bin/python -m tradingagents.screener run"
+SCREENER_CMD="PYTHONPATH=$PROJECT_DIR venv/bin/python -m tradingagents.screener run"
 
 # Add sector analysis flags
 if [ "$SECTOR_FIRST" = true ]; then
@@ -102,7 +102,7 @@ echo
 # Run insights module for digest and alerts
 echo "📰 Generating market digest and alerts..."
 echo
-PYTHONPATH="$PROJECT_DIR" .venv/bin/python -m tradingagents.insights morning
+PYTHONPATH="$PROJECT_DIR" venv/bin/python -m tradingagents.insights morning
 
 echo
 echo "=================================================="

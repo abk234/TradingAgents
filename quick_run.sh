@@ -64,13 +64,13 @@ show_usage() {
 cd "$SCRIPT_DIR"
 
 # Check for virtual environment
-if [ -d ".venv" ]; then
-    VENV_PATH=".venv"
+if [ -d "venv" ]; then
+    VENV_PATH="venv"
 elif [ -d "venv" ]; then
     VENV_PATH="venv"
 else
     echo -e "${RED}Error: Virtual environment not found${NC}"
-    echo "Please create a virtual environment (.venv or venv) first."
+    echo "Please create a virtual environment (venv or venv) first."
     exit 1
 fi
 

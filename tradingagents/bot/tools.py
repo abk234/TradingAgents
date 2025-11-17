@@ -26,6 +26,10 @@ from tradingagents.utils import (
 from tradingagents.fast_config import FAST_CONFIG
 from tradingagents.default_config import DEFAULT_CONFIG
 from tradingagents.validation import validate_data_quality
+from tradingagents.dividends.dividend_metrics import DividendMetrics
+from tradingagents.portfolio.position_sizer import PositionSizer
+from tradingagents.database import TickerOperations
+from decimal import Decimal
 
 logger = logging.getLogger(__name__)
 
@@ -70,15 +74,32 @@ def run_screener(sector_analysis: bool = True, top_n: int = 10) -> str:
     - "Run a scan"
     - "Find opportunities"
     - "What's hot in the market?"
+    
+    Note: This may take 10-30 seconds to complete.
     """
     try:
+        logger.info("Starting screener scan...")
         screener = DailyScreener()
 
-        # Run scan (no price update to be faster)
-        results = screener.scan_all(
-            update_prices=False,
-            store_results=True
-        )
+        # Run scan using ONLY database data (no price updates, no API calls)
+        # This is fast because it uses pre-scanned data from database
+        # Add timeout protection
+        import signal
+        
+        def timeout_handler(signum, frame):
+            raise TimeoutError("Screener scan took too long")
+        
+        # Set 30 second timeout (should be fast with database-only)
+        signal.signal(signal.SIGALRM, timeout_handler)
+        signal.alarm(30)
+        
+        try:
+            results = screener.scan_all(
+                update_prices=False,  # Don't update prices (use database data)
+                store_results=True
+            )
+        finally:
+            signal.alarm(0)  # Cancel timeout
 
         if not results:
             return "No screening results available. The database may need to be updated."
@@ -116,11 +137,15 @@ def run_screener(sector_analysis: bool = True, top_n: int = 10) -> str:
             if stock.get('triggered_alerts'):
                 response.append(f"   Alerts: {', '.join(stock['triggered_alerts'])}")
 
+        logger.info(f"Screener completed: {len(results)} stocks found")
         return "\n".join(response)
 
+    except TimeoutError:
+        logger.error("Screener scan timed out")
+        return "⚠️ Screener scan took too long and was cancelled.\n\nTry:\n1. Using get_top_stocks() for faster results\n2. Checking if database is responsive\n3. Running a simpler query"
     except Exception as e:
-        logger.error(f"Error running screener: {e}")
-        return f"Error running screener: {str(e)}"
+        logger.error(f"Error running screener: {e}", exc_info=True)
+        return f"⚠️ Error running screener: {str(e)}\n\nThis may be due to:\n- Database connection issues\n- Missing data in database\n- Network timeout\n\nTry: 'get_top_stocks' for a faster alternative."
 
 
 @tool
@@ -369,6 +394,40 @@ def analyze_stock(ticker: str, portfolio_value: float = 100000) -> str:
         # Extract key information
         decision = results.get('decision', 'WAIT')
         confidence = results.get('confidence', 0)
+        
+        # Get dividend yield for enhanced profit calculation
+        dividend_yield = None
+        try:
+            db, _, _, _ = get_db()
+            dividend_metrics = DividendMetrics(db)
+            metrics = dividend_metrics.calculate_dividend_metrics(ticker.upper())
+            if metrics and metrics.get('dividend_yield_pct'):
+                dividend_yield = Decimal(str(metrics['dividend_yield_pct']))
+                logger.info(f"Found dividend yield: {dividend_yield}%")
+        except Exception as e:
+            logger.debug(f"Could not fetch dividend yield: {e}")
+
+        # Enhanced position sizing with dividend yield
+        current_price = results.get('current_price')
+        target_price = results.get('target_price')
+        position_size_info = None
+        
+        if current_price and decision == 'BUY':
+            try:
+                sizer = PositionSizer(
+                    portfolio_value=Decimal(str(portfolio_value)),
+                    max_position_pct=Decimal('10.0'),
+                    risk_tolerance='moderate'
+                )
+                
+                position_size_info = sizer.calculate_position_size(
+                    confidence=confidence,
+                    current_price=Decimal(str(current_price)),
+                    target_price=Decimal(str(target_price)) if target_price else None,
+                    annual_dividend_yield=dividend_yield
+                )
+            except Exception as e:
+                logger.debug(f"Could not calculate position size: {e}")
 
         # Format response
         decision_emoji = {
@@ -381,9 +440,31 @@ def analyze_stock(ticker: str, portfolio_value: float = 100000) -> str:
         response = [
             f"🔍 Deep Analysis: {ticker.upper()}\n",
             f"{decision_emoji} **Recommendation: {decision}**",
-            f"📊 Confidence: {confidence}/100",
-            f"💰 Suggested Position: ${(portfolio_value * 0.05):.2f} (5% of portfolio)\n"
+            f"📊 Confidence: {confidence}/100"
         ]
+        
+        # Enhanced position sizing with dividend information
+        if position_size_info:
+            pos_pct = float(position_size_info['position_size_pct'])
+            pos_amount = float(position_size_info['recommended_amount'])
+            response.append(f"💰 Suggested Position: ${pos_amount:,.2f} ({pos_pct:.1f}% of portfolio)")
+            
+            if position_size_info.get('expected_return_pct'):
+                expected_return = float(position_size_info['expected_return_pct'])
+                price_appreciation = float(position_size_info.get('price_appreciation_pct', 0) or 0)
+                div_yield = float(position_size_info.get('dividend_yield_pct', 0) or 0)
+                
+                response.append(f"📈 Expected Return: {expected_return:.2f}%")
+                if div_yield > 0:
+                    response.append(f"   • Price Appreciation: {price_appreciation:.2f}%")
+                    response.append(f"   • Dividend Yield: {div_yield:.2f}%")
+        else:
+            response.append(f"💰 Suggested Position: ${(portfolio_value * 0.05):,.2f} (5% of portfolio)")
+        
+        if dividend_yield and float(dividend_yield) > 0:
+            response.append(f"💵 Dividend Yield: {float(dividend_yield):.2f}%")
+        
+        response.append("")
 
         # Bull case
         bull_case = results['debates'].get('bull_case', '')
@@ -404,6 +485,19 @@ def analyze_stock(ticker: str, portfolio_value: float = 100000) -> str:
         if final_decision:
             response.append("📝 Final Analysis:")
             response.append(final_decision[:400] + "..." if len(final_decision) > 400 else final_decision)
+        
+        # Sector balance check (if portfolio context available)
+        try:
+            db, ticker_ops, _, portfolio_ops = get_db()
+            ticker_info = ticker_ops.get_ticker(symbol=ticker.upper())
+            if ticker_info and ticker_info.get('sector'):
+                sector = ticker_info['sector']
+                # Get current portfolio sector exposure (simplified - would need actual portfolio)
+                response.append("")
+                response.append(f"📊 Sector: {sector}")
+                response.append("💡 Tip: Ensure sector exposure stays below 35% for diversification")
+        except Exception as e:
+            logger.debug(f"Could not check sector balance: {e}")
 
         analyzer.close()
 

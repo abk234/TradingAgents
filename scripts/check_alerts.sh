@@ -17,9 +17,9 @@ PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 cd "$PROJECT_DIR"
 
 # Activate virtual environment
-if [ -f ".venv/bin/activate" ]; then
-    source .venv/bin/activate
+if [ -f "venv/bin/activate" ]; then
+    source venv/bin/activate
 fi
 
 # Check for alerts
-PYTHONPATH="$PROJECT_DIR" .venv/bin/python -m tradingagents.insights alerts
+PYTHONPATH="$PROJECT_DIR" venv/bin/python -m tradingagents.insights alerts

@@ -25,8 +25,8 @@ echo ""
 # Check virtual environment
 if [ -d "$SCRIPT_DIR/venv" ]; then
     VENV_PATH="$SCRIPT_DIR/venv"
-elif [ -d "$SCRIPT_DIR/.venv" ]; then
-    VENV_PATH="$SCRIPT_DIR/.venv"
+elif [ -d "$SCRIPT_DIR/venv" ]; then
+    VENV_PATH="$SCRIPT_DIR/venv"
 else
     echo -e "${RED}Error: Virtual environment not found${NC}"
     echo "Please create one with: python -m venv venv"

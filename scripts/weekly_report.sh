@@ -20,8 +20,8 @@ PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 cd "$PROJECT_DIR"
 
 # Activate virtual environment if it exists
-if [ -f ".venv/bin/activate" ]; then
-    source .venv/bin/activate
+if [ -f "venv/bin/activate" ]; then
+    source venv/bin/activate
 fi
 
 echo "=================================================================="
@@ -32,21 +32,21 @@ echo
 # Section 1: Performance Report
 echo "📈 PERFORMANCE METRICS"
 echo "=================================================================="
-PYTHONPATH="$PROJECT_DIR" .venv/bin/python -m tradingagents.evaluate report --period 90
+PYTHONPATH="$PROJECT_DIR" venv/bin/python -m tradingagents.evaluate report --period 90
 echo
 
 # Section 2: Current Alerts
 echo
 echo "🚨 ACTIVE ALERTS"
 echo "=================================================================="
-PYTHONPATH="$PROJECT_DIR" .venv/bin/python -m tradingagents.insights alerts || echo "No active alerts"
+PYTHONPATH="$PROJECT_DIR" venv/bin/python -m tradingagents.insights alerts || echo "No active alerts"
 echo
 
 # Section 3: Weekly Digest
 echo
 echo "📰 WEEKLY SUMMARY"
 echo "=================================================================="
-PYTHONPATH="$PROJECT_DIR" .venv/bin/python -m tradingagents.insights digest || echo "Run screener for fresh data"
+PYTHONPATH="$PROJECT_DIR" venv/bin/python -m tradingagents.insights digest || echo "Run screener for fresh data"
 echo
 
 echo "=================================================================="

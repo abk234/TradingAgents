@@ -183,12 +183,13 @@ def print_screener_results(results: List[Dict[str, Any]], limit: Optional[int] =
         sector = format_sector(result.get('sector', 'Unknown'))
         priority = format_confidence(result.get('priority_score', 0))
 
-        # Format signals
-        signals = result.get('signals', [])
+        # Format signals - check both 'signals' and 'triggered_alerts'
+        signals = result.get('triggered_alerts', result.get('signals', []))
         if signals:
-            signal_str = ", ".join(signals[:2])  # Show first 2 signals
-            if len(signals) > 2:
-                signal_str += f" +{len(signals)-2}"
+            # Show first 3 signals for better visibility
+            signal_str = ", ".join(signals[:3])
+            if len(signals) > 3:
+                signal_str += f" +{len(signals)-3} more"
         else:
             signal_str = "[dim]None[/dim]"
 

@@ -77,7 +77,8 @@ class PositionSizer:
         confidence: int,
         current_price: Decimal,
         volatility: Decimal = None,
-        target_price: Decimal = None
+        target_price: Decimal = None,
+        annual_dividend_yield: Decimal = None
     ) -> Dict[str, Any]:
         """
         Calculate optimal position size.
@@ -124,11 +125,25 @@ class PositionSizer:
         # Adjust amount to actual shares purchased
         actual_amount = Decimal(recommended_shares) * current_price
 
-        # Step 6: Calculate risk metrics
+        # Step 6: Calculate risk metrics (including dividend yield)
         expected_return_pct = None
         risk_reward_ratio = None
+        price_appreciation_pct = None
+        dividend_contribution_pct = None
+        
         if target_price:
-            expected_return_pct = ((target_price - current_price) / current_price * Decimal('100')).quantize(Decimal('0.01'))
+            # Price appreciation component
+            price_appreciation_pct = ((target_price - current_price) / current_price * Decimal('100')).quantize(Decimal('0.01'))
+            
+            # Dividend yield component (annual, prorated for expected holding period)
+            if annual_dividend_yield is not None:
+                # Assume 1 year holding period for dividend calculation
+                dividend_contribution_pct = annual_dividend_yield.quantize(Decimal('0.01'))
+            else:
+                dividend_contribution_pct = Decimal('0.0')
+            
+            # Total expected return = price appreciation + dividend yield
+            expected_return_pct = (price_appreciation_pct + dividend_contribution_pct).quantize(Decimal('0.01'))
 
             # Assume 10% stop loss if not specified
             stop_loss_pct = Decimal('10.0')
@@ -149,6 +164,8 @@ class PositionSizer:
             'recommended_amount': actual_amount,
             'recommended_shares': recommended_shares,
             'expected_return_pct': expected_return_pct,
+            'price_appreciation_pct': price_appreciation_pct,
+            'dividend_yield_pct': dividend_contribution_pct if annual_dividend_yield else None,
             'risk_reward_ratio': risk_reward_ratio,
             'sizing_reasoning': sizing_reasoning
         }

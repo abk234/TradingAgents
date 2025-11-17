@@ -141,6 +141,17 @@ class FourGateFramework:
                 score -= 5
                 reasons.append("High leverage (risk)")
 
+        # Dividend yield consideration (bonus for dividend stocks)
+        dividend_yield = fundamentals.get('dividend_yield')
+        if dividend_yield is not None:
+            details['dividend_yield'] = dividend_yield
+            if dividend_yield >= 3.0:
+                score += 10
+                reasons.append(f"Attractive dividend yield ({dividend_yield:.2f}%)")
+            elif dividend_yield >= 2.0:
+                score += 5
+                reasons.append(f"Moderate dividend yield ({dividend_yield:.2f}%)")
+
         # Final score adjustment
         score = max(0, min(100, score))
         passed = score >= self.thresholds['fundamental_min_score']
@@ -334,14 +345,28 @@ class FourGateFramework:
                 score -= 15
                 reasons.append(f"Poor risk/reward ({risk_reward:.1f}:1)")
 
-        # Sector exposure check
+        # Sector exposure check (enhanced enforcement)
         if portfolio_context:
             current_sector_exposure = portfolio_context.get('sector_exposure', 0)
             sector = portfolio_context.get('sector')
-
-            if current_sector_exposure + position_size_pct > 35:
-                score -= 15
-                reasons.append(f"Would exceed sector limit ({sector}: {current_sector_exposure + position_size_pct:.1f}%)")
+            sector_limit = portfolio_context.get('sector_limit', 35.0)  # Default 35%
+            
+            proposed_exposure = current_sector_exposure + position_size_pct
+            
+            if proposed_exposure > sector_limit:
+                # Fail gate if would exceed limit
+                score -= 25
+                reasons.append(
+                    f"Would exceed sector limit ({sector}: {proposed_exposure:.1f}% > {sector_limit:.1f}%)"
+                )
+            elif proposed_exposure > sector_limit * 0.9:  # Within 10% of limit
+                score -= 10
+                reasons.append(
+                    f"Approaching sector limit ({sector}: {proposed_exposure:.1f}% of {sector_limit:.1f}%)"
+                )
+            elif current_sector_exposure < sector_limit * 0.5:  # Underweight sector
+                score += 5
+                reasons.append(f"Sector diversification opportunity ({sector}: {current_sector_exposure:.1f}% < {sector_limit * 0.5:.1f}%)")
 
         # Red flags from risk analysis
         risk_flags = risk_analysis.get('red_flags', [])

@@ -14,10 +14,10 @@ The `.env` file is already configured in your project root directory.
 
 ```bash
 # Alpha Vantage API Key (✅ Already configured)
-ALPHA_VANTAGE_API_KEY=LOCR3UMJ91AJ1VBF
+ALPHA_VANTAGE_API_KEY=your_alpha_vantage_key_here
 
 # Google Gemini API Key (✅ Already configured)
-GOOGLE_API_KEY=AIzaSyD01ucslecwkn9kOSt4ElqxogiNiHpRgw8
+GOOGLE_API_KEY=your_google_api_key_here
 
 # OpenAI API Key (⚠️ Placeholder - not needed if using Ollama)
 OPENAI_API_KEY=your-openai-api-key-here
@@ -53,7 +53,7 @@ python -m tradingagents.screener run --with-analysis --fast --no-rag --analysis-
 
 ```bash
 # ✅ ALREADY CONFIGURED!
-ALPHA_VANTAGE_API_KEY=LOCR3UMJ91AJ1VBF  # Free tier: 25 requests/day
+ALPHA_VANTAGE_API_KEY=your_alpha_vantage_key_here  # Free tier: 25 requests/day
 ```
 
 **Command:**
@@ -86,7 +86,7 @@ If you want to use Google Gemini instead of Ollama:
 
 **2. Your .env already has:**
 ```bash
-GOOGLE_API_KEY=AIzaSyD01ucslecwkn9kOSt4ElqxogiNiHpRgw8  # ✅ Set
+GOOGLE_API_KEY=your_google_api_key_here  # ✅ Set
 ```
 
 ---
@@ -195,7 +195,7 @@ python -c "import os; from dotenv import load_dotenv; load_dotenv(); print('Alph
 **`.env` file:**
 ```bash
 # No keys needed! (or keep Alpha Vantage for occasional news)
-ALPHA_VANTAGE_API_KEY=LOCR3UMJ91AJ1VBF
+ALPHA_VANTAGE_API_KEY=your_alpha_vantage_key_here
 ```
 
 **Command:**
@@ -213,7 +213,7 @@ python -m tradingagents.screener run --with-analysis --fast --no-rag --analysis-
 
 **`.env` file:**
 ```bash
-ALPHA_VANTAGE_API_KEY=LOCR3UMJ91AJ1VBF  # Already set!
+ALPHA_VANTAGE_API_KEY=your_alpha_vantage_key_here  # Already set!
 ```
 
 **Command:**
@@ -239,7 +239,7 @@ cat /Users/lxupkzwjs/Developer/eval/TradingAgents/.env | grep ALPHA_VANTAGE_API_
 
 **Solution 2:** Set it directly in terminal (temporary)
 ```bash
-export ALPHA_VANTAGE_API_KEY=LOCR3UMJ91AJ1VBF
+export ALPHA_VANTAGE_API_KEY=your_alpha_vantage_key_here
 ```
 
 **Solution 3:** Use fast mode (doesn't need it)
@@ -343,7 +343,7 @@ python -m tradingagents.analyze AAPL --plain-english --portfolio-value 100000
 
 ## ✅ Your Current Status
 
-**✅ Alpha Vantage:** Configured (LOCR3UMJ91AJ1VBF)
+**✅ Alpha Vantage:** Configured (your_alpha_vantage_key_here)
 **✅ Google Gemini:** Configured
 **✅ Ollama:** Running locally (no key needed)
 **✅ yfinance:** Works automatically (no key needed)

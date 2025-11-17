@@ -14,8 +14,8 @@ echo "Dividend Data Update - $(date)"
 echo "=================================================="
 
 # Activate virtual environment
-if [ -f ".venv/bin/activate" ]; then
-    source .venv/bin/activate
+if [ -f "venv/bin/activate" ]; then
+    source venv/bin/activate
 fi
 
 # 1. Backfill any new dividend history (last 30 days)

@@ -66,8 +66,8 @@ class DailyScreener:
             # Generate signals
             signals = self.indicators.generate_signals(price_data)
 
-            # Get latest quote
-            quote = self.data_fetcher.get_latest_quote(symbol)
+            # Get latest quote from database (fast, no API calls)
+            quote = self.data_fetcher.get_latest_quote(symbol, use_database=True)
 
             if quote is None:
                 logger.warning(f"Could not get quote for {symbol}")

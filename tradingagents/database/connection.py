@@ -10,10 +10,103 @@ from psycopg2 import pool, sql, extras
 from typing import Optional, Dict, Any, List, Tuple
 from contextlib import contextmanager
 import logging
+import time
+from threading import Lock
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+
+def get_db_credentials() -> Dict[str, Any]:
+    """
+    Get database credentials from secure sources
+    
+    Priority order:
+    1. System keyring (for local development)
+    2. Environment variables (for Docker/CI)
+    3. System defaults (fallback)
+    """
+    credentials = {}
+    
+    # Try keyring first
+    try:
+        import keyring
+        user = keyring.get_password('tradingagents', 'db_user')
+        password = keyring.get_password('tradingagents', 'db_password')
+        
+        if user:
+            credentials['user'] = user
+        if password:
+            credentials['password'] = password
+    except ImportError:
+        logger.debug("keyring not installed, using environment variables")
+    except Exception as e:
+        logger.debug(f"Could not load from keyring: {e}")
+    
+    # Fall back to environment variables
+    credentials['dbname'] = os.getenv('DB_NAME', 'investment_intelligence')
+    credentials['host'] = os.getenv('DB_HOST', 'localhost')
+    credentials['port'] = int(os.getenv('DB_PORT', '5432'))
+    
+    if 'user' not in credentials:
+        credentials['user'] = os.getenv('DB_USER', os.getenv('USER'))
+    
+    if 'password' not in credentials:
+        credentials['password'] = os.getenv('DB_PASSWORD', '')
+    
+    return credentials
+
+
+class MonitoredConnectionPool(psycopg2.pool.SimpleConnectionPool):
+    """Connection pool with monitoring and statistics"""
+    
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.stats = {
+            'connections_borrowed': 0,
+            'connections_returned': 0,
+            'wait_time_total': 0.0,
+            'slow_acquisitions': 0,
+        }
+        self.stats_lock = Lock()
+    
+    def getconn(self, key=None):
+        """Get connection with timing and statistics"""
+        start = time.time()
+        conn = super().getconn(key)
+        wait_time = time.time() - start
+        
+        with self.stats_lock:
+            self.stats['connections_borrowed'] += 1
+            self.stats['wait_time_total'] += wait_time
+            
+            if wait_time > 1.0:
+                self.stats['slow_acquisitions'] += 1
+                logger.warning(f"⚠️  Slow connection acquisition: {wait_time:.2f}s")
+        
+        return conn
+    
+    def putconn(self, conn, key=None, close=False):
+        """Return connection with statistics"""
+        with self.stats_lock:
+            self.stats['connections_returned'] += 1
+        return super().putconn(conn, key, close)
+    
+    def get_stats(self) -> dict:
+        """Get pool statistics"""
+        with self.stats_lock:
+            borrowed = self.stats['connections_borrowed']
+            avg_wait = self.stats['wait_time_total'] / max(1, borrowed)
+            
+            return {
+                **self.stats,
+                'active_connections': getattr(self, '_used', 0),
+                'available_connections': max(0, getattr(self, '_minconn', 0) - getattr(self, '_used', 0)),
+                'max_connections': getattr(self, '_maxconn', 0),
+                'utilization_pct': (getattr(self, '_used', 0) / max(1, getattr(self, '_maxconn', 0))) * 100,
+                'avg_wait_time_ms': avg_wait * 1000,
+            }
 
 
 class DatabaseConnection:
@@ -41,15 +134,24 @@ class DatabaseConnection:
             minconn: Minimum number of connections in pool
             maxconn: Maximum number of connections in pool
         """
-        self.dbname = dbname
-        self.user = user or os.getenv('USER')
-        self.password = password or os.getenv('PGPASSWORD', '')
-        self.host = host
-        self.port = port
+        # Get secure credentials if not provided
+        if not all([user, password, host, port]):
+            creds = get_db_credentials()
+            self.dbname = dbname or creds.get('dbname', 'investment_intelligence')
+            self.user = user or creds.get('user', os.getenv('USER'))
+            self.password = password or creds.get('password', '')
+            self.host = host or creds.get('host', 'localhost')
+            self.port = port or creds.get('port', 5432)
+        else:
+            self.dbname = dbname
+            self.user = user
+            self.password = password
+            self.host = host
+            self.port = port
 
-        # Create connection pool
+        # Create monitored connection pool
         try:
-            self.connection_pool = psycopg2.pool.SimpleConnectionPool(
+            self.connection_pool = MonitoredConnectionPool(
                 minconn,
                 maxconn,
                 dbname=self.dbname,
@@ -58,7 +160,7 @@ class DatabaseConnection:
                 host=self.host,
                 port=self.port
             )
-            logger.info(f"Database connection pool created successfully for '{dbname}'")
+            logger.info(f"✓ Monitored connection pool created for '{dbname}'")
         except psycopg2.Error as e:
             logger.error(f"Error creating connection pool: {e}")
             raise
@@ -331,6 +433,12 @@ class DatabaseConnection:
         result = self.execute_query(query, fetch_one=True)
         return result[0] if result else 0
 
+    def get_pool_stats(self) -> dict:
+        """Get connection pool statistics"""
+        if hasattr(self.connection_pool, 'get_stats'):
+            return self.connection_pool.get_stats()
+        return {}
+    
     def close_all_connections(self):
         """Close all connections in the pool."""
         if self.connection_pool:

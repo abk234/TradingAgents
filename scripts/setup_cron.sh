@@ -13,7 +13,7 @@ echo ""
 
 # Get project directory
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-PYTHON_BIN="$PROJECT_DIR/.venv/bin/python"
+PYTHON_BIN="$PROJECT_DIR/venv/bin/python"
 
 # Verify Python and project exist
 if [ ! -f "$PYTHON_BIN" ]; then
@@ -57,7 +57,7 @@ if [ $? -eq 0 ]; then
     echo ""
     echo "To test manually:"
     echo "  cd $PROJECT_DIR"
-    echo "  .venv/bin/python -m tradingagents.screener run"
+    echo "  venv/bin/python -m tradingagents.screener run"
 else
     echo "✗ Failed to add cron job"
     exit 1

@@ -80,14 +80,14 @@ update_progress() {
 
 # Check if virtual environment is activated
 check_venv() {
-    # Check for both .venv and venv
-    if [ -d "$SCRIPT_DIR/.venv" ]; then
-        VENV_PATH="$SCRIPT_DIR/.venv"
+    # Check for both venv and venv
+    if [ -d "$SCRIPT_DIR/venv" ]; then
+        VENV_PATH="$SCRIPT_DIR/venv"
     elif [ -d "$SCRIPT_DIR/venv" ]; then
         VENV_PATH="$SCRIPT_DIR/venv"
     else
         echo -e "${RED}Error: Virtual environment not found${NC}"
-        echo "Please create a virtual environment (.venv or venv) first."
+        echo "Please create a virtual environment (venv or venv) first."
         exit 1
     fi
     export PYTHONPATH="$SCRIPT_DIR"
