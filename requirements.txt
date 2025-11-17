@@ -39,6 +39,11 @@ typer>=0.9.0
 rich>=13.0.0
 questionary>=2.0.0
 
+# Notifications
+yagmail>=0.15.0
+slack-sdk>=3.0.0
+jinja2>=3.0.0
+
 # Web & API
 redis>=5.0.0
 chainlit>=1.0.0

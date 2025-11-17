@@ -5,18 +5,35 @@ Daily Screener CLI
 Command-line interface for the daily screening system.
 
 Usage:
-    python -m tradingagents.screener run          # Run daily screener
-    python -m tradingagents.screener report       # Show latest report
-    python -m tradingagents.screener top [N]      # Show top N opportunities
-    python -m tradingagents.screener update       # Update price data only
+    python -m tradingagents.screener run                    # Run daily screener
+    python -m tradingagents.screener run --sector-analysis  # Run with sector analysis
+    python -m tradingagents.screener report                 # Show latest report
+    python -m tradingagents.screener top [N]                # Show top N opportunities
+    python -m tradingagents.screener update                 # Update price data only
 """
 
 import sys
 import argparse
+import os
 from datetime import date
 import logging
 
 from .screener import DailyScreener
+from .sector_analyzer import SectorAnalyzer
+from tradingagents.database import DatabaseConnection
+from tradingagents.utils import (
+    print_header,
+    print_section,
+    print_screener_results,
+    print_sector_analysis,
+    print_success,
+    print_warning,
+    print_info,
+    create_progress_bar,
+    show_screener_legend,
+    show_sector_recommendations,
+    show_interpretation_tips
+)
 
 # Set up logging
 logging.basicConfig(
@@ -30,17 +47,79 @@ def cmd_run(args):
     """Run the daily screener."""
     screener = DailyScreener()
 
+    # Check if rich formatting is enabled
+    use_rich = os.getenv('ENABLE_RICH_OUTPUT', 'true').lower() == 'true'
+
     # Run scan
     results = screener.scan_all(
         update_prices=not args.no_update,
         store_results=not args.no_store
     )
 
+    # Sector Analysis (if enabled)
+    sector_results = None
+    if args.sector_analysis and results:
+        db_conn = DatabaseConnection()
+        sector_analyzer = SectorAnalyzer(db_conn)
+
+        if use_rich:
+            print_section("Analyzing Sectors")
+        else:
+            print("\n" + "="*70)
+            print("SECTOR ANALYSIS")
+            print("="*70)
+
+        # Analyze all sectors
+        sector_results = sector_analyzer.analyze_all_sectors()
+
+        if sector_results:
+            if use_rich:
+                print_sector_analysis(sector_results)
+                # Show recommendations after sector analysis
+                show_sector_recommendations(sector_results)
+            else:
+                # Traditional text output
+                for i, sector in enumerate(sector_results[:5], 1):
+                    emoji = "🥇" if i == 1 else "🥈" if i == 2 else "🥉" if i == 3 else f"{i}."
+                    print(f"{emoji} {sector['sector']:25s}: {sector['strength_score']:5.1f}/100")
+                    print(f"   {sector['buy_signals']}/{sector['total_stocks']} buy signals, momentum: {sector['momentum']}")
+
+            # If sector-first analysis, get stocks from top sectors
+            if args.with_analysis and args.sector_first:
+                top_n_sectors = args.top_sectors or 2
+                stocks_per_sector = args.stocks_per_sector or 3
+
+                if use_rich:
+                    print_info(f"Focusing on top {top_n_sectors} sectors, {stocks_per_sector} stocks per sector")
+                else:
+                    print(f"\n🎯 Focusing on top {top_n_sectors} sectors ({stocks_per_sector} stocks each)")
+
+                # Get stocks from top sectors
+                sector_stocks = sector_analyzer.get_stocks_from_top_sectors(
+                    top_n_sectors=top_n_sectors,
+                    stocks_per_sector=stocks_per_sector
+                )
+
+                # Filter results to only include stocks from top sectors
+                sector_symbols = {stock[0] for stock in sector_stocks}
+                results = [r for r in results if r['symbol'] in sector_symbols]
+
+                if use_rich:
+                    print_success(f"Selected {len(results)} stocks from top sectors for analysis")
+                else:
+                    print(f"✅ Selected {len(results)} stocks from top sectors")
+
     # Show report
-    if results and not args.quiet:
-        print("\n")
-        report = screener.generate_report(results, top_n=args.top)
-        print(report)
+    if results and not args.quiet and not args.sector_analysis:
+        if use_rich:
+            # Use rich formatted output
+            print_header("Daily Screener Results", f"{len(results)} stocks analyzed")
+            print_screener_results(results, limit=args.top)
+        else:
+            # Use traditional text output
+            print("\n")
+            report = screener.generate_report(results, top_n=args.top)
+            print(report)
 
         # Run AI analysis if requested
         if args.with_analysis:
@@ -243,6 +322,28 @@ def main():
         action='store_true',
         help='Disable RAG (historical context) for faster analysis'
     )
+    run_parser.add_argument(
+        '--sector-analysis',
+        action='store_true',
+        help='Enable sector-based analysis (analyze all sectors, rank by strength)'
+    )
+    run_parser.add_argument(
+        '--sector-first',
+        action='store_true',
+        help='Sector-first workflow: analyze sectors, then deep-dive top sectors only'
+    )
+    run_parser.add_argument(
+        '--top-sectors',
+        type=int,
+        default=2,
+        help='Number of top sectors to focus on (default: 2, use with --sector-first)'
+    )
+    run_parser.add_argument(
+        '--stocks-per-sector',
+        type=int,
+        default=3,
+        help='Stocks to analyze from each top sector (default: 3, use with --sector-first)'
+    )
     run_parser.set_defaults(func=cmd_run)
 
     # Report command
@@ -282,6 +383,15 @@ def main():
         help='Full refresh (not incremental)'
     )
     update_parser.set_defaults(func=cmd_update)
+
+    # Legend command
+    def cmd_legend(args):
+        show_screener_legend()
+        show_interpretation_tips()
+        return 0
+
+    legend_parser = subparsers.add_parser('legend', help='Show metrics legend and interpretation guide')
+    legend_parser.set_defaults(func=cmd_legend)
 
     # Parse arguments
     args = parser.parse_args()

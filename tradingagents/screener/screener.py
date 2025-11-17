@@ -190,6 +190,47 @@ class DailyScreener:
             logger.info(f"Average priority score: {avg_score:.1f}")
             logger.info(f"Highest score: {results[0]['priority_score']} ({results[0]['symbol']})")
 
+        # If results were stored, fetch enriched data from database
+        # This includes company_name, sector, and current prices
+        if store_results and results:
+            enriched_results = self.get_top_opportunities(
+                limit=len(results),
+                scan_date=scan_date
+            )
+
+            # Add current price and change_pct from latest price data
+            for result in enriched_results:
+                # Get latest price data for this ticker
+                price_query = """
+                    SELECT close, volume
+                    FROM daily_prices
+                    WHERE ticker_id = %s
+                    ORDER BY price_date DESC
+                    LIMIT 2
+                """
+                prices = self.scan_ops.db.execute_dict_query(
+                    price_query,
+                    (result['ticker_id'],)
+                )
+
+                if prices and len(prices) > 0:
+                    result['current_price'] = float(prices[0]['close'])
+                    result['name'] = result.get('company_name', 'N/A')
+
+                    # Calculate change percentage
+                    if len(prices) > 1:
+                        prev_close = float(prices[1]['close'])
+                        curr_close = float(prices[0]['close'])
+                        result['change_pct'] = ((curr_close - prev_close) / prev_close) * 100
+                    else:
+                        result['change_pct'] = 0.0
+                else:
+                    result['current_price'] = 0.0
+                    result['change_pct'] = 0.0
+                    result['name'] = result.get('company_name', 'N/A')
+
+            return enriched_results
+
         return results
 
     def get_top_opportunities(

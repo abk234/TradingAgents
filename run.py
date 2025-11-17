@@ -49,16 +49,16 @@ def check_python_version():
 def get_venv_python():
     """Get the path to the virtual environment Python."""
     if platform.system() == "Windows":
-        return Path("..venv/Scripts/python.exe")
+        return Path("venv/Scripts/python.exe")
     else:
-        return Path("..venv/bin/python")
+        return Path("venv/bin/python")
 
 def get_venv_pip():
     """Get the path to the virtual environment pip."""
     if platform.system() == "Windows":
-        return Path(".venv/Scripts/pip")
+        return Path("venv/Scripts/pip")
     else:
-        return Path(".venv/bin/pip")
+        return Path("venv/bin/pip")
 
 def create_venv():
     """Create a virtual environment if it doesn't exist."""
@@ -184,10 +184,10 @@ def check_env_file():
 def fix_chromadb_config():
     """Fix chromadb configuration to handle extra environment variables."""
     try:
-        chromadb_config_path = Path(".venv/lib/python3.14/site-packages/chromadb/config.py")
+        chromadb_config_path = Path("venv/lib/python3.14/site-packages/chromadb/config.py")
         if not chromadb_config_path.exists():
             # Try to find it in different Python versions
-            venv_lib = Path(".venv/lib")
+            venv_lib = Path("venv/lib")
             if venv_lib.exists():
                 for python_dir in venv_lib.glob("python*"):
                     config_path = python_dir / "site-packages/chromadb/config.py"

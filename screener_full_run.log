@@ -1,0 +1,616 @@
+INFO:tradingagents.database.connection:Database connection pool created successfully for 'investment_intelligence'
+INFO:tradingagents.screener.screener:======================================================================
+INFO:tradingagents.screener.screener:Daily Screener - Starting Scan
+INFO:tradingagents.screener.screener:======================================================================
+INFO:tradingagents.screener.screener:Found 110 active tickers
+INFO:tradingagents.screener.screener:
+Updating price data...
+INFO:tradingagents.screener.data_fetcher:Updating prices for 110 tickers...
+INFO:tradingagents.screener.data_fetcher:Fetched 7 days of data for AAPL
+INFO:tradingagents.screener.data_fetcher:Stored 7 price records for ticker_id 3
+INFO:tradingagents.screener.data_fetcher:  ✓ AAPL: 7 records
+INFO:tradingagents.screener.data_fetcher:Fetched 7 days of data for ABBV
+INFO:tradingagents.screener.data_fetcher:Stored 7 price records for ticker_id 22
+INFO:tradingagents.screener.data_fetcher:  ✓ ABBV: 7 records
+INFO:tradingagents.screener.data_fetcher:Fetched 7 days of data for ABT
+INFO:tradingagents.screener.data_fetcher:Stored 7 price records for ticker_id 25
+INFO:tradingagents.screener.data_fetcher:  ✓ ABT: 7 records
+INFO:tradingagents.screener.data_fetcher:Fetched 7 days of data for ADBE
+INFO:tradingagents.screener.data_fetcher:Stored 7 price records for ticker_id 18
+INFO:tradingagents.screener.data_fetcher:  ✓ ADBE: 7 records
+INFO:tradingagents.screener.data_fetcher:Fetched 7 days of data for AEP
+INFO:tradingagents.screener.data_fetcher:Stored 7 price records for ticker_id 85
+INFO:tradingagents.screener.data_fetcher:  ✓ AEP: 7 records
+INFO:tradingagents.screener.data_fetcher:Fetched 7 days of data for AMD
+INFO:tradingagents.screener.data_fetcher:Stored 7 price records for ticker_id 6
+INFO:tradingagents.screener.data_fetcher:  ✓ AMD: 7 records
+INFO:tradingagents.screener.data_fetcher:Fetched 7 days of data for AMT
+INFO:tradingagents.screener.data_fetcher:Stored 7 price records for ticker_id 91
+INFO:tradingagents.screener.data_fetcher:  ✓ AMT: 7 records
+INFO:tradingagents.screener.data_fetcher:Fetched 7 days of data for AMZN
+INFO:tradingagents.screener.data_fetcher:Stored 7 price records for ticker_id 11
+INFO:tradingagents.screener.data_fetcher:  ✓ AMZN: 7 records
+INFO:tradingagents.screener.data_fetcher:Fetched 7 days of data for APD
+INFO:tradingagents.screener.data_fetcher:Stored 7 price records for ticker_id 102
+INFO:tradingagents.screener.data_fetcher:  ✓ APD: 7 records
+INFO:tradingagents.screener.data_fetcher:Fetched 7 days of data for AVGO
+INFO:tradingagents.screener.data_fetcher:Stored 7 price records for ticker_id 17
+INFO:tradingagents.screener.data_fetcher:  ✓ AVGO: 7 records
+INFO:tradingagents.screener.data_fetcher:Fetched 7 days of data for AXP
+INFO:tradingagents.screener.data_fetcher:Stored 7 price records for ticker_id 36
+INFO:tradingagents.screener.data_fetcher:  ✓ AXP: 7 records
+INFO:tradingagents.screener.data_fetcher:Fetched 7 days of data for BA
+INFO:tradingagents.screener.data_fetcher:Stored 7 price records for ticker_id 55
+INFO:tradingagents.screener.data_fetcher:  ✓ BA: 7 records
+INFO:tradingagents.screener.data_fetcher:Fetched 7 days of data for BAC
+INFO:tradingagents.screener.data_fetcher:Stored 7 price records for ticker_id 31
+INFO:tradingagents.screener.data_fetcher:  ✓ BAC: 7 records
+INFO:tradingagents.screener.data_fetcher:Fetched 7 days of data for BKNG
+INFO:tradingagents.screener.data_fetcher:Stored 7 price records for ticker_id 43
+INFO:tradingagents.screener.data_fetcher:  ✓ BKNG: 7 records
+INFO:tradingagents.screener.data_fetcher:Fetched 7 days of data for BMY
+INFO:tradingagents.screener.data_fetcher:Stored 7 price records for ticker_id 28
+INFO:tradingagents.screener.data_fetcher:  ✓ BMY: 7 records
+ERROR:yfinance:$BRK.B: possibly delisted; no timezone found
+WARNING:tradingagents.screener.data_fetcher:No data returned for BRK.B
+WARNING:tradingagents.screener.data_fetcher:  ⊙ BRK.B: No new data
+INFO:tradingagents.screener.data_fetcher:Fetched 7 days of data for CCI
+INFO:tradingagents.screener.data_fetcher:Stored 7 price records for ticker_id 93
+INFO:tradingagents.screener.data_fetcher:  ✓ CCI: 7 records
+INFO:tradingagents.screener.data_fetcher:Fetched 7 days of data for CHTR
+INFO:tradingagents.screener.data_fetcher:Stored 7 price records for ticker_id 50
+INFO:tradingagents.screener.data_fetcher:  ✓ CHTR: 7 records
+INFO:tradingagents.screener.data_fetcher:Fetched 7 days of data for CL
+INFO:tradingagents.screener.data_fetcher:Stored 7 price records for ticker_id 69
+INFO:tradingagents.screener.data_fetcher:  ✓ CL: 7 records
+INFO:tradingagents.screener.data_fetcher:Fetched 7 days of data for CMCSA
+INFO:tradingagents.screener.data_fetcher:Stored 7 price records for ticker_id 45
+INFO:tradingagents.screener.data_fetcher:  ✓ CMCSA: 7 records
+INFO:tradingagents.screener.data_fetcher:Fetched 7 days of data for COP
+INFO:tradingagents.screener.data_fetcher:Stored 7 price records for ticker_id 73
+INFO:tradingagents.screener.data_fetcher:  ✓ COP: 7 records
+INFO:tradingagents.screener.data_fetcher:Fetched 7 days of data for COST
+INFO:tradingagents.screener.data_fetcher:Stored 7 price records for ticker_id 66
+INFO:tradingagents.screener.data_fetcher:  ✓ COST: 7 records
+INFO:tradingagents.screener.data_fetcher:Fetched 7 days of data for CRM
+INFO:tradingagents.screener.data_fetcher:Stored 7 price records for ticker_id 19
+INFO:tradingagents.screener.data_fetcher:  ✓ CRM: 7 records
+INFO:tradingagents.screener.data_fetcher:Fetched 7 days of data for CVX
+INFO:tradingagents.screener.data_fetcher:Stored 7 price records for ticker_id 72
+INFO:tradingagents.screener.data_fetcher:  ✓ CVX: 7 records
+INFO:tradingagents.screener.data_fetcher:Fetched 7 days of data for D
+INFO:tradingagents.screener.data_fetcher:Stored 7 price records for ticker_id 84
+INFO:tradingagents.screener.data_fetcher:  ✓ D: 7 records
+INFO:tradingagents.screener.data_fetcher:Fetched 7 days of data for DD
+INFO:tradingagents.screener.data_fetcher:Stored 7 price records for ticker_id 108
+INFO:tradingagents.screener.data_fetcher:  ✓ DD: 7 records
+INFO:tradingagents.screener.data_fetcher:Fetched 7 days of data for DE
+INFO:tradingagents.screener.data_fetcher:Stored 7 price records for ticker_id 61
+INFO:tradingagents.screener.data_fetcher:  ✓ DE: 7 records
+INFO:tradingagents.screener.data_fetcher:Fetched 7 days of data for DHR
+INFO:tradingagents.screener.data_fetcher:Stored 7 price records for ticker_id 26
+INFO:tradingagents.screener.data_fetcher:  ✓ DHR: 7 records
+INFO:tradingagents.screener.data_fetcher:Fetched 7 days of data for DLR
+INFO:tradingagents.screener.data_fetcher:Stored 7 price records for ticker_id 99
+INFO:tradingagents.screener.data_fetcher:  ✓ DLR: 7 records
+INFO:tradingagents.screener.data_fetcher:Fetched 7 days of data for DOW
+INFO:tradingagents.screener.data_fetcher:Stored 7 price records for ticker_id 107
+INFO:tradingagents.screener.data_fetcher:  ✓ DOW: 7 records
+INFO:tradingagents.screener.data_fetcher:Fetched 7 days of data for DUK
+INFO:tradingagents.screener.data_fetcher:Stored 7 price records for ticker_id 82
+INFO:tradingagents.screener.data_fetcher:  ✓ DUK: 7 records
+INFO:tradingagents.screener.data_fetcher:Fetched 7 days of data for EA
+INFO:tradingagents.screener.data_fetcher:Stored 7 price records for ticker_id 49
+INFO:tradingagents.screener.data_fetcher:  ✓ EA: 7 records
+INFO:tradingagents.screener.data_fetcher:Fetched 7 days of data for ECL
+INFO:tradingagents.screener.data_fetcher:Stored 7 price records for ticker_id 103
+INFO:tradingagents.screener.data_fetcher:  ✓ ECL: 7 records
+INFO:tradingagents.screener.data_fetcher:Fetched 7 days of data for ED
+INFO:tradingagents.screener.data_fetcher:Stored 7 price records for ticker_id 90
+INFO:tradingagents.screener.data_fetcher:  ✓ ED: 7 records
+INFO:tradingagents.screener.data_fetcher:Fetched 7 days of data for EOG
+INFO:tradingagents.screener.data_fetcher:Stored 7 price records for ticker_id 75
+INFO:tradingagents.screener.data_fetcher:  ✓ EOG: 7 records
+INFO:tradingagents.screener.data_fetcher:Fetched 7 days of data for EQIX
+INFO:tradingagents.screener.data_fetcher:Stored 7 price records for ticker_id 94
+INFO:tradingagents.screener.data_fetcher:  ✓ EQIX: 7 records
+INFO:tradingagents.screener.data_fetcher:Fetched 7 days of data for EXC
+INFO:tradingagents.screener.data_fetcher:Stored 7 price records for ticker_id 86
+INFO:tradingagents.screener.data_fetcher:  ✓ EXC: 7 records
+INFO:tradingagents.screener.data_fetcher:Fetched 7 days of data for FCX
+INFO:tradingagents.screener.data_fetcher:Stored 7 price records for ticker_id 105
+INFO:tradingagents.screener.data_fetcher:  ✓ FCX: 7 records
+INFO:tradingagents.screener.data_fetcher:Fetched 7 days of data for GE
+INFO:tradingagents.screener.data_fetcher:Stored 7 price records for ticker_id 58
+INFO:tradingagents.screener.data_fetcher:  ✓ GE: 7 records
+INFO:tradingagents.screener.data_fetcher:Fetched 7 days of data for GOOGL
+INFO:tradingagents.screener.data_fetcher:Stored 7 price records for ticker_id 4
+INFO:tradingagents.screener.data_fetcher:  ✓ GOOGL: 7 records
+INFO:tradingagents.screener.data_fetcher:Fetched 7 days of data for GS
+INFO:tradingagents.screener.data_fetcher:Stored 7 price records for ticker_id 33
+INFO:tradingagents.screener.data_fetcher:  ✓ GS: 7 records
+INFO:tradingagents.screener.data_fetcher:Fetched 7 days of data for HAL
+INFO:tradingagents.screener.data_fetcher:Stored 7 price records for ticker_id 80
+INFO:tradingagents.screener.data_fetcher:  ✓ HAL: 7 records
+INFO:tradingagents.screener.data_fetcher:Fetched 7 days of data for HON
+INFO:tradingagents.screener.data_fetcher:Stored 7 price records for ticker_id 54
+INFO:tradingagents.screener.data_fetcher:  ✓ HON: 7 records
+INFO:tradingagents.screener.data_fetcher:Fetched 7 days of data for JNJ
+INFO:tradingagents.screener.data_fetcher:Stored 7 price records for ticker_id 21
+INFO:tradingagents.screener.data_fetcher:  ✓ JNJ: 7 records
+INFO:tradingagents.screener.data_fetcher:Fetched 7 days of data for KMB
+INFO:tradingagents.screener.data_fetcher:Stored 7 price records for ticker_id 71
+INFO:tradingagents.screener.data_fetcher:  ✓ KMB: 7 records
+INFO:tradingagents.screener.data_fetcher:Fetched 7 days of data for KO
+INFO:tradingagents.screener.data_fetcher:Stored 7 price records for ticker_id 63
+INFO:tradingagents.screener.data_fetcher:  ✓ KO: 7 records
+INFO:tradingagents.screener.data_fetcher:Fetched 7 days of data for LIN
+INFO:tradingagents.screener.data_fetcher:Stored 7 price records for ticker_id 101
+INFO:tradingagents.screener.data_fetcher:  ✓ LIN: 7 records
+INFO:tradingagents.screener.data_fetcher:Fetched 7 days of data for LLY
+INFO:tradingagents.screener.data_fetcher:Stored 7 price records for ticker_id 10
+INFO:tradingagents.screener.data_fetcher:  ✓ LLY: 7 records
+INFO:tradingagents.screener.data_fetcher:Fetched 7 days of data for LMT
+INFO:tradingagents.screener.data_fetcher:Stored 7 price records for ticker_id 60
+INFO:tradingagents.screener.data_fetcher:  ✓ LMT: 7 records
+INFO:tradingagents.screener.data_fetcher:Fetched 7 days of data for LOW
+INFO:tradingagents.screener.data_fetcher:Stored 7 price records for ticker_id 40
+INFO:tradingagents.screener.data_fetcher:  ✓ LOW: 7 records
+INFO:tradingagents.screener.data_fetcher:Fetched 7 days of data for MA
+INFO:tradingagents.screener.data_fetcher:Stored 7 price records for ticker_id 30
+INFO:tradingagents.screener.data_fetcher:  ✓ MA: 7 records
+INFO:tradingagents.screener.data_fetcher:Fetched 7 days of data for MCD
+INFO:tradingagents.screener.data_fetcher:Stored 7 price records for ticker_id 37
+INFO:tradingagents.screener.data_fetcher:  ✓ MCD: 7 records
+INFO:tradingagents.screener.data_fetcher:Fetched 7 days of data for MDLZ
+INFO:tradingagents.screener.data_fetcher:Stored 7 price records for ticker_id 70
+INFO:tradingagents.screener.data_fetcher:  ✓ MDLZ: 7 records
+INFO:tradingagents.screener.data_fetcher:Fetched 7 days of data for META
+INFO:tradingagents.screener.data_fetcher:Stored 7 price records for ticker_id 5
+INFO:tradingagents.screener.data_fetcher:  ✓ META: 7 records
+INFO:tradingagents.screener.data_fetcher:Fetched 7 days of data for MMM
+INFO:tradingagents.screener.data_fetcher:Stored 7 price records for ticker_id 59
+INFO:tradingagents.screener.data_fetcher:  ✓ MMM: 7 records
+INFO:tradingagents.screener.data_fetcher:Fetched 7 days of data for MO
+INFO:tradingagents.screener.data_fetcher:Stored 7 price records for ticker_id 68
+INFO:tradingagents.screener.data_fetcher:  ✓ MO: 7 records
+INFO:tradingagents.screener.data_fetcher:Fetched 7 days of data for MPC
+INFO:tradingagents.screener.data_fetcher:Stored 7 price records for ticker_id 76
+INFO:tradingagents.screener.data_fetcher:  ✓ MPC: 7 records
+INFO:tradingagents.screener.data_fetcher:Fetched 7 days of data for MRK
+INFO:tradingagents.screener.data_fetcher:Stored 7 price records for ticker_id 23
+INFO:tradingagents.screener.data_fetcher:  ✓ MRK: 7 records
+INFO:tradingagents.screener.data_fetcher:Fetched 7 days of data for MS
+INFO:tradingagents.screener.data_fetcher:Stored 7 price records for ticker_id 34
+INFO:tradingagents.screener.data_fetcher:  ✓ MS: 7 records
+INFO:tradingagents.screener.data_fetcher:Fetched 7 days of data for MSFT
+INFO:tradingagents.screener.data_fetcher:Stored 7 price records for ticker_id 2
+INFO:tradingagents.screener.data_fetcher:  ✓ MSFT: 7 records
+INFO:tradingagents.screener.data_fetcher:Fetched 7 days of data for NEE
+INFO:tradingagents.screener.data_fetcher:Stored 7 price records for ticker_id 81
+INFO:tradingagents.screener.data_fetcher:  ✓ NEE: 7 records
+INFO:tradingagents.screener.data_fetcher:Fetched 7 days of data for NEM
+INFO:tradingagents.screener.data_fetcher:Stored 7 price records for ticker_id 106
+INFO:tradingagents.screener.data_fetcher:  ✓ NEM: 7 records
+INFO:tradingagents.screener.data_fetcher:Fetched 7 days of data for NFLX
+INFO:tradingagents.screener.data_fetcher:Stored 7 price records for ticker_id 44
+INFO:tradingagents.screener.data_fetcher:  ✓ NFLX: 7 records
+INFO:tradingagents.screener.data_fetcher:Fetched 7 days of data for NKE
+INFO:tradingagents.screener.data_fetcher:Stored 7 price records for ticker_id 38
+INFO:tradingagents.screener.data_fetcher:  ✓ NKE: 7 records
+INFO:tradingagents.screener.data_fetcher:Fetched 7 days of data for NUE
+INFO:tradingagents.screener.data_fetcher:Stored 7 price records for ticker_id 109
+INFO:tradingagents.screener.data_fetcher:  ✓ NUE: 7 records
+INFO:tradingagents.screener.data_fetcher:Fetched 7 days of data for NVDA
+INFO:tradingagents.screener.data_fetcher:Stored 7 price records for ticker_id 1
+INFO:tradingagents.screener.data_fetcher:  ✓ NVDA: 7 records
+INFO:tradingagents.screener.data_fetcher:Fetched 7 days of data for O
+INFO:tradingagents.screener.data_fetcher:Stored 7 price records for ticker_id 98
+INFO:tradingagents.screener.data_fetcher:  ✓ O: 7 records
+INFO:tradingagents.screener.data_fetcher:Fetched 7 days of data for ORCL
+INFO:tradingagents.screener.data_fetcher:Stored 7 price records for ticker_id 20
+INFO:tradingagents.screener.data_fetcher:  ✓ ORCL: 7 records
+INFO:tradingagents.screener.data_fetcher:Fetched 7 days of data for OXY
+INFO:tradingagents.screener.data_fetcher:Stored 7 price records for ticker_id 79
+INFO:tradingagents.screener.data_fetcher:  ✓ OXY: 7 records
+ERROR:yfinance:HTTP Error 404: {"quoteSummary":{"result":null,"error":{"code":"Not Found","description":"Quote not found for symbol: PARA"}}}
+ERROR:yfinance:$PARA: possibly delisted; no timezone found
+WARNING:tradingagents.screener.data_fetcher:No data returned for PARA
+WARNING:tradingagents.screener.data_fetcher:  ⊙ PARA: No new data
+INFO:tradingagents.screener.data_fetcher:Fetched 7 days of data for PEG
+INFO:tradingagents.screener.data_fetcher:Stored 7 price records for ticker_id 88
+INFO:tradingagents.screener.data_fetcher:  ✓ PEG: 7 records
+INFO:tradingagents.screener.data_fetcher:Fetched 7 days of data for PEP
+INFO:tradingagents.screener.data_fetcher:Stored 7 price records for ticker_id 64
+INFO:tradingagents.screener.data_fetcher:  ✓ PEP: 7 records
+INFO:tradingagents.screener.data_fetcher:Fetched 7 days of data for PFE
+INFO:tradingagents.screener.data_fetcher:Stored 7 price records for ticker_id 27
+INFO:tradingagents.screener.data_fetcher:  ✓ PFE: 7 records
+INFO:tradingagents.screener.data_fetcher:Fetched 7 days of data for PG
+INFO:tradingagents.screener.data_fetcher:Stored 7 price records for ticker_id 62
+INFO:tradingagents.screener.data_fetcher:  ✓ PG: 7 records
+INFO:tradingagents.screener.data_fetcher:Fetched 7 days of data for PLD
+INFO:tradingagents.screener.data_fetcher:Stored 7 price records for ticker_id 92
+INFO:tradingagents.screener.data_fetcher:  ✓ PLD: 7 records
+INFO:tradingagents.screener.data_fetcher:Fetched 7 days of data for PM
+INFO:tradingagents.screener.data_fetcher:Stored 7 price records for ticker_id 67
+INFO:tradingagents.screener.data_fetcher:  ✓ PM: 7 records
+INFO:tradingagents.screener.data_fetcher:Fetched 7 days of data for PSA
+INFO:tradingagents.screener.data_fetcher:Stored 7 price records for ticker_id 95
+INFO:tradingagents.screener.data_fetcher:  ✓ PSA: 7 records
+INFO:tradingagents.screener.data_fetcher:Fetched 7 days of data for PSX
+INFO:tradingagents.screener.data_fetcher:Stored 7 price records for ticker_id 77
+INFO:tradingagents.screener.data_fetcher:  ✓ PSX: 7 records
+INFO:tradingagents.screener.data_fetcher:Fetched 7 days of data for RTX
+INFO:tradingagents.screener.data_fetcher:Stored 7 price records for ticker_id 56
+INFO:tradingagents.screener.data_fetcher:  ✓ RTX: 7 records
+INFO:tradingagents.screener.data_fetcher:Fetched 7 days of data for SBAC
+INFO:tradingagents.screener.data_fetcher:Stored 7 price records for ticker_id 100
+INFO:tradingagents.screener.data_fetcher:  ✓ SBAC: 7 records
+INFO:tradingagents.screener.data_fetcher:Fetched 7 days of data for SBUX
+INFO:tradingagents.screener.data_fetcher:Stored 7 price records for ticker_id 39
+INFO:tradingagents.screener.data_fetcher:  ✓ SBUX: 7 records
+INFO:tradingagents.screener.data_fetcher:Fetched 7 days of data for SHW
+INFO:tradingagents.screener.data_fetcher:Stored 7 price records for ticker_id 104
+INFO:tradingagents.screener.data_fetcher:  ✓ SHW: 7 records
+INFO:tradingagents.screener.data_fetcher:Fetched 7 days of data for SLB
+INFO:tradingagents.screener.data_fetcher:Stored 7 price records for ticker_id 74
+INFO:tradingagents.screener.data_fetcher:  ✓ SLB: 7 records
+INFO:tradingagents.screener.data_fetcher:Fetched 7 days of data for SO
+INFO:tradingagents.screener.data_fetcher:Stored 7 price records for ticker_id 83
+INFO:tradingagents.screener.data_fetcher:  ✓ SO: 7 records
+INFO:tradingagents.screener.data_fetcher:Fetched 7 days of data for SPG
+INFO:tradingagents.screener.data_fetcher:Stored 7 price records for ticker_id 97
+INFO:tradingagents.screener.data_fetcher:  ✓ SPG: 7 records
+INFO:tradingagents.screener.data_fetcher:Fetched 7 days of data for SPGI
+INFO:tradingagents.screener.data_fetcher:Stored 7 price records for ticker_id 35
+INFO:tradingagents.screener.data_fetcher:  ✓ SPGI: 7 records
+INFO:tradingagents.screener.data_fetcher:Fetched 7 days of data for SRE
+INFO:tradingagents.screener.data_fetcher:Stored 7 price records for ticker_id 87
+INFO:tradingagents.screener.data_fetcher:  ✓ SRE: 7 records
+INFO:tradingagents.screener.data_fetcher:Fetched 7 days of data for T
+INFO:tradingagents.screener.data_fetcher:Stored 7 price records for ticker_id 47
+INFO:tradingagents.screener.data_fetcher:  ✓ T: 7 records
+INFO:tradingagents.screener.data_fetcher:Fetched 7 days of data for TGT
+INFO:tradingagents.screener.data_fetcher:Stored 7 price records for ticker_id 41
+INFO:tradingagents.screener.data_fetcher:  ✓ TGT: 7 records
+INFO:tradingagents.screener.data_fetcher:Fetched 7 days of data for TJX
+INFO:tradingagents.screener.data_fetcher:Stored 7 price records for ticker_id 42
+INFO:tradingagents.screener.data_fetcher:  ✓ TJX: 7 records
+INFO:tradingagents.screener.data_fetcher:Fetched 7 days of data for TMO
+INFO:tradingagents.screener.data_fetcher:Stored 7 price records for ticker_id 24
+INFO:tradingagents.screener.data_fetcher:  ✓ TMO: 7 records
+INFO:tradingagents.screener.data_fetcher:Fetched 7 days of data for TMUS
+INFO:tradingagents.screener.data_fetcher:Stored 7 price records for ticker_id 48
+INFO:tradingagents.screener.data_fetcher:  ✓ TMUS: 7 records
+INFO:tradingagents.screener.data_fetcher:Fetched 7 days of data for TSLA
+INFO:tradingagents.screener.data_fetcher:Stored 7 price records for ticker_id 12
+INFO:tradingagents.screener.data_fetcher:  ✓ TSLA: 7 records
+INFO:tradingagents.screener.data_fetcher:Fetched 7 days of data for TTWO
+INFO:tradingagents.screener.data_fetcher:Stored 7 price records for ticker_id 51
+INFO:tradingagents.screener.data_fetcher:  ✓ TTWO: 7 records
+INFO:tradingagents.screener.data_fetcher:Fetched 7 days of data for UNP
+INFO:tradingagents.screener.data_fetcher:Stored 7 price records for ticker_id 57
+INFO:tradingagents.screener.data_fetcher:  ✓ UNP: 7 records
+INFO:tradingagents.screener.data_fetcher:Fetched 7 days of data for UPS
+INFO:tradingagents.screener.data_fetcher:Stored 7 price records for ticker_id 53
+INFO:tradingagents.screener.data_fetcher:  ✓ UPS: 7 records
+INFO:tradingagents.screener.data_fetcher:Fetched 7 days of data for V
+INFO:tradingagents.screener.data_fetcher:Stored 7 price records for ticker_id 8
+INFO:tradingagents.screener.data_fetcher:  ✓ V: 7 records
+INFO:tradingagents.screener.data_fetcher:Fetched 7 days of data for VLO
+INFO:tradingagents.screener.data_fetcher:Stored 7 price records for ticker_id 78
+INFO:tradingagents.screener.data_fetcher:  ✓ VLO: 7 records
+INFO:tradingagents.screener.data_fetcher:Fetched 7 days of data for VMC
+INFO:tradingagents.screener.data_fetcher:Stored 7 price records for ticker_id 110
+INFO:tradingagents.screener.data_fetcher:  ✓ VMC: 7 records
+INFO:tradingagents.screener.data_fetcher:Fetched 7 days of data for VZ
+INFO:tradingagents.screener.data_fetcher:Stored 7 price records for ticker_id 46
+INFO:tradingagents.screener.data_fetcher:  ✓ VZ: 7 records
+INFO:tradingagents.screener.data_fetcher:Fetched 7 days of data for WELL
+INFO:tradingagents.screener.data_fetcher:Stored 7 price records for ticker_id 96
+INFO:tradingagents.screener.data_fetcher:  ✓ WELL: 7 records
+INFO:tradingagents.screener.data_fetcher:Fetched 7 days of data for WFC
+INFO:tradingagents.screener.data_fetcher:Stored 7 price records for ticker_id 32
+INFO:tradingagents.screener.data_fetcher:  ✓ WFC: 7 records
+INFO:tradingagents.screener.data_fetcher:Fetched 7 days of data for WMT
+INFO:tradingagents.screener.data_fetcher:Stored 7 price records for ticker_id 65
+INFO:tradingagents.screener.data_fetcher:  ✓ WMT: 7 records
+INFO:tradingagents.screener.data_fetcher:Fetched 7 days of data for XEL
+INFO:tradingagents.screener.data_fetcher:Stored 7 price records for ticker_id 89
+INFO:tradingagents.screener.data_fetcher:  ✓ XEL: 7 records
+INFO:tradingagents.screener.data_fetcher:Fetched 7 days of data for CAT
+INFO:tradingagents.screener.data_fetcher:Stored 7 price records for ticker_id 14
+INFO:tradingagents.screener.data_fetcher:  ✓ CAT: 7 records
+INFO:tradingagents.screener.data_fetcher:Fetched 7 days of data for DIS
+INFO:tradingagents.screener.data_fetcher:Stored 7 price records for ticker_id 16
+INFO:tradingagents.screener.data_fetcher:  ✓ DIS: 7 records
+INFO:tradingagents.screener.data_fetcher:Fetched 7 days of data for HD
+INFO:tradingagents.screener.data_fetcher:Stored 7 price records for ticker_id 13
+INFO:tradingagents.screener.data_fetcher:  ✓ HD: 7 records
+INFO:tradingagents.screener.data_fetcher:Fetched 7 days of data for JPM
+INFO:tradingagents.screener.data_fetcher:Stored 7 price records for ticker_id 7
+INFO:tradingagents.screener.data_fetcher:  ✓ JPM: 7 records
+INFO:tradingagents.screener.data_fetcher:Fetched 7 days of data for UNH
+INFO:tradingagents.screener.data_fetcher:Stored 7 price records for ticker_id 9
+INFO:tradingagents.screener.data_fetcher:  ✓ UNH: 7 records
+INFO:tradingagents.screener.data_fetcher:Fetched 7 days of data for XOM
+INFO:tradingagents.screener.data_fetcher:Stored 7 price records for ticker_id 15
+INFO:tradingagents.screener.data_fetcher:  ✓ XOM: 7 records
+INFO:tradingagents.screener.data_fetcher:Update complete: 108/110 successful
+INFO:tradingagents.screener.screener:Price update complete: 108/110 tickers, 756 new records
+INFO:tradingagents.screener.screener:
+Scanning tickers...
+INFO:tradingagents.screener.screener:  ✓ AAPL   - Score:  33 (T:20 V:0 M:60 F:65)
+INFO:tradingagents.screener.screener:  ✓ ABBV   - Score:  30 (T:20 V:0 M:60 F:55)
+INFO:tradingagents.screener.screener:  ✓ ABT    - Score:  29 (T:10 V:5 M:60 F:60)
+INFO:tradingagents.screener.screener:  ✓ ADBE   - Score:  31 (T:15 V:0 M:45 F:75)
+INFO:tradingagents.screener.screener:  ✓ AEP    - Score:  32 (T:20 V:0 M:60 F:60)
+INFO:tradingagents.screener.screener:  ✓ AMD    - Score:  32 (T:25 V:0 M:60 F:55)
+INFO:tradingagents.screener.screener:  ✓ AMT    - Score:  24 (T:10 V:5 M:45 F:50)
+INFO:tradingagents.screener.screener:  ✓ AMZN   - Score:  28 (T:15 V:0 M:65 F:50)
+INFO:tradingagents.screener.screener:  ✓ APD    - Score:  23 (T:5 V:0 M:60 F:50)
+INFO:tradingagents.screener.screener:  ✓ AVGO   - Score:  28 (T:20 V:0 M:45 F:55)
+INFO:tradingagents.screener.screener:  ✓ AXP    - Score:  35 (T:25 V:5 M:60 F:60)
+INFO:tradingagents.screener.screener:  ✓ BA     - Score:  25 (T:15 V:0 M:45 F:50)
+INFO:tradingagents.screener.screener:  ✓ BAC    - Score:  36 (T:25 V:0 M:60 F:70)
+INFO:tradingagents.screener.screener:  ✓ BKNG   - Score:  27 (T:10 V:0 M:45 F:65)
+INFO:tradingagents.screener.screener:  ✓ BMY    - Score:  37 (T:20 V:5 M:65 F:75)
+WARNING:tradingagents.screener.screener:Insufficient data for BRK.B
+INFO:tradingagents.screener.screener:  ✓ CCI    - Score:  23 (T:10 V:0 M:45 F:50)
+INFO:tradingagents.screener.screener:  ✓ CHTR   - Score:  30 (T:15 V:0 M:45 F:70)
+INFO:tradingagents.screener.screener:  ✓ CL     - Score:  23 (T:5 V:0 M:45 F:60)
+INFO:tradingagents.screener.screener:  ✓ CMCSA  - Score:  29 (T:10 V:5 M:45 F:70)
+INFO:tradingagents.screener.screener:  ✓ COP    - Score:  35 (T:10 V:5 M:60 F:85)
+INFO:tradingagents.screener.screener:  ✓ COST   - Score:  24 (T:20 V:0 M:45 F:40)
+INFO:tradingagents.screener.screener:  ✓ CRM    - Score:  31 (T:20 V:0 M:45 F:65)
+INFO:tradingagents.screener.screener:  ✓ CVX    - Score:  32 (T:10 V:5 M:60 F:75)
+INFO:tradingagents.screener.screener:  ✓ D      - Score:  29 (T:20 V:0 M:45 F:60)
+INFO:tradingagents.screener.screener:  ✓ DD     - Score:  36 (T:20 V:0 M:65 F:75)
+INFO:tradingagents.screener.screener:  ✓ DE     - Score:  40 (T:30 V:5 M:60 F:75)
+INFO:tradingagents.screener.screener:  ✓ DHR    - Score:  41 (T:35 V:5 M:65 F:65)
+INFO:tradingagents.screener.screener:  ✓ DLR    - Score:  30 (T:25 V:5 M:45 F:50)
+INFO:tradingagents.screener.screener:  ✓ DOW    - Score:  32 (T:25 V:0 M:65 F:50)
+INFO:tradingagents.screener.screener:  ✓ DUK    - Score:  32 (T:25 V:5 M:45 F:60)
+INFO:tradingagents.screener.screener:  ✓ EA     - Score:  34 (T:30 V:0 M:60 F:55)
+INFO:tradingagents.screener.screener:  ✓ ECL    - Score:  25 (T:15 V:0 M:45 F:50)
+INFO:tradingagents.screener.screener:  ✓ ED     - Score:  30 (T:20 V:5 M:45 F:60)
+INFO:tradingagents.screener.screener:  ✓ EOG    - Score:  28 (T:5 V:0 M:60 F:70)
+INFO:tradingagents.screener.screener:  ✓ EQIX   - Score:  32 (T:30 V:0 M:45 F:55)
+INFO:tradingagents.screener.screener:  ✓ EXC    - Score:  32 (T:25 V:5 M:45 F:60)
+INFO:tradingagents.screener.screener:  ✓ FCX    - Score:  27 (T:10 V:0 M:45 F:65)
+INFO:tradingagents.screener.screener:  ✓ GE     - Score:  35 (T:35 V:0 M:60 F:50)
+INFO:tradingagents.screener.screener:  ✓ GOOGL  - Score:  30 (T:20 V:0 M:65 F:50)
+INFO:tradingagents.screener.screener:  ✓ GS     - Score:  33 (T:20 V:5 M:60 F:60)
+INFO:tradingagents.screener.screener:  ✓ HAL    - Score:  36 (T:20 V:0 M:65 F:75)
+INFO:tradingagents.screener.screener:  ✓ HON    - Score:  39 (T:30 V:0 M:60 F:75)
+INFO:tradingagents.screener.screener:  ✓ JNJ    - Score:  33 (T:20 V:5 M:60 F:60)
+INFO:tradingagents.screener.screener:  ✓ KMB    - Score:  31 (T:15 V:0 M:45 F:75)
+INFO:tradingagents.screener.screener:  ✓ KO     - Score:  32 (T:20 V:0 M:60 F:60)
+INFO:tradingagents.screener.screener:  ✓ LIN    - Score:  27 (T:10 V:0 M:45 F:65)
+INFO:tradingagents.screener.screener:  ✓ LLY    - Score:  27 (T:20 V:0 M:65 F:40)
+INFO:tradingagents.screener.screener:  ✓ LMT    - Score:  27 (T:10 V:0 M:45 F:65)
+INFO:tradingagents.screener.screener:  ✓ LOW    - Score:  32 (T:25 V:5 M:45 F:60)
+INFO:tradingagents.screener.screener:  ✓ MA     - Score:  29 (T:25 V:0 M:45 F:50)
+INFO:tradingagents.screener.screener:  ✓ MCD    - Score:  32 (T:30 V:5 M:45 F:50)
+INFO:tradingagents.screener.screener:  ✓ MDLZ   - Score:  37 (T:30 V:0 M:45 F:75)
+INFO:tradingagents.screener.screener:  ✓ META   - Score:  29 (T:15 V:0 M:45 F:65)
+INFO:tradingagents.screener.screener:  ✓ MMM    - Score:  38 (T:30 V:0 M:65 F:65)
+INFO:tradingagents.screener.screener:  ✓ MO     - Score:  36 (T:30 V:0 M:45 F:70)
+INFO:tradingagents.screener.screener:  ✓ MPC    - Score:  32 (T:20 V:0 M:65 F:60)
+INFO:tradingagents.screener.screener:  ✓ MRK    - Score:  41 (T:20 V:10 M:65 F:85)
+INFO:tradingagents.screener.screener:  ✓ MS     - Score:  37 (T:30 V:5 M:60 F:60)
+INFO:tradingagents.screener.screener:  ✓ MSFT   - Score:  28 (T:20 V:5 M:45 F:50)
+INFO:tradingagents.screener.screener:  ✓ NEE    - Score:  35 (T:30 V:0 M:45 F:65)
+INFO:tradingagents.screener.screener:  ✓ NEM    - Score:  32 (T:20 V:0 M:45 F:70)
+INFO:tradingagents.screener.screener:  ✓ NFLX   - Score:  20 (T:0 V:0 M:45 F:55)
+INFO:tradingagents.screener.screener:  ✓ NKE    - Score:  28 (T:10 V:5 M:45 F:65)
+INFO:tradingagents.screener.screener:  ✓ NUE    - Score:  36 (T:20 V:0 M:65 F:75)
+INFO:tradingagents.screener.screener:  ✓ NVDA   - Score:  32 (T:25 V:0 M:60 F:55)
+INFO:tradingagents.screener.screener:  ✓ O      - Score:  26 (T:15 V:0 M:45 F:55)
+INFO:tradingagents.screener.screener:  ✓ ORCL   - Score:  28 (T:15 V:10 M:45 F:55)
+INFO:tradingagents.screener.screener:  ✓ OXY    - Score:  27 (T:5 V:0 M:60 F:65)
+WARNING:tradingagents.screener.screener:Insufficient data for PARA
+INFO:tradingagents.screener.screener:  ✓ PEG    - Score:  33 (T:30 V:0 M:45 F:60)
+INFO:tradingagents.screener.screener:  ✓ PEP    - Score:  33 (T:25 V:0 M:45 F:65)
+INFO:tradingagents.screener.screener:  ✓ PFE    - Score:  39 (T:20 V:5 M:60 F:85)
+INFO:tradingagents.screener.screener:  ✓ PG     - Score:  26 (T:10 V:5 M:45 F:60)
+INFO:tradingagents.screener.screener:  ✓ PLD    - Score:  34 (T:35 V:5 M:45 F:50)
+INFO:tradingagents.screener.screener:  ✓ PM     - Score:  23 (T:5 V:0 M:45 F:60)
+INFO:tradingagents.screener.screener:  ✓ PSA    - Score:  25 (T:15 V:0 M:45 F:50)
+INFO:tradingagents.screener.screener:  ✓ PSX    - Score:  35 (T:20 V:5 M:65 F:65)
+INFO:tradingagents.screener.screener:  ✓ RTX    - Score:  36 (T:25 V:0 M:65 F:65)
+INFO:tradingagents.screener.screener:  ✓ SBAC   - Score:  35 (T:20 V:0 M:60 F:75)
+INFO:tradingagents.screener.screener:  ✓ SBUX   - Score:  35 (T:30 V:5 M:60 F:55)
+INFO:tradingagents.screener.screener:  ✓ SHW    - Score:  34 (T:20 V:5 M:60 F:65)
+INFO:tradingagents.screener.screener:  ✓ SLB    - Score:  39 (T:20 V:0 M:65 F:85)
+INFO:tradingagents.screener.screener:  ✓ SO     - Score:  27 (T:15 V:0 M:45 F:60)
+INFO:tradingagents.screener.screener:  ✓ SPG    - Score:  25 (T:10 V:0 M:60 F:50)
+INFO:tradingagents.screener.screener:  ✓ SPGI   - Score:  32 (T:15 V:5 M:60 F:65)
+INFO:tradingagents.screener.screener:  ✓ SRE    - Score:  38 (T:35 V:5 M:45 F:65)
+INFO:tradingagents.screener.screener:  ✓ T      - Score:  26 (T:5 V:0 M:45 F:70)
+INFO:tradingagents.screener.screener:  ✓ TGT    - Score:  38 (T:25 V:0 M:45 F:85)
+INFO:tradingagents.screener.screener:  ✓ TJX    - Score:  30 (T:20 V:5 M:60 F:50)
+INFO:tradingagents.screener.screener:  ✓ TMO    - Score:  34 (T:20 V:0 M:65 F:65)
+INFO:tradingagents.screener.screener:  ✓ TMUS   - Score:  27 (T:15 V:0 M:45 F:60)
+INFO:tradingagents.screener.screener:  ✓ TSLA   - Score:  33 (T:30 V:5 M:45 F:55)
+INFO:tradingagents.screener.screener:  ✓ TTWO   - Score:  27 (T:20 V:0 M:45 F:50)
+INFO:tradingagents.screener.screener:  ✓ UNP    - Score:  23 (T:5 V:0 M:45 F:60)
+INFO:tradingagents.screener.screener:  ✓ UPS    - Score:  39 (T:20 V:0 M:65 F:85)
+INFO:tradingagents.screener.screener:  ✓ V      - Score:  34 (T:25 V:5 M:45 F:65)
+INFO:tradingagents.screener.screener:  ✓ VLO    - Score:  35 (T:20 V:5 M:65 F:65)
+INFO:tradingagents.screener.screener:  ✓ VMC    - Score:  27 (T:20 V:0 M:45 F:50)
+INFO:tradingagents.screener.screener:  ✓ VZ     - Score:  28 (T:5 V:0 M:60 F:70)
+INFO:tradingagents.screener.screener:  ✓ WELL   - Score:  31 (T:20 V:0 M:65 F:55)
+INFO:tradingagents.screener.screener:  ✓ WFC    - Score:  39 (T:35 V:5 M:45 F:70)
+INFO:tradingagents.screener.screener:  ✓ WMT    - Score:  29 (T:20 V:10 M:45 F:50)
+INFO:tradingagents.screener.screener:  ✓ XEL    - Score:  39 (T:35 V:0 M:45 F:75)
+INFO:tradingagents.screener.screener:  ✓ CAT    - Score:  33 (T:20 V:0 M:60 F:65)
+INFO:tradingagents.screener.screener:  ✓ DIS    - Score:  31 (T:20 V:10 M:45 F:60)
+INFO:tradingagents.screener.screener:  ✓ HD     - Score:  32 (T:25 V:5 M:45 F:60)
+INFO:tradingagents.screener.screener:  ✓ JPM    - Score:  33 (T:20 V:5 M:60 F:60)
+INFO:tradingagents.screener.screener:  ✓ UNH    - Score:  31 (T:15 V:0 M:45 F:75)
+INFO:tradingagents.screener.screener:  ✓ XOM    - Score:  37 (T:20 V:5 M:65 F:75)
+INFO:tradingagents.screener.screener:
+Storing scan results...
+INFO:tradingagents.database.scan_ops:Stored scan result 241 for ticker_id 26
+INFO:tradingagents.database.scan_ops:Stored scan result 242 for ticker_id 23
+INFO:tradingagents.database.scan_ops:Stored scan result 243 for ticker_id 61
+INFO:tradingagents.database.scan_ops:Stored scan result 244 for ticker_id 54
+INFO:tradingagents.database.scan_ops:Stored scan result 245 for ticker_id 27
+INFO:tradingagents.database.scan_ops:Stored scan result 246 for ticker_id 74
+INFO:tradingagents.database.scan_ops:Stored scan result 247 for ticker_id 53
+INFO:tradingagents.database.scan_ops:Stored scan result 248 for ticker_id 32
+INFO:tradingagents.database.scan_ops:Stored scan result 249 for ticker_id 89
+INFO:tradingagents.database.scan_ops:Stored scan result 250 for ticker_id 59
+INFO:tradingagents.database.scan_ops:Stored scan result 251 for ticker_id 87
+INFO:tradingagents.database.scan_ops:Stored scan result 252 for ticker_id 41
+INFO:tradingagents.database.scan_ops:Stored scan result 253 for ticker_id 28
+INFO:tradingagents.database.scan_ops:Stored scan result 254 for ticker_id 70
+INFO:tradingagents.database.scan_ops:Stored scan result 255 for ticker_id 34
+INFO:tradingagents.database.scan_ops:Stored scan result 129 for ticker_id 15
+INFO:tradingagents.database.scan_ops:Stored scan result 257 for ticker_id 31
+INFO:tradingagents.database.scan_ops:Stored scan result 258 for ticker_id 108
+INFO:tradingagents.database.scan_ops:Stored scan result 259 for ticker_id 80
+INFO:tradingagents.database.scan_ops:Stored scan result 260 for ticker_id 68
+INFO:tradingagents.database.scan_ops:Stored scan result 261 for ticker_id 109
+INFO:tradingagents.database.scan_ops:Stored scan result 262 for ticker_id 56
+INFO:tradingagents.database.scan_ops:Stored scan result 263 for ticker_id 36
+INFO:tradingagents.database.scan_ops:Stored scan result 264 for ticker_id 73
+INFO:tradingagents.database.scan_ops:Stored scan result 265 for ticker_id 58
+INFO:tradingagents.database.scan_ops:Stored scan result 266 for ticker_id 81
+INFO:tradingagents.database.scan_ops:Stored scan result 267 for ticker_id 77
+INFO:tradingagents.database.scan_ops:Stored scan result 268 for ticker_id 100
+INFO:tradingagents.database.scan_ops:Stored scan result 269 for ticker_id 39
+INFO:tradingagents.database.scan_ops:Stored scan result 270 for ticker_id 78
+INFO:tradingagents.database.scan_ops:Stored scan result 271 for ticker_id 49
+INFO:tradingagents.database.scan_ops:Stored scan result 272 for ticker_id 92
+INFO:tradingagents.database.scan_ops:Stored scan result 273 for ticker_id 104
+INFO:tradingagents.database.scan_ops:Stored scan result 274 for ticker_id 24
+INFO:tradingagents.database.scan_ops:Stored scan result 130 for ticker_id 8
+INFO:tradingagents.database.scan_ops:Stored scan result 131 for ticker_id 3
+INFO:tradingagents.database.scan_ops:Stored scan result 277 for ticker_id 33
+INFO:tradingagents.database.scan_ops:Stored scan result 278 for ticker_id 21
+INFO:tradingagents.database.scan_ops:Stored scan result 279 for ticker_id 88
+INFO:tradingagents.database.scan_ops:Stored scan result 280 for ticker_id 64
+INFO:tradingagents.database.scan_ops:Stored scan result 132 for ticker_id 12
+INFO:tradingagents.database.scan_ops:Stored scan result 133 for ticker_id 14
+INFO:tradingagents.database.scan_ops:Stored scan result 134 for ticker_id 7
+INFO:tradingagents.database.scan_ops:Stored scan result 284 for ticker_id 85
+INFO:tradingagents.database.scan_ops:Stored scan result 135 for ticker_id 6
+INFO:tradingagents.database.scan_ops:Stored scan result 286 for ticker_id 72
+INFO:tradingagents.database.scan_ops:Stored scan result 287 for ticker_id 107
+INFO:tradingagents.database.scan_ops:Stored scan result 288 for ticker_id 82
+INFO:tradingagents.database.scan_ops:Stored scan result 289 for ticker_id 94
+INFO:tradingagents.database.scan_ops:Stored scan result 290 for ticker_id 86
+INFO:tradingagents.database.scan_ops:Stored scan result 291 for ticker_id 63
+INFO:tradingagents.database.scan_ops:Stored scan result 292 for ticker_id 40
+INFO:tradingagents.database.scan_ops:Stored scan result 293 for ticker_id 37
+INFO:tradingagents.database.scan_ops:Stored scan result 294 for ticker_id 76
+INFO:tradingagents.database.scan_ops:Stored scan result 295 for ticker_id 106
+INFO:tradingagents.database.scan_ops:Stored scan result 136 for ticker_id 1
+INFO:tradingagents.database.scan_ops:Stored scan result 297 for ticker_id 35
+INFO:tradingagents.database.scan_ops:Stored scan result 137 for ticker_id 13
+INFO:tradingagents.database.scan_ops:Stored scan result 299 for ticker_id 18
+INFO:tradingagents.database.scan_ops:Stored scan result 300 for ticker_id 19
+INFO:tradingagents.database.scan_ops:Stored scan result 301 for ticker_id 71
+INFO:tradingagents.database.scan_ops:Stored scan result 302 for ticker_id 96
+INFO:tradingagents.database.scan_ops:Stored scan result 138 for ticker_id 16
+INFO:tradingagents.database.scan_ops:Stored scan result 139 for ticker_id 9
+INFO:tradingagents.database.scan_ops:Stored scan result 305 for ticker_id 22
+INFO:tradingagents.database.scan_ops:Stored scan result 306 for ticker_id 50
+INFO:tradingagents.database.scan_ops:Stored scan result 307 for ticker_id 99
+INFO:tradingagents.database.scan_ops:Stored scan result 308 for ticker_id 90
+INFO:tradingagents.database.scan_ops:Stored scan result 140 for ticker_id 4
+INFO:tradingagents.database.scan_ops:Stored scan result 310 for ticker_id 42
+INFO:tradingagents.database.scan_ops:Stored scan result 311 for ticker_id 25
+INFO:tradingagents.database.scan_ops:Stored scan result 312 for ticker_id 45
+INFO:tradingagents.database.scan_ops:Stored scan result 313 for ticker_id 84
+INFO:tradingagents.database.scan_ops:Stored scan result 314 for ticker_id 30
+INFO:tradingagents.database.scan_ops:Stored scan result 141 for ticker_id 5
+INFO:tradingagents.database.scan_ops:Stored scan result 316 for ticker_id 65
+INFO:tradingagents.database.scan_ops:Stored scan result 142 for ticker_id 11
+INFO:tradingagents.database.scan_ops:Stored scan result 318 for ticker_id 17
+INFO:tradingagents.database.scan_ops:Stored scan result 319 for ticker_id 75
+INFO:tradingagents.database.scan_ops:Stored scan result 143 for ticker_id 2
+INFO:tradingagents.database.scan_ops:Stored scan result 321 for ticker_id 38
+INFO:tradingagents.database.scan_ops:Stored scan result 322 for ticker_id 20
+INFO:tradingagents.database.scan_ops:Stored scan result 323 for ticker_id 46
+INFO:tradingagents.database.scan_ops:Stored scan result 324 for ticker_id 43
+INFO:tradingagents.database.scan_ops:Stored scan result 325 for ticker_id 105
+INFO:tradingagents.database.scan_ops:Stored scan result 326 for ticker_id 101
+INFO:tradingagents.database.scan_ops:Stored scan result 144 for ticker_id 10
+INFO:tradingagents.database.scan_ops:Stored scan result 328 for ticker_id 60
+INFO:tradingagents.database.scan_ops:Stored scan result 329 for ticker_id 79
+INFO:tradingagents.database.scan_ops:Stored scan result 330 for ticker_id 83
+INFO:tradingagents.database.scan_ops:Stored scan result 331 for ticker_id 48
+INFO:tradingagents.database.scan_ops:Stored scan result 332 for ticker_id 51
+INFO:tradingagents.database.scan_ops:Stored scan result 333 for ticker_id 110
+INFO:tradingagents.database.scan_ops:Stored scan result 334 for ticker_id 98
+INFO:tradingagents.database.scan_ops:Stored scan result 335 for ticker_id 62
+INFO:tradingagents.database.scan_ops:Stored scan result 336 for ticker_id 47
+INFO:tradingagents.database.scan_ops:Stored scan result 337 for ticker_id 55
+INFO:tradingagents.database.scan_ops:Stored scan result 338 for ticker_id 103
+INFO:tradingagents.database.scan_ops:Stored scan result 339 for ticker_id 95
+INFO:tradingagents.database.scan_ops:Stored scan result 340 for ticker_id 97
+INFO:tradingagents.database.scan_ops:Stored scan result 341 for ticker_id 91
+INFO:tradingagents.database.scan_ops:Stored scan result 342 for ticker_id 66
+INFO:tradingagents.database.scan_ops:Stored scan result 343 for ticker_id 102
+INFO:tradingagents.database.scan_ops:Stored scan result 344 for ticker_id 93
+INFO:tradingagents.database.scan_ops:Stored scan result 345 for ticker_id 69
+INFO:tradingagents.database.scan_ops:Stored scan result 346 for ticker_id 67
+INFO:tradingagents.database.scan_ops:Stored scan result 347 for ticker_id 57
+INFO:tradingagents.database.scan_ops:Stored scan result 348 for ticker_id 44
+INFO:tradingagents.database.scan_ops:Updated rankings for 2025-11-16
+INFO:tradingagents.screener.screener:Stored 108 scan results
+INFO:tradingagents.screener.screener:
+======================================================================
+INFO:tradingagents.screener.screener:Scan Complete
+INFO:tradingagents.screener.screener:======================================================================
+INFO:tradingagents.screener.screener:Total tickers scanned: 108
+INFO:tradingagents.screener.screener:Duration: 148.8 seconds
+INFO:tradingagents.screener.screener:Average priority score: 31.4
+INFO:tradingagents.screener.screener:Highest score: 41 (DHR)
+INFO:tradingagents.database.connection:Database connection pool created successfully for 'investment_intelligence'
+
+Analyzing Sectors
+────────────────────────────────────────────────────────────────────────────────
+INFO:tradingagents.screener.sector_analyzer:Analyzing all sectors for 2025-11-16
+INFO:tradingagents.screener.sector_analyzer:Saved 13 sector scores to database
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║ 🎯 Sector Analysis                                                           ║
+║ Analyzed 13 sectors                                                          ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+╭──────┬─────────────┬──────────┬────────┬─────────────┬────────────┬──────────╮
+│      │             │          │        │             │    Avg     │          │
+│ Rank │ Sector      │ Strength │ Stocks │ Buy Signals │  Priority  │ Momentum │
+├──────┼─────────────┼──────────┼────────┼─────────────┼────────────┼──────────┤
+│  🥇  │ 🏥          │ ⛔ 28.5% │  0/10  │      0      │  ⛔ 34.2%  │ Neutral  │
+│      │ Healthcare  │          │        │             │            │          │
+│  🥈  │ ⚡ Energy   │ ⛔ 27.2% │  0/10  │      0      │  ⛔ 33.6%  │ Neutral  │
+│  🥉  │ 📊          │ ⛔ 26.6% │  0/1   │      0      │  ⛔ 33.0%  │ Neutral  │
+│      │ Industrial  │          │        │             │            │          │
+│  4   │ 🏦          │ ⛔ 22.7% │  0/7   │      0      │  ⛔ 34.4%  │ Neutral  │
+│      │ Financial   │          │        │             │            │          │
+│      │ Services    │          │        │             │            │          │
+│  5   │ 💡          │ ⛔ 21.4% │  0/10  │      0      │  ⛔ 32.7%  │ Neutral  │
+│      │ Utilities   │          │        │             │            │          │
+│  6   │ 📊 Finance  │ ⛔ 21.3% │  0/2   │      0      │  ⛔ 33.5%  │ Weak     │
+│  7   │ 🏭          │ ⛔ 20.4% │  0/9   │      0      │  ⛔ 33.6%  │ Neutral  │
+│      │ Industrials │          │        │             │            │          │
+│  8   │ ⛏️ Basic     │ ⛔ 20.0% │  0/10  │      0      │  ⛔ 29.9%  │ Neutral  │
+│      │ Materials   │          │        │             │            │          │
+│  9   │ 🛒 Consume… │ ⛔ 19.7% │  0/10  │      0      │  ⛔ 31.5%  │ Neutral  │
+│      │ Cyclical    │          │        │             │            │          │
+│  10  │ 📡          │ ⛔ 19.1% │  0/9   │      0      │  ⛔ 28.0%  │ Neutral  │
+│      │ Communicat… │          │        │             │            │          │
+│  11  │ 💻          │ ⛔ 18.2% │  0/10  │      0      │  ⛔ 30.2%  │ Weak     │
+│      │ Technology  │          │        │             │            │          │
+│  12  │ 🏠 Real     │ ⛔ 17.8% │  0/10  │      0      │  ⛔ 28.5%  │ Neutral  │
+│      │ Estate      │          │        │             │            │          │
+│  13  │ 🍔 Consume… │ ⛔ 17.6% │  0/10  │      0      │  ⛔ 29.4%  │ Weak     │
+│      │ Defensive   │          │        │             │            │          │
+╰──────┴─────────────┴──────────┴────────┴─────────────┴────────────┴──────────╯
+

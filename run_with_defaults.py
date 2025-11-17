@@ -35,9 +35,9 @@ def print_colored(message, color=Colors.RESET):
 def get_venv_python():
     """Get the path to the virtual environment Python."""
     if platform.system() == "Windows":
-        return Path("..venv/Scripts/python.exe")
+        return Path("venv/Scripts/python.exe")
     else:
-        return Path("..venv/bin/python")
+        return Path("venv/bin/python")
 
 def check_ollama():
     """Check if Ollama is running locally."""

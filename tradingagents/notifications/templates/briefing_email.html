@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TradingAgents Morning Briefing</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background-color: #f5f5f5;
+            margin: 0;
+            padding: 0;
+        }
+        .container {
+            max-width: 800px;
+            margin: 20px auto;
+            background-color: #ffffff;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .header {
+            background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 28px;
+        }
+        .header p {
+            margin: 10px 0 0 0;
+            opacity: 0.9;
+            font-size: 16px;
+        }
+        .section {
+            padding: 25px 30px;
+            border-bottom: 1px solid #e5e7eb;
+        }
+        .section:last-child {
+            border-bottom: none;
+        }
+        .section-title {
+            font-size: 20px;
+            font-weight: bold;
+            color: #1e3a8a;
+            margin: 0 0 15px 0;
+            display: flex;
+            align-items: center;
+        }
+        .section-title .emoji {
+            margin-right: 10px;
+            font-size: 24px;
+        }
+        .sector-card {
+            background-color: #f9fafb;
+            border-left: 4px solid #3b82f6;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 4px;
+        }
+        .sector-card.top {
+            background-color: #ecfdf5;
+            border-left-color: #059669;
+        }
+        .sector-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+        .sector-name {
+            font-weight: bold;
+            font-size: 16px;
+            color: #111827;
+        }
+        .sector-score {
+            font-weight: bold;
+            font-size: 18px;
+            color: #059669;
+        }
+        .sector-details {
+            font-size: 14px;
+            color: #6b7280;
+        }
+        .stock-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+        .stock-table th {
+            background-color: #f3f4f6;
+            padding: 10px;
+            text-align: left;
+            font-weight: 600;
+            font-size: 14px;
+            color: #374151;
+            border-bottom: 2px solid #e5e7eb;
+        }
+        .stock-table td {
+            padding: 10px;
+            border-bottom: 1px solid #f3f4f6;
+            font-size: 14px;
+        }
+        .stock-table tr:hover {
+            background-color: #f9fafb;
+        }
+        .symbol {
+            font-weight: bold;
+            color: #1e3a8a;
+        }
+        .recommendation {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        .recommendation.buy {
+            background-color: #d1fae5;
+            color: #065f46;
+        }
+        .recommendation.wait {
+            background-color: #fef3c7;
+            color: #78350f;
+        }
+        .recommendation.sell {
+            background-color: #fee2e2;
+            color: #991b1b;
+        }
+        .confidence {
+            font-weight: bold;
+        }
+        .confidence.high {
+            color: #059669;
+        }
+        .confidence.medium {
+            color: #d97706;
+        }
+        .confidence.low {
+            color: #dc2626;
+        }
+        .metrics {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 15px;
+            margin-top: 15px;
+        }
+        .metric-card {
+            background-color: #f9fafb;
+            padding: 15px;
+            border-radius: 6px;
+            text-align: center;
+        }
+        .metric-label {
+            font-size: 12px;
+            color: #6b7280;
+            margin-bottom: 5px;
+        }
+        .metric-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #1e3a8a;
+        }
+        .metric-value.positive {
+            color: #059669;
+        }
+        .metric-value.negative {
+            color: #dc2626;
+        }
+        .alert-card {
+            background-color: #fffbeb;
+            border-left: 4px solid #f59e0b;
+            padding: 12px 15px;
+            margin: 8px 0;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        .alert-symbol {
+            font-weight: bold;
+            color: #92400e;
+        }
+        .dividend-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+            font-size: 14px;
+        }
+        .dividend-table th {
+            background-color: #f3f4f6;
+            padding: 8px;
+            text-align: left;
+            font-weight: 600;
+            color: #374151;
+        }
+        .dividend-table td {
+            padding: 8px;
+            border-bottom: 1px solid #f3f4f6;
+        }
+        .footer {
+            background-color: #f9fafb;
+            padding: 20px 30px;
+            text-align: center;
+            color: #6b7280;
+            font-size: 12px;
+        }
+        .footer a {
+            color: #3b82f6;
+            text-decoration: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <h1>🎯 TradingAgents Briefing</h1>
+            <p>{{ date }}</p>
+        </div>
+
+        <!-- Sector Analysis Section -->
+        {% if sector_analysis %}
+        <div class="section">
+            <div class="section-title">
+                <span class="emoji">🎯</span>
+                Sector Analysis
+            </div>
+            {% for sector in sector_analysis[:3] %}
+            <div class="sector-card {% if loop.index == 1 %}top{% endif %}">
+                <div class="sector-header">
+                    <div class="sector-name">
+                        {% if loop.index == 1 %}🥇{% elif loop.index == 2 %}🥈{% elif loop.index == 3 %}🥉{% endif %}
+                        {{ sector.sector }}
+                    </div>
+                    <div class="sector-score">{{ sector.strength_score }}/100</div>
+                </div>
+                <div class="sector-details">
+                    {% if sector.buy_signals %}{{ sector.buy_signals }}/{{ sector.total_stocks }} stocks with buy signals{% endif %}
+                    {% if sector.momentum %} • {{ sector.momentum }} momentum{% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <!-- Top Opportunities Section -->
+        {% if top_opportunities %}
+        <div class="section">
+            <div class="section-title">
+                <span class="emoji">📈</span>
+                Top Opportunities
+            </div>
+            <table class="stock-table">
+                <thead>
+                    <tr>
+                        <th>Rank</th>
+                        <th>Symbol</th>
+                        <th>Name</th>
+                        <th>Sector</th>
+                        <th>Priority</th>
+                        <th>Recommendation</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for stock in top_opportunities[:5] %}
+                    <tr>
+                        <td>{% if loop.index == 1 %}🥇{% elif loop.index == 2 %}🥈{% elif loop.index == 3 %}🥉{% else %}{{ loop.index }}{% endif %}</td>
+                        <td class="symbol">{{ stock.symbol }}</td>
+                        <td>{{ stock.name[:30] }}{% if stock.name|length > 30 %}...{% endif %}</td>
+                        <td>{{ stock.sector }}</td>
+                        <td>
+                            <span class="confidence {% if stock.priority_score >= 80 %}high{% elif stock.priority_score >= 60 %}medium{% else %}low{% endif %}">
+                                {{ stock.priority_score }}/100
+                            </span>
+                        </td>
+                        <td>
+                            {% if stock.recommendation %}
+                            <span class="recommendation {% if stock.recommendation.upper() == 'BUY' or stock.recommendation.upper() == 'STRONG_BUY' %}buy{% elif stock.recommendation.upper() in ['WAIT', 'HOLD'] %}wait{% else %}sell{% endif %}">
+                                {{ stock.recommendation }}
+                            </span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% endif %}
+
+        <!-- Alerts Section -->
+        {% if alerts %}
+        <div class="section">
+            <div class="section-title">
+                <span class="emoji">🔔</span>
+                Active Alerts
+            </div>
+            {% for alert in alerts[:5] %}
+            <div class="alert-card">
+                <span class="alert-symbol">{{ alert.symbol }}</span>: {{ alert.message }}
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <!-- Performance Metrics Section -->
+        {% if performance %}
+        <div class="section">
+            <div class="section-title">
+                <span class="emoji">📊</span>
+                Performance (30 days)
+            </div>
+            <div class="metrics">
+                <div class="metric-card">
+                    <div class="metric-label">Win Rate</div>
+                    <div class="metric-value {% if performance.win_rate >= 75 %}positive{% endif %}">
+                        {{ "%.1f"|format(performance.win_rate) }}%
+                    </div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-label">Alpha vs S&P 500</div>
+                    <div class="metric-value {% if performance.alpha > 0 %}positive{% elif performance.alpha < 0 %}negative{% endif %}">
+                        {{ "%+.2f"|format(performance.alpha) }}%
+                    </div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-label">Total Recommendations</div>
+                    <div class="metric-value">{{ performance.total_recs }}</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-label">Avg Return</div>
+                    <div class="metric-value {% if performance.avg_return > 0 %}positive{% elif performance.avg_return < 0 %}negative{% endif %}">
+                        {{ "%+.2f"|format(performance.avg_return) }}%
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Upcoming Dividends Section -->
+        {% if dividends %}
+        <div class="section">
+            <div class="section-title">
+                <span class="emoji">💰</span>
+                Upcoming Dividends (Next 30 Days)
+            </div>
+            <table class="dividend-table">
+                <thead>
+                    <tr>
+                        <th>Symbol</th>
+                        <th>Ex-Date</th>
+                        <th>Pay Date</th>
+                        <th>Amount</th>
+                        <th>Yield</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for div in dividends[:10] %}
+                    <tr>
+                        <td class="symbol">{{ div.symbol }}</td>
+                        <td>{{ div.ex_date }}</td>
+                        <td>{{ div.pay_date }}</td>
+                        <td>${{ "%.2f"|format(div.amount) }}</td>
+                        <td>{{ "%.2f"|format(div.yield) }}%</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% endif %}
+
+        <!-- Footer -->
+        <div class="footer">
+            <p>Automated report from TradingAgents</p>
+            <p>Generated on {{ date }}</p>
+        </div>
+    </div>
+</body>
+</html>

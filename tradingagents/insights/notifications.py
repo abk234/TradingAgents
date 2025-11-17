@@ -12,6 +12,7 @@ from typing import List, Dict, Any, Optional
 from datetime import datetime
 import logging
 import json
+import os
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
@@ -164,7 +165,32 @@ class NotificationDelivery:
         self, message: str, title: Optional[str], priority: str
     ) -> bool:
         """Send notification via webhook (Slack, Discord, etc.)."""
+        # Try to use the dedicated SlackNotifier first
+        try:
+            from tradingagents.notifications.slack_notifier import SlackNotifier
+            slack = SlackNotifier()
+
+            if slack.enabled:
+                # Use SlackNotifier for better formatting
+                return slack.send_message(f"*{title or 'Trading Alert'}*\n{message}")
+        except ImportError:
+            logger.debug("SlackNotifier not available, using legacy webhook")
+        except Exception as e:
+            logger.debug(f"SlackNotifier failed, falling back to legacy: {e}")
+
+        # Fallback to legacy webhook implementation
         webhook_config = self.config.get('webhook', {})
+
+        # If no config provided, try environment variables
+        if not webhook_config:
+            enabled = os.getenv('SLACK_ENABLED', 'false').lower() == 'true'
+            url = os.getenv('SLACK_WEBHOOK_URL', '')
+
+            if not enabled or not url:
+                logger.debug("Webhook notifications not configured")
+                return False
+
+            webhook_config = {'enabled': enabled, 'url': url}
 
         if not webhook_config.get('enabled'):
             logger.debug("Webhook notifications not configured")

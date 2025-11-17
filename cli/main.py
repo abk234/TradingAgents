@@ -1100,8 +1100,9 @@ def run_analysis():
         update_display(layout)
 
 
-@app.command()
+@app.command(name="analyze")
 def analyze():
+    """Run interactive analysis."""
     run_analysis()
 
 

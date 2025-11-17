@@ -8,6 +8,10 @@ import argparse
 import logging
 import sys
 from datetime import datetime, date
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 from tradingagents.insights.digest import MarketDigest
 from tradingagents.insights.alerts import PriceAlertSystem
