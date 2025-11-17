@@ -121,17 +121,33 @@ class TradingAgent:
             from langchain_core.messages import HumanMessage
             inputs["messages"].append(HumanMessage(content=message))
 
+            # Track what we've already yielded to avoid duplication
+            previous_content = ""
+
             # Stream response
             async for chunk in self.agent.astream(inputs):
                 # Extract content from the chunk
                 if "messages" in chunk and len(chunk["messages"]) > 0:
                     last_message = chunk["messages"][-1]
-                    if hasattr(last_message, 'content'):
-                        yield last_message.content
+                    if hasattr(last_message, 'content') and last_message.content:
+                        current_content = last_message.content
+
+                        # Only yield the new part (incremental)
+                        if current_content != previous_content:
+                            if current_content.startswith(previous_content):
+                                # Yield only the new portion
+                                new_content = current_content[len(previous_content):]
+                                if new_content:
+                                    yield new_content
+                            else:
+                                # Content changed completely, yield all
+                                yield current_content
+
+                            previous_content = current_content
 
         except Exception as e:
-            logger.error(f"Error in agent.astream: {e}")
-            yield f"Error: {str(e)}"
+            logger.error(f"Error in agent.astream: {e}", exc_info=True)
+            yield f"\n\n⚠️ Error: {str(e)}"
 
     def get_conversation_state(self) -> Dict[str, Any]:
         """

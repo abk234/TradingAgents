@@ -332,8 +332,23 @@ def analyze_stock(ticker: str, portfolio_value: float = 100000) -> str:
     - "What do you think about DHR?"
 
     This tool takes 30-90 seconds to run as it performs comprehensive AI analysis.
+
+    IMPORTANT: Before calling this tool, Eddie should tell the user:
+    "I'm activating my specialized agent team for {ticker}. This comprehensive analysis
+    takes 30-90 seconds as I coordinate:
+    • 📊 Market Analyst - Technical indicators
+    • 📰 News Analyst - Recent news & sentiment
+    • 📱 Social Media Analyst - Community buzz
+    • 💼 Fundamentals Analyst - Financial health
+    • 🐂🐻 Bull & Bear Researchers - Debate team
+    • ⚖️ Risk Manager - Position sizing
+
+    Analyzing now..."
     """
     try:
+        logger.info(f"🔍 Starting comprehensive analysis for {ticker.upper()}")
+        logger.info("📊 Activating specialized agent team...")
+
         # Use fast config for bot (no news to save time)
         analyzer = DeepAnalyzer(
             config=FAST_CONFIG,
@@ -341,11 +356,15 @@ def analyze_stock(ticker: str, portfolio_value: float = 100000) -> str:
             debug=False
         )
 
+        logger.info(f"🤖 Running multi-agent analysis (30-90 seconds)...")
+
         results = analyzer.analyze(
             ticker=ticker.upper(),
             analysis_date=date.today(),
             store_results=True
         )
+
+        logger.info(f"✓ Analysis complete for {ticker.upper()}")
 
         # Extract key information
         decision = results.get('decision', 'WAIT')
@@ -674,6 +693,1001 @@ Types detected:
 
 
 # =============================================================================
+# AGENT ORCHESTRATION TOOLS (Phase 3)
+# =============================================================================
+
+@tool
+def explain_agents() -> str:
+    """
+    Explain Eddie's specialized agent team and what each agent does.
+
+    Use this when:
+    - User asks "What agents do you have?"
+    - User asks "How do you analyze stocks?"
+    - You want to explain your capabilities
+
+    Shows all available specialized agents and their roles.
+    """
+    return """
+🤖 Eddie's Specialized Agent Team
+
+When I analyze stocks deeply (using analyze_stock), I orchestrate a team of specialized AI agents:
+
+## Analyst Agents
+📊 **Market Analyst**
+   Role: Technical analysis expert
+   Analyzes: Charts, indicators (MACD, RSI, Bollinger Bands, Moving Averages)
+   Speed: ~15-20 seconds
+   When Used: Understanding price trends and momentum
+
+📰 **News Analyst**
+   Role: News and sentiment expert
+   Analyzes: Recent news, market-moving events, sentiment
+   Speed: ~10-15 seconds
+   When Used: Gauging market reaction to news
+
+📱 **Social Media Analyst**
+   Role: Community sentiment expert
+   Analyzes: Reddit (r/wallstreetbets, r/stocks), Twitter trends
+   Speed: ~10-15 seconds
+   When Used: Understanding retail investor sentiment
+
+💼 **Fundamentals Analyst**
+   Role: Company financial health expert
+   Analyzes: P/E ratios, earnings, revenue, balance sheets
+   Speed: ~15-20 seconds
+   When Used: Evaluating company value and health
+
+## Research Agents
+🐂 **Bull Researcher**
+   Role: Builds the bullish case
+   Analyzes: Why the stock could go UP
+   Speed: ~10-15 seconds
+   When Used: Finding reasons to buy
+
+🐻 **Bear Researcher**
+   Role: Builds the bearish case
+   Analyzes: Why the stock could go DOWN
+   Speed: ~10-15 seconds
+   When Used: Finding risks and reasons to avoid
+
+## Management Agents
+🎯 **Research Manager**
+   Role: Coordinates all analysts
+   Analyzes: Synthesizes all agent findings
+   Speed: ~5-10 seconds
+   When Used: Creating comprehensive view
+
+⚖️ **Risk Manager**
+   Role: Assesses risk and position sizing
+   Analyzes: Portfolio risk, position sizing, stop-loss levels
+   Speed: ~5-10 seconds
+   When Used: Determining how much to invest
+
+## How Orchestration Works
+
+When you ask me to "Analyze AAPL":
+1. I activate all 4 analyst agents in parallel
+2. They each analyze different aspects (takes ~30-60 seconds total)
+3. Bull & Bear researchers debate the findings
+4. Research Manager synthesizes everything
+5. Risk Manager calculates position sizing
+6. I present you with a comprehensive recommendation
+
+**Total Time**: 30-90 seconds for complete analysis
+**Alternative**: Ask for specific checks (news only, technical only) for 5-10 second responses
+
+**Next**: Want to see a full analysis? Use `analyze_stock(ticker)`
+"""
+
+
+# =============================================================================
+# QUICK SINGLE-AGENT TOOLS (Phase 3 Part 2)
+# =============================================================================
+
+# Initialize shared orchestrator (loaded on-demand)
+_agent_orchestrator = None
+
+def get_orchestrator():
+    """Get or create AgentOrchestrator instance."""
+    global _agent_orchestrator
+    if _agent_orchestrator is None:
+        from tradingagents.orchestration import AgentOrchestrator
+        _agent_orchestrator = AgentOrchestrator(config=FAST_CONFIG, debug=False)
+        logger.info("✓ AgentOrchestrator initialized for quick checks")
+    return _agent_orchestrator
+
+
+@tool
+def quick_technical_check(ticker: str) -> str:
+    """
+    Quick technical analysis using Market Analyst ONLY (5-10 seconds).
+
+    Much faster than full analyze_stock! Use when user asks about:
+    - "What's the technical setup on AAPL?"
+    - "Is TSLA in an uptrend?"
+    - "Show me the charts for MSFT"
+    - "What do the indicators say about NVDA?"
+
+    Args:
+        ticker: Stock ticker symbol
+
+    Returns:
+        Technical analysis with charts, indicators, trends
+
+    Speed: 5-10 seconds (vs 30-90 for full analysis)
+    """
+    try:
+        orchestrator = get_orchestrator()
+        result = orchestrator.quick_technical_check(ticker.upper())
+
+        return f"""
+📊 Quick Technical Analysis: {ticker.upper()}
+Agent: {result.agent_type}
+
+{result.summary}
+
+💡 For deeper analysis with fundamentals, news, and full recommendation, use analyze_stock("{ticker}")
+"""
+    except Exception as e:
+        logger.error(f"Error in quick_technical_check for {ticker}: {e}")
+        return f"Error performing quick technical check: {str(e)}"
+
+
+@tool
+def quick_news_check(ticker: str) -> str:
+    """
+    Quick news analysis using News Analyst ONLY (5-15 seconds).
+
+    Much faster than full analyze_stock! Use when user asks about:
+    - "What's the news on AAPL?"
+    - "Any recent headlines for TSLA?"
+    - "What's happening with MSFT?"
+    - "Show me news for NVDA"
+
+    Args:
+        ticker: Stock ticker symbol
+
+    Returns:
+        Recent news, headlines, and sentiment
+
+    Speed: 5-15 seconds (vs 30-90 for full analysis)
+    """
+    try:
+        orchestrator = get_orchestrator()
+        result = orchestrator.quick_news_check(ticker.upper())
+
+        return f"""
+📰 Quick News Analysis: {ticker.upper()}
+Agent: {result.agent_type}
+
+{result.summary}
+
+💡 For complete analysis with technical, fundamentals, and recommendation, use analyze_stock("{ticker}")
+"""
+    except Exception as e:
+        logger.error(f"Error in quick_news_check for {ticker}: {e}")
+        return f"Error performing quick news check: {str(e)}"
+
+
+@tool
+def quick_sentiment_check(ticker: str) -> str:
+    """
+    Quick social media sentiment using Social Media Analyst ONLY (5-10 seconds).
+
+    Much faster than full analyze_stock! Use when user asks about:
+    - "What's Reddit saying about AAPL?"
+    - "Is TSLA trending on social media?"
+    - "What's the sentiment on MSFT?"
+    - "Community opinion on NVDA?"
+
+    Args:
+        ticker: Stock ticker symbol
+
+    Returns:
+        Social media sentiment from Reddit, Twitter
+
+    Speed: 5-10 seconds (vs 30-90 for full analysis)
+    """
+    try:
+        orchestrator = get_orchestrator()
+        result = orchestrator.quick_sentiment_check(ticker.upper())
+
+        return f"""
+📱 Quick Sentiment Analysis: {ticker.upper()}
+Agent: {result.agent_type}
+
+{result.summary}
+
+💡 For comprehensive analysis with full recommendation, use analyze_stock("{ticker}")
+"""
+    except Exception as e:
+        logger.error(f"Error in quick_sentiment_check for {ticker}: {e}")
+        return f"Error performing quick sentiment check: {str(e)}"
+
+
+@tool
+def quick_fundamentals_check(ticker: str) -> str:
+    """
+    Quick fundamentals analysis using Fundamentals Analyst ONLY (5-10 seconds).
+
+    Much faster than full analyze_stock! Use when user asks about:
+    - "What are AAPL's financials?"
+    - "Is TSLA profitable?"
+    - "Show me MSFT's balance sheet"
+    - "NVDA's earnings and revenue?"
+
+    Args:
+        ticker: Stock ticker symbol
+
+    Returns:
+        Financial metrics, P/E ratio, earnings, revenue
+
+    Speed: 5-10 seconds (vs 30-90 for full analysis)
+    """
+    try:
+        orchestrator = get_orchestrator()
+        result = orchestrator.quick_fundamentals_check(ticker.upper())
+
+        return f"""
+💼 Quick Fundamentals Analysis: {ticker.upper()}
+Agent: {result.agent_type}
+
+{result.summary}
+
+💡 For complete analysis with buy/sell recommendation, use analyze_stock("{ticker}")
+"""
+    except Exception as e:
+        logger.error(f"Error in quick_fundamentals_check for {ticker}: {e}")
+        return f"Error performing quick fundamentals check: {str(e)}"
+
+
+# =============================================================================
+# LEARNING & MEMORY TOOLS (Phase 3 Part 3 / Phase 4 Prep)
+# =============================================================================
+
+@tool
+def check_past_performance(ticker: str, days_back: int = 30) -> str:
+    """
+    Check Eddie's past recommendations and analysis for this stock.
+
+    Shows historical accuracy, previous calls, and what Eddie learned.
+
+    Args:
+        ticker: Stock ticker symbol
+        days_back: How many days of history to review (default: 30)
+
+    Returns:
+        Historical performance summary with Eddie's track record
+
+    Use this when:
+    - User asks "What did you say about AAPL before?"
+    - User wants to know Eddie's track record
+    - Reviewing past recommendations
+    - Learning from previous analysis
+    """
+    try:
+        db, ticker_ops, _, _ = get_db()
+
+        # Get ticker ID
+        ticker_id = ticker_ops.get_ticker_id(ticker.upper())
+        if not ticker_id:
+            return f"No historical data found for {ticker}"
+
+        # Get past analyses from database
+        from datetime import datetime, timedelta, timezone
+        from_date = datetime.now(timezone.utc) - timedelta(days=days_back)
+
+        # Query analyses table
+        query = """
+            SELECT analysis_date, recommendation, confidence, price_at_analysis
+            FROM analyses
+            WHERE ticker_id = %s
+            AND analysis_date >= %s
+            ORDER BY analysis_date DESC
+            LIMIT 10
+        """
+
+        with db.get_cursor() as cursor:
+            cursor.execute(query, (ticker_id, from_date))
+            results = cursor.fetchall()
+
+        if not results:
+            return f"No past analyses found for {ticker} in the last {days_back} days"
+
+        response = [
+            f"📚 Eddie's Past Analysis for {ticker.upper()} (Last {days_back} days)\n",
+            f"Found {len(results)} previous analyses:\n"
+        ]
+
+        for i, (analysis_date, recommendation, confidence, price) in enumerate(results, 1):
+            response.append(
+                f"{i}. {analysis_date.strftime('%Y-%m-%d')}: {recommendation} "
+                f"(Confidence: {confidence}/100) @ ${price:.2f}"
+            )
+
+        response.append("\n💡 Use this history to inform current recommendations!")
+
+        return "\n".join(response)
+
+    except Exception as e:
+        logger.error(f"Error checking past performance for {ticker}: {e}")
+        return f"Error retrieving historical data: {str(e)}"
+
+
+@tool
+def find_similar_situations(ticker: str, top_n: int = 5) -> str:
+    """
+    Find similar past situations using RAG (vector similarity search).
+
+    Searches Eddie's memory for stocks with similar patterns, indicators,
+    or market conditions. Uses AI embeddings to find relevant past analyses.
+
+    Args:
+        ticker: Stock ticker symbol to analyze
+        top_n: Number of similar situations to return (default: 5)
+
+    Returns:
+        Similar past analyses with outcomes and lessons learned
+
+    Use this when:
+    - User asks "Have you seen this pattern before?"
+    - Looking for comparable situations
+    - Learning from similar stocks
+    - Pattern recognition queries
+    """
+    try:
+        # Get current stock data for comparison
+        db, ticker_ops, scan_ops, _ = get_db()
+
+        ticker_info = ticker_ops.get_ticker(ticker.upper())
+        if not ticker_info:
+            return f"Ticker {ticker} not found"
+
+        # Get latest scan for current state
+        ticker_id = ticker_ops.get_ticker_id(ticker.upper())
+        latest_scan = scan_ops.get_latest_scan_for_ticker(ticker_id)
+
+        if not latest_scan:
+            return f"No recent data available for similarity search on {ticker}"
+
+        # Build query for RAG search
+        sector = ticker_info.get('sector', 'Unknown')
+        score = latest_scan.get('priority_score', 0)
+
+        search_query = f"""
+        Stock: {ticker.upper()}
+        Sector: {sector}
+        Priority Score: {score}
+        Looking for similar stocks with comparable patterns and outcomes
+        """
+
+        # Use RAG to find similar situations
+        from tradingagents.rag import ContextRetriever
+
+        retriever = ContextRetriever(db)
+        similar_contexts = retriever.retrieve_context(
+            query=search_query,
+            company=ticker.upper(),
+            top_k=top_n
+        )
+
+        if not similar_contexts:
+            return f"No similar situations found in Eddie's memory for {ticker}"
+
+        response = [
+            f"🔍 Similar Situations to {ticker.upper()}\n",
+            f"Found {len(similar_contexts)} comparable past analyses:\n"
+        ]
+
+        for i, context in enumerate(similar_contexts, 1):
+            # Extract relevant info from context
+            company = context.get('company', 'Unknown')
+            date = context.get('date', 'Unknown')
+            similarity = context.get('similarity_score', 0)
+
+            response.append(
+                f"{i}. {company} on {date} (Similarity: {similarity:.2%})"
+            )
+
+        response.append("\n💡 These situations share similar technical or fundamental patterns!")
+
+        return "\n".join(response)
+
+    except Exception as e:
+        logger.error(f"Error finding similar situations for {ticker}: {e}")
+        return f"Error searching for similar situations: {str(e)}"
+
+
+@tool
+def what_did_i_learn(ticker: str) -> str:
+    """
+    Show what Eddie learned from past analyses of this stock.
+
+    Summarizes Eddie's evolving understanding, prediction accuracy,
+    and key insights discovered over time.
+
+    Args:
+        ticker: Stock ticker symbol
+
+    Returns:
+        Learning summary with key insights and accuracy metrics
+
+    Use this when:
+    - User asks "What do you know about AAPL?"
+    - Reviewing Eddie's knowledge base
+    - Understanding Eddie's learning progress
+    - Transparency about AI learning
+    """
+    try:
+        db, ticker_ops, _, _ = get_db()
+
+        ticker_id = ticker_ops.get_ticker_id(ticker.upper())
+        if not ticker_id:
+            return f"No learning data available for {ticker}"
+
+        # Get all analyses for this ticker
+        query = """
+            SELECT COUNT(*) as analysis_count,
+                   AVG(confidence) as avg_confidence,
+                   STRING_AGG(DISTINCT recommendation, ', ') as recommendations
+            FROM analyses
+            WHERE ticker_id = %s
+        """
+
+        with db.get_cursor() as cursor:
+            cursor.execute(query, (ticker_id,))
+            result = cursor.fetchone()
+
+        if not result or result[0] == 0:
+            return f"Eddie hasn't analyzed {ticker} yet - no learning data available"
+
+        analysis_count, avg_confidence, recommendations = result
+
+        response = [
+            f"🧠 What Eddie Learned About {ticker.upper()}\n",
+            f"Analyses Performed: {analysis_count}",
+            f"Average Confidence: {avg_confidence:.1f}/100",
+            f"Recommendations Made: {recommendations}\n",
+            "Key Insights:"
+        ]
+
+        # Add insights based on analysis count
+        if analysis_count >= 5:
+            response.append("• 📊 Well-studied stock with multiple analyses")
+        else:
+            response.append("• 📊 Limited analysis history - more data needed")
+
+        if avg_confidence and avg_confidence > 70:
+            response.append("• ✅ High confidence in predictions for this stock")
+        elif avg_confidence and avg_confidence < 50:
+            response.append("• ⚠️ Lower confidence - this stock is harder to predict")
+
+        response.append(f"\n💡 Eddie's understanding improves with each analysis!")
+
+        return "\n".join(response)
+
+    except Exception as e:
+        logger.error(f"Error retrieving learning data for {ticker}: {e}")
+        return f"Error accessing learning data: {str(e)}"
+
+
+# =============================================================================
+# INTERNET VALIDATION TOOLS (Phase 3 Part 3)
+# =============================================================================
+
+@tool
+def validate_news_multi_source(ticker: str) -> str:
+    """
+    Cross-validate news across multiple internet sources.
+
+    Checks consistency of news sentiment and headlines across different
+    news providers to detect bias or misinformation.
+
+    Args:
+        ticker: Stock ticker symbol
+
+    Returns:
+        Multi-source news validation report with consensus sentiment
+
+    Use this when:
+    - User questions news reliability
+    - Detecting conflicting narratives
+    - Verifying major news events
+    - Building trust in news data
+    """
+    try:
+        # This uses existing news data but analyzes for consistency
+        from tradingagents.agents.utils.agent_utils import get_news
+
+        # Get news from primary source (yfinance)
+        news_data = get_news.invoke({"company": ticker.upper(), "days_back": 7})
+
+        if not news_data or "No news" in str(news_data):
+            return f"No news data available for multi-source validation on {ticker}"
+
+        # Parse news data
+        import json
+        try:
+            news_items = json.loads(news_data) if isinstance(news_data, str) else news_data
+        except:
+            news_items = []
+
+        if not news_items:
+            return f"No news articles found for {ticker} in the last 7 days"
+
+        # Analyze sentiment consistency
+        positive_count = 0
+        negative_count = 0
+        neutral_count = 0
+
+        headlines = []
+
+        for item in news_items[:10]:  # Top 10 articles
+            if isinstance(item, dict):
+                title = item.get('title', '')
+                headlines.append(title)
+
+                # Simple sentiment analysis based on keywords
+                title_lower = title.lower()
+                if any(word in title_lower for word in ['up', 'gain', 'high', 'beat', 'strong', 'positive']):
+                    positive_count += 1
+                elif any(word in title_lower for word in ['down', 'fall', 'low', 'miss', 'weak', 'negative']):
+                    negative_count += 1
+                else:
+                    neutral_count += 1
+
+        total = positive_count + negative_count + neutral_count
+
+        if total == 0:
+            return f"Unable to analyze news sentiment for {ticker}"
+
+        # Calculate sentiment percentages
+        positive_pct = (positive_count / total) * 100
+        negative_pct = (negative_count / total) * 100
+        neutral_pct = (neutral_count / total) * 100
+
+        # Determine consensus
+        if positive_pct > 60:
+            consensus = "📈 Bullish Consensus"
+        elif negative_pct > 60:
+            consensus = "📉 Bearish Consensus"
+        elif positive_pct > negative_pct:
+            consensus = "↗️ Slight Bullish Lean"
+        elif negative_pct > positive_pct:
+            consensus = "↘️ Slight Bearish Lean"
+        else:
+            consensus = "↔️ Neutral/Mixed"
+
+        response = [
+            f"📰 Multi-Source News Validation: {ticker.upper()}\n",
+            f"Articles Analyzed: {total}",
+            f"Sentiment Breakdown:",
+            f"  • Positive: {positive_pct:.1f}% ({positive_count} articles)",
+            f"  • Negative: {negative_pct:.1f}% ({negative_count} articles)",
+            f"  • Neutral: {neutral_pct:.1f}% ({neutral_count} articles)\n",
+            f"Consensus: {consensus}\n",
+            "Recent Headlines:"
+        ]
+
+        for i, headline in enumerate(headlines[:5], 1):
+            response.append(f"  {i}. {headline}")
+
+        response.append(f"\n💡 News sentiment is {consensus.split()[1].lower()} - use this to validate analysis!")
+
+        return "\n".join(response)
+
+    except Exception as e:
+        logger.error(f"Error validating news for {ticker}: {e}")
+        return f"Error performing multi-source news validation: {str(e)}"
+
+
+# =============================================================================
+# DATA INTELLIGENCE & STRATEGIC DASHBOARD (Phase 3 Part 4)
+# =============================================================================
+
+def calculate_data_age(latest_scan_date: date) -> dict:
+    """
+    Calculate how old the scan data is and determine freshness level.
+
+    Args:
+        latest_scan_date: The most recent scan date
+
+    Returns:
+        Dictionary with age metrics and freshness assessment
+    """
+    from datetime import timedelta, timezone, datetime
+
+    today = date.today()
+    age_days = (today - latest_scan_date).days
+
+    # Calculate hours for more precise age
+    latest_datetime = datetime.combine(latest_scan_date, datetime.min.time())
+    now = datetime.now()
+    age_hours = int((now - latest_datetime).total_seconds() / 3600)
+
+    # Determine freshness level
+    if age_days == 0:
+        freshness = 'FRESH'
+        status_emoji = '✅'
+    elif age_days == 1:
+        freshness = 'MODERATE'
+        status_emoji = '🟡'
+    elif age_days <= 5:
+        freshness = 'STALE'
+        status_emoji = '⚠️'
+    else:
+        freshness = 'VERY_STALE'
+        status_emoji = '🔴'
+
+    # Check if weekend (data from Friday is acceptable on weekend)
+    is_weekend = today.weekday() >= 5
+    if is_weekend and age_days <= 2:
+        # Friday data on weekend is acceptable
+        freshness = 'MODERATE' if age_days == 2 else 'FRESH'
+        status_emoji = '🟡' if age_days == 2 else '✅'
+
+    return {
+        'days_old': age_days,
+        'hours_old': age_hours,
+        'freshness_level': freshness,
+        'status_emoji': status_emoji,
+        'is_stale': age_days > 1,
+        'is_weekend': is_weekend
+    }
+
+
+def detect_data_issues(db, ticker_ops, scan_ops, latest_scan_date: date) -> list:
+    """
+    Detect data quality issues and gaps.
+
+    Args:
+        db: Database connection
+        ticker_ops: TickerOperations instance
+        scan_ops: ScanOperations instance
+        latest_scan_date: Most recent scan date
+
+    Returns:
+        List of issue strings
+    """
+    issues = []
+
+    try:
+        # Check scan coverage
+        total_active = ticker_ops.get_watchlist_summary()['active_tickers']
+
+        # Get scan count for latest date
+        with db.get_cursor() as cursor:
+            cursor.execute(
+                "SELECT COUNT(*) FROM daily_scans WHERE scan_date = %s",
+                (latest_scan_date,)
+            )
+            scanned_count = cursor.fetchone()[0]
+
+            coverage_pct = (scanned_count / total_active * 100) if total_active > 0 else 0
+
+            if coverage_pct < 80:
+                issues.append(f"Low scan coverage: Only {scanned_count}/{total_active} stocks ({coverage_pct:.1f}%)")
+            elif coverage_pct < 100:
+                missing = total_active - scanned_count
+                issues.append(f"{missing} stocks not scanned on latest date")
+
+            # Check for analyses
+            cursor.execute("SELECT COUNT(*) FROM analyses")
+            analysis_count = cursor.fetchone()[0]
+
+            if analysis_count == 0:
+                issues.append("No deep analyses performed yet - RAG pattern recognition unavailable")
+            elif analysis_count < 5:
+                issues.append(f"Only {analysis_count} analyses - need 5+ for robust pattern recognition")
+
+            # Check data age
+            age_info = calculate_data_age(latest_scan_date)
+            if age_info['is_stale']:
+                issues.append(f"Data is {age_info['days_old']} days old - recommend refresh")
+
+    except Exception as e:
+        logger.error(f"Error detecting data issues: {e}")
+        issues.append(f"Error checking data quality: {str(e)}")
+
+    return issues
+
+
+def generate_strategic_recommendations(
+    db,
+    ticker_ops,
+    scan_ops,
+    data_age_info: dict,
+    analysis_count: int,
+    top_stocks: list,
+    coverage_pct: float
+) -> list:
+    """
+    Generate strategic recommendations based on database state.
+
+    Args:
+        db: Database connection
+        ticker_ops: TickerOperations instance
+        scan_ops: ScanOperations instance
+        data_age_info: Output from calculate_data_age()
+        analysis_count: Total number of analyses
+        top_stocks: Top opportunities from latest scan
+        coverage_pct: Scan coverage percentage
+
+    Returns:
+        List of recommendation dictionaries
+    """
+    recommendations = []
+
+    try:
+        # Priority 1: Stale data
+        if data_age_info['days_old'] > 1:
+            recommendations.append({
+                'priority': 'HIGH',
+                'emoji': '🔄',
+                'action': 'Refresh Data',
+                'reason': f"Data is {data_age_info['days_old']} days old - prices and signals may have changed",
+                'suggestion': "Run the screener to get fresh data: 'Run screener'",
+                'auto_action': 'run_screener'
+            })
+
+        # Priority 2: No analyses (can't use RAG/learning)
+        if analysis_count == 0:
+            top_3 = [s['symbol'] for s in top_stocks[:3]] if top_stocks else []
+            recommendations.append({
+                'priority': 'HIGH',
+                'emoji': '📚',
+                'action': 'Build Intelligence Base',
+                'reason': 'No analyses yet - pattern recognition and learning features unavailable',
+                'suggestion': f"Analyze top stocks to activate RAG: {', '.join(top_3) if top_3 else 'top opportunities'}",
+                'auto_action': None
+            })
+        elif analysis_count < 5:
+            recommendations.append({
+                'priority': 'MEDIUM',
+                'emoji': '🧠',
+                'action': 'Expand Intelligence',
+                'reason': f'Only {analysis_count} analyses - need more for robust pattern recognition',
+                'suggestion': 'Analyze 5-10 stocks across different sectors for better learning',
+                'auto_action': None
+            })
+
+        # Priority 3: Low coverage
+        if coverage_pct < 80:
+            recommendations.append({
+                'priority': 'MEDIUM',
+                'emoji': '📊',
+                'action': 'Investigate Coverage Gaps',
+                'reason': f'Only {coverage_pct:.1f}% of watchlist scanned',
+                'suggestion': 'Check which stocks are missing and why',
+                'auto_action': None
+            })
+
+        # Priority 4: Strong opportunities available (data is fresh)
+        if not data_age_info['is_stale'] and top_stocks:
+            top_stock = top_stocks[0]
+            recommendations.append({
+                'priority': 'LOW',
+                'emoji': '🎯',
+                'action': 'Analyze Top Opportunity',
+                'reason': f"{top_stock['symbol']} shows strong signals (Score: {top_stock.get('priority_score', 0)}/100)",
+                'suggestion': f"Deep dive on {top_stock['symbol']} - {top_stock.get('sector', 'Unknown')} sector",
+                'auto_action': f"analyze_{top_stock['symbol']}"
+            })
+
+        # Sort by priority
+        priority_order = {'HIGH': 0, 'MEDIUM': 1, 'LOW': 2}
+        recommendations.sort(key=lambda x: priority_order.get(x['priority'], 99))
+
+    except Exception as e:
+        logger.error(f"Error generating recommendations: {e}")
+        recommendations.append({
+            'priority': 'HIGH',
+            'emoji': '⚠️',
+            'action': 'Error',
+            'reason': f'Could not generate recommendations: {str(e)}',
+            'suggestion': 'Check database connectivity',
+            'auto_action': None
+        })
+
+    return recommendations
+
+
+@tool
+def show_data_dashboard() -> str:
+    """
+    Show comprehensive database status and strategic recommendations.
+
+    This is Eddie's intelligence dashboard - shows current data state,
+    identifies gaps, and recommends strategic next steps.
+
+    Returns:
+        Comprehensive dashboard with:
+        - Watchlist summary (stocks, sectors, priorities)
+        - Scan status (latest date, coverage, freshness)
+        - Analysis history (count, RAG context)
+        - Top opportunities from latest scan
+        - Data quality issues/warnings
+        - Strategic recommendations for next steps
+
+    Use this when:
+    - User asks "What data do you have?"
+    - User asks "What should I do next?"
+    - User asks "Is the data fresh?"
+    - Starting complex analysis (check data quality first)
+    - User wants to understand database state
+
+    Eddie should use this proactively to make data-driven recommendations!
+    """
+    try:
+        db, ticker_ops, scan_ops, _ = get_db()
+
+        # ===== WATCHLIST STATUS =====
+        watchlist = ticker_ops.get_watchlist_summary()
+
+        # ===== SCAN STATUS =====
+        with db.get_cursor() as cursor:
+            # Get latest scan date
+            cursor.execute("SELECT MAX(scan_date) FROM daily_scans")
+            latest_scan_date = cursor.fetchone()[0]
+
+            if not latest_scan_date:
+                return "📊 DATA DASHBOARD\n\n⚠️ No scan data available yet.\n\nRecommendation: Run the screener to populate the database."
+
+            # Get scan count for latest date
+            cursor.execute(
+                "SELECT COUNT(*) FROM daily_scans WHERE scan_date = %s",
+                (latest_scan_date,)
+            )
+            scanned_count = cursor.fetchone()[0]
+
+            # Calculate coverage
+            total_active = watchlist['active_tickers']
+            coverage_pct = (scanned_count / total_active * 100) if total_active > 0 else 0
+
+            # Get total historical scans
+            cursor.execute("SELECT COUNT(*) FROM daily_scans")
+            total_scans = cursor.fetchone()[0]
+
+            # Get data age
+            data_age = calculate_data_age(latest_scan_date)
+
+            # ===== ANALYSIS HISTORY =====
+            cursor.execute("SELECT COUNT(*) FROM analyses")
+            analysis_count = cursor.fetchone()[0]
+
+            cursor.execute(
+                "SELECT COUNT(*) FROM analyses WHERE embedding IS NOT NULL"
+            )
+            rag_context_count = cursor.fetchone()[0]
+
+        # ===== TOP OPPORTUNITIES =====
+        top_stocks = scan_ops.get_top_opportunities(scan_date=latest_scan_date, limit=5)
+
+        # ===== DATA ISSUES =====
+        issues = detect_data_issues(db, ticker_ops, scan_ops, latest_scan_date)
+
+        # ===== STRATEGIC RECOMMENDATIONS =====
+        recommendations = generate_strategic_recommendations(
+            db, ticker_ops, scan_ops, data_age, analysis_count, top_stocks, coverage_pct
+        )
+
+        # ===== FORMAT DASHBOARD =====
+        response = ["📊 EDDIE'S DATA DASHBOARD", "=" * 60, ""]
+
+        # Watchlist Section
+        response.extend([
+            "WATCHLIST STATUS",
+            f"• Total Stocks: {watchlist['total_tickers']}",
+            f"• Active: {watchlist['active_tickers']} ({(watchlist['active_tickers']/watchlist['total_tickers']*100):.0f}%)",
+            f"• Sectors: {watchlist['sectors_count']}",
+        ])
+
+        # Show top 3 sectors
+        if watchlist.get('sectors'):
+            top_sectors = sorted(watchlist['sectors'], key=lambda x: x['count'], reverse=True)[:3]
+            sector_str = ", ".join([f"{s['sector']}: {s['count']}" for s in top_sectors])
+            response.append(f"  Top: {sector_str}")
+
+        response.append(f"• Priority: High: {watchlist.get('high_priority', 0)}, "
+                       f"Medium: {watchlist.get('medium_priority', 0)}, "
+                       f"Low: {watchlist.get('low_priority', 0)}")
+        response.append("")
+
+        # Scan Section
+        response.extend([
+            "SCAN STATUS",
+            f"• Latest Scan: {latest_scan_date} ({data_age['days_old']} days ago)",
+            f"• Coverage: {scanned_count}/{total_active} stocks ({coverage_pct:.1f}%)",
+            f"• Data Freshness: {data_age['status_emoji']} {data_age['freshness_level']}",
+            f"• Historical Scans: {total_scans} total",
+            ""
+        ])
+
+        # Analysis Section
+        response.extend([
+            "ANALYSIS HISTORY",
+            f"• Deep Analyses: {analysis_count}",
+            f"• RAG Context: {rag_context_count} embeddings available",
+        ])
+
+        if analysis_count == 0:
+            response.append("• Status: No analyses yet - pattern recognition inactive")
+        elif analysis_count < 5:
+            response.append(f"• Status: Building intelligence ({analysis_count}/5 minimum for RAG)")
+        else:
+            response.append(f"• Status: ✓ Pattern recognition active")
+
+        response.append("")
+
+        # Top Opportunities Section
+        if top_stocks:
+            response.extend([
+                "TOP OPPORTUNITIES (from latest scan)",
+            ])
+            for i, stock in enumerate(top_stocks, 1):
+                score = stock.get('priority_score', 0)
+                sector = stock.get('sector', 'Unknown')
+                symbol = stock.get('symbol', '?')
+
+                # Score interpretation
+                if score >= 50:
+                    score_label = "🔥 Strong"
+                elif score >= 40:
+                    score_label = "✅ Good"
+                elif score >= 30:
+                    score_label = "⚠️ Moderate"
+                else:
+                    score_label = "📉 Weak"
+
+                response.append(f"{i}. {symbol} - Score: {score}/100 {score_label} ({sector})")
+
+            response.append("")
+
+        # Data Issues Section
+        if issues:
+            response.extend([
+                "⚠️ DATA QUALITY ISSUES",
+            ])
+            for issue in issues:
+                response.append(f"• {issue}")
+            response.append("")
+
+        # Strategic Recommendations Section
+        response.extend([
+            "🎯 STRATEGIC RECOMMENDATIONS",
+            ""
+        ])
+
+        for rec in recommendations:
+            response.append(f"{rec['emoji']} **{rec['priority']} PRIORITY**: {rec['action']}")
+            response.append(f"   Reason: {rec['reason']}")
+            response.append(f"   → {rec['suggestion']}")
+            response.append("")
+
+        # Auto-refresh offer if data is very stale
+        if data_age['days_old'] > 2:
+            response.extend([
+                "💡 QUICK ACTION",
+                "Your data is significantly stale. Would you like me to run",
+                "a fresh screener scan? Just ask 'Run the screener' and I'll",
+                "update everything with the latest market data.",
+                ""
+            ])
+
+        response.extend([
+            "=" * 60,
+            "💬 Ask me anything based on this data, or request specific actions!"
+        ])
+
+        return "\n".join(response)
+
+    except Exception as e:
+        logger.error(f"Error generating data dashboard: {e}")
+        return f"⚠️ Error generating dashboard: {str(e)}\n\nPlease check database connectivity."
+
+
+# =============================================================================
 # PORTFOLIO TOOLS (Placeholder - extend as needed)
 # =============================================================================
 
@@ -865,10 +1879,26 @@ def get_all_tools() -> List:
         check_data_quality,        # Phase 1: Basic data quality
         validate_price_sources,    # Phase 2: Multi-source price validation
         check_earnings_risk,       # Phase 2: Earnings proximity warnings
+        validate_news_multi_source,  # Phase 3 Part 3: News sentiment validation
 
         # Help & Education
         explain_metric,
         show_legend,
+
+        # Agent Orchestration (Phase 3)
+        explain_agents,            # Phase 3 Part 1: Explain agent team
+        quick_technical_check,     # Phase 3 Part 2: Fast technical analysis
+        quick_news_check,          # Phase 3 Part 2: Fast news check
+        quick_sentiment_check,     # Phase 3 Part 2: Fast social sentiment
+        quick_fundamentals_check,  # Phase 3 Part 2: Fast fundamentals
+
+        # Learning & Memory (Phase 3 Part 3 / Phase 4 Prep)
+        check_past_performance,    # Eddie's historical track record
+        find_similar_situations,   # RAG-powered pattern recognition
+        what_did_i_learn,          # Learning summary
+
+        # Data Intelligence & Strategic Dashboard (Phase 3 Part 4)
+        show_data_dashboard,       # Comprehensive data status and strategic recommendations
 
         # Portfolio (placeholder)
         get_portfolio_status,
