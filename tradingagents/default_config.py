@@ -28,7 +28,26 @@ DEFAULT_CONFIG = {
         "core_stock_apis": "yfinance",       # Options: yfinance, alpha_vantage, local
         "technical_indicators": "yfinance",  # Options: yfinance, alpha_vantage, local
         "fundamental_data": "yfinance",      # Options: yfinance, alpha_vantage, local (using yfinance - no API key needed)
-        "news_data": "yfinance",             # Options: yfinance, alpha_vantage, google, local (using yfinance - no API key needed)
+        "news_data": "alpha_vantage",        # UPDATED: Use Alpha Vantage for better news coverage and sentiment analysis
+    },
+    # Validation settings (Eddie's credibility enhancements)
+    "validation": {
+        # Phase 1: Data Quality
+        "enable_price_staleness_check": True,      # ✅ Warn if data is stale
+        "max_data_age_minutes": 15,                # ✅ Flag data older than this during market hours
+        "show_data_sources": True,                 # ✅ Show which sources were used in analysis
+
+        # Phase 2: Multi-Source Validation & Earnings Risk (ACTIVE!)
+        "require_multi_source_validation": True,   # ✅ Cross-validate prices across sources
+        "check_earnings_proximity": True,          # ✅ Warn about earnings volatility windows
+        "price_discrepancy_threshold": 2.0,        # ✅ Max acceptable price difference (%)
+        "earnings_days_before": 7,                 # ✅ Days before earnings to warn
+        "earnings_days_after": 3,                  # ✅ Days after earnings to warn
+
+        # Phase 3: External Intelligence (TODO)
+        "enable_social_sentiment": False,          # 🔜 Reddit, StockTwits sentiment
+        "enable_analyst_consensus": False,         # 🔜 Wall Street consensus comparison
+        "enable_insider_tracking": False,          # 🔜 Insider trading detection
     },
     # Tool-level configuration (takes precedence over category-level)
     "tool_vendors": {
