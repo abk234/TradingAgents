@@ -4,6 +4,7 @@ import os
 from pathlib import Path
 import json
 from datetime import date
+from decimal import Decimal
 from typing import Dict, Any, Tuple, List, Optional
 import logging
 
@@ -48,6 +49,14 @@ from tradingagents.database import get_db_connection, DatabaseConnection, Ticker
 from tradingagents.rag import EmbeddingGenerator, ContextRetriever, PromptFormatter
 from tradingagents.decision import FourGateFramework, GateResult
 
+# Langfuse integration (optional)
+try:
+    from tradingagents.monitoring.langfuse_integration import get_langfuse_tracer
+    LANGFUSE_AVAILABLE = True
+except ImportError:
+    LANGFUSE_AVAILABLE = False
+    get_langfuse_tracer = None
+
 logger = logging.getLogger(__name__)
 
 
@@ -61,6 +70,7 @@ class TradingAgentsGraph:
         config: Dict[str, Any] = None,
         enable_rag: bool = True,
         db: Optional[DatabaseConnection] = None,
+        enable_langfuse: bool = False,
     ):
         """Initialize the trading agents graph and components.
 
@@ -70,10 +80,23 @@ class TradingAgentsGraph:
             config: Configuration dictionary. If None, uses default config
             enable_rag: Whether to enable RAG-based historical context
             db: DatabaseConnection instance (optional, creates new if None)
+            enable_langfuse: Whether to enable Langfuse tracing (default: False, set LANGFUSE_ENABLED=true to enable)
         """
         self.debug = debug
         self.config = config or DEFAULT_CONFIG
         self.enable_rag = enable_rag
+        self.enable_langfuse = enable_langfuse
+        
+        # Initialize Langfuse tracer if available and enabled
+        self.langfuse_tracer = None
+        if self.enable_langfuse and LANGFUSE_AVAILABLE and get_langfuse_tracer:
+            try:
+                self.langfuse_tracer = get_langfuse_tracer()
+                if self.langfuse_tracer and self.langfuse_tracer.enabled:
+                    logger.info("✓ Langfuse tracing enabled")
+            except Exception as e:
+                logger.warning(f"Failed to initialize Langfuse tracer: {e}")
+                self.langfuse_tracer = None
 
         # Update the interface's config
         set_config(self.config)
@@ -102,7 +125,7 @@ class TradingAgentsGraph:
         
         # Initialize profitability enhancer (optional)
         self.profitability_enhancer = None
-        if config.get("enable_profitability_features", False):
+        if config and config.get("enable_profitability_features", False):
             try:
                 from tradingagents.graph.profitability_enhancer import ProfitabilityEnhancer
                 portfolio_value = config.get("portfolio_value")
@@ -245,7 +268,24 @@ class TradingAgentsGraph:
         init_agent_state = self.propagator.create_initial_state(
             company_name, trade_date, historical_context
         )
-        args = self.propagator.get_graph_args()
+        
+        # Get Langfuse callback handler if enabled
+        langfuse_callbacks = []
+        if self.langfuse_tracer and self.langfuse_tracer.enabled:
+            callback_handler = self.langfuse_tracer.get_callback_handler()
+            if callback_handler:
+                langfuse_callbacks.append(callback_handler)
+                # Create trace for this analysis
+                self.langfuse_tracer.trace_analysis(
+                    ticker=company_name,
+                    analysis_date=str(trade_date),
+                    metadata={
+                        "enable_rag": self.enable_rag,
+                    }
+                )
+        
+        # Get graph args with callbacks
+        args = self.propagator.get_graph_args(callbacks=langfuse_callbacks if langfuse_callbacks else None)
 
         if self.debug:
             # Debug mode with tracing

@@ -44,12 +44,17 @@ class DeepAnalyzer:
         self.debug = debug
 
         # Initialize TradingAgentsGraph with RAG
+        # Enable Langfuse if environment variable is set
+        import os
+        enable_langfuse = os.getenv("LANGFUSE_ENABLED", "false").lower() == "true"
+        
         self.graph = TradingAgentsGraph(
             selected_analysts=["market", "social", "news", "fundamentals"],
             debug=debug,
             config=self.config,
             enable_rag=enable_rag,
-            db=self.db
+            db=self.db,
+            enable_langfuse=enable_langfuse
         )
 
         logger.info("✓ DeepAnalyzer initialized")

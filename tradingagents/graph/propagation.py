@@ -48,9 +48,29 @@ class Propagator:
             "news_report": "",
         }
 
-    def get_graph_args(self) -> Dict[str, Any]:
-        """Get arguments for the graph invocation."""
-        return {
+    def get_graph_args(self, callbacks=None) -> Dict[str, Any]:
+        """Get arguments for the graph invocation.
+        
+        Args:
+            callbacks: Optional list of callback handlers (e.g., Langfuse)
+        
+        Returns:
+            Dictionary with graph arguments including callbacks
+        """
+        config = {"recursion_limit": self.max_recur_limit}
+        
+        args = {
             "stream_mode": "values",
-            "config": {"recursion_limit": self.max_recur_limit},
+            "config": config,
         }
+        
+        # Add callbacks if provided
+        if callbacks:
+            if "callbacks" not in config:
+                config["callbacks"] = []
+            if isinstance(callbacks, list):
+                config["callbacks"].extend(callbacks)
+            else:
+                config["callbacks"].append(callbacks)
+        
+        return args

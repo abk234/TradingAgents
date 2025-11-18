@@ -1,0 +1,52 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: langfuse-v2-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: langfuse
+      POSTGRES_PASSWORD: langfuse
+      POSTGRES_DB: langfuse
+    volumes:
+      - langfuse-v2-db-data:/var/lib/postgresql/data
+    ports:
+      - "5435:5432"  # Use 5435 to avoid conflicts
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U langfuse"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  langfuse:
+    image: langfuse/langfuse:2.0.0
+    container_name: langfuse-v2-server
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      # Database
+      DATABASE_URL: postgresql://langfuse:langfuse@postgres:5432/langfuse
+      
+      # Langfuse configuration
+      NEXTAUTH_SECRET: ${LANGFUSE_SECRET_KEY:-change-me-in-production}
+      NEXTAUTH_URL: http://localhost:3001
+      SALT: mysalt
+      ENCRYPTION_KEY: ${LANGFUSE_ENCRYPTION_KEY:-a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2}
+      
+    ports:
+      - "3001:3000"  # Use 3001 to avoid conflict with existing Langfuse
+    volumes:
+      - langfuse-v2-uploads:/app/packages/db/prisma/uploads
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/public/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  langfuse-v2-db-data:
+    driver: local
+  langfuse-v2-uploads:
+    driver: local
+

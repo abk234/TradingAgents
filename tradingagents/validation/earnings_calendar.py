@@ -148,11 +148,47 @@ def get_earnings_calendar_yfinance(ticker: str) -> Optional[EarningsEvent]:
         # Get earnings dates
         calendar = stock.calendar
 
-        if calendar is None or calendar.empty:
+        if calendar is None:
             return None
 
-        # Extract next earnings date
-        if 'Earnings Date' in calendar.index:
+        # Handle both DataFrame and dict return types from yfinance
+        if isinstance(calendar, dict):
+            # If calendar is a dict, extract earnings date directly
+            earnings_date_str = None
+            eps_estimate = None
+            
+            # Try different possible keys in the dict
+            if 'Earnings Date' in calendar:
+                earnings_date_str = calendar['Earnings Date']
+            elif 'earningsDate' in calendar:
+                earnings_date_str = calendar['earningsDate']
+            
+            if 'Earnings Estimate' in calendar:
+                try:
+                    eps_estimate = float(calendar['Earnings Estimate'])
+                except (ValueError, TypeError):
+                    pass
+            
+            if not earnings_date_str:
+                return None
+            
+            # Handle multiple dates (can be a list or tuple)
+            if isinstance(earnings_date_str, (list, tuple)) and len(earnings_date_str) > 0:
+                earnings_date_str = earnings_date_str[0]
+            elif not isinstance(earnings_date_str, str):
+                return None
+            
+            earnings_date = pd.to_datetime(earnings_date_str)
+            
+        elif isinstance(calendar, pd.DataFrame):
+            # Original DataFrame handling
+            if calendar.empty:
+                return None
+
+            # Extract next earnings date
+            if 'Earnings Date' not in calendar.index:
+                return None
+                
             earnings_dates = calendar.loc['Earnings Date']
 
             if isinstance(earnings_dates, str):
@@ -164,10 +200,6 @@ def get_earnings_calendar_yfinance(ticker: str) -> Optional[EarningsEvent]:
             else:
                 return None
 
-            # Convert to timezone-aware datetime
-            if earnings_date.tzinfo is None:
-                earnings_date = earnings_date.replace(tzinfo=timezone.utc)
-
             # Get EPS estimate if available
             eps_estimate = None
             if 'Earnings Estimate' in calendar.index:
@@ -175,14 +207,21 @@ def get_earnings_calendar_yfinance(ticker: str) -> Optional[EarningsEvent]:
                     eps_estimate = float(calendar.loc['Earnings Estimate'])
                 except (ValueError, TypeError):
                     pass
+        else:
+            # Unknown type
+            return None
 
-            return EarningsEvent(
-                ticker=ticker,
-                report_date=earnings_date,
-                fiscal_period="Unknown",  # yfinance doesn't provide this easily
-                estimate_eps=eps_estimate,
-                is_upcoming=(earnings_date > datetime.now(timezone.utc))
-            )
+        # Convert to timezone-aware datetime
+        if earnings_date.tzinfo is None:
+            earnings_date = earnings_date.replace(tzinfo=timezone.utc)
+
+        return EarningsEvent(
+            ticker=ticker,
+            report_date=earnings_date,
+            fiscal_period="Unknown",  # yfinance doesn't provide this easily
+            estimate_eps=eps_estimate,
+            is_upcoming=(earnings_date > datetime.now(timezone.utc))
+        )
 
     except Exception as e:
         print(f"Error fetching yfinance earnings calendar for {ticker}: {e}")
@@ -198,7 +237,14 @@ def get_earnings_calendar_alphavantage(ticker: str) -> Optional[EarningsEvent]:
         EarningsEvent or None if no data available
     """
     try:
-        from tradingagents.dataflows.alpha_vantage_common import _make_api_request, AlphaVantageRateLimitError
+        from tradingagents.dataflows.alpha_vantage_common import _make_api_request, AlphaVantageRateLimitError, get_api_key
+
+        # Check if API key is available before attempting request
+        try:
+            api_key = get_api_key()
+        except ValueError:
+            # API key not set - silently return None (this is expected for many users)
+            return None
 
         # Note: EARNINGS_CALENDAR requires premium API key
         # For free tier, we'll use EARNINGS API which gives historical data

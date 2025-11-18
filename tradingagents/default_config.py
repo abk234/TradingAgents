@@ -28,7 +28,7 @@ DEFAULT_CONFIG = {
         "core_stock_apis": "yfinance",       # Options: yfinance, alpha_vantage, local
         "technical_indicators": "yfinance",  # Options: yfinance, alpha_vantage, local
         "fundamental_data": "yfinance",      # Options: yfinance, alpha_vantage, local (using yfinance - no API key needed)
-        "news_data": "alpha_vantage",        # UPDATED: Use Alpha Vantage for better news coverage and sentiment analysis
+        "news_data": "skip",                 # Skip news to avoid OpenAI fallback when using Ollama (set to "alpha_vantage" if you have API key)
     },
     # Validation settings (Eddie's credibility enhancements)
     "validation": {
@@ -52,7 +52,8 @@ DEFAULT_CONFIG = {
     # Tool-level configuration (takes precedence over category-level)
     "tool_vendors": {
         # Example: "get_stock_data": "alpha_vantage",  # Override category default
-        # Example: "get_news": "openai",               # Override category default
+        "get_news": "skip",                           # Skip news to avoid OpenAI fallback
+        "get_global_news": "skip",                     # Skip global news to avoid OpenAI fallback
     },
     # Profitability Features Configuration
     # Enable profitability improvements for enhanced trading performance

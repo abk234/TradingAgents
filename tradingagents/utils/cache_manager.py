@@ -1,3 +1,4 @@
+import os
 """
 Caching layer with Redis backend
 """
@@ -23,7 +24,7 @@ class CacheManager:
     
     def __init__(
         self,
-        redis_url: str = "redis://localhost:6379/0",
+        redis_url: str = None,
         default_ttl: int = 3600,
         key_prefix: str = "ta:"
     ):
@@ -38,6 +39,10 @@ class CacheManager:
         self.default_ttl = default_ttl
         self.key_prefix = key_prefix
         self.redis = None
+
+        # Get Redis URL from environment if not provided
+        if redis_url is None:
+            redis_url = os.getenv('REDIS_URL', 'redis://localhost:6379/0')
         
         if not REDIS_AVAILABLE:
             logger.warning("⚠️  Redis not available. Caching disabled.")

@@ -49,5 +49,8 @@ jinja2>=3.0.0
 redis>=5.0.0
 chainlit>=1.0.0
 
+# Monitoring & Observability
+langfuse>=2.0.0
+
 # Build Tools
 setuptools>=68.0.0
