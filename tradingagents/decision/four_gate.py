@@ -4,7 +4,7 @@ Four-Gate Buy Decision Framework
 Systematic decision framework with four gates that must pass for a BUY signal.
 """
 
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Tuple
 from dataclasses import dataclass
 import logging
 
@@ -283,7 +283,8 @@ class FourGateFramework:
         self,
         risk_analysis: Dict[str, Any],
         position_size_pct: float,
-        portfolio_context: Dict[str, Any] = None
+        portfolio_context: Dict[str, Any] = None,
+        correlation_risk: Dict[str, Any] = None
     ) -> GateResult:
         """
         Gate 3: Risk Assessment.
@@ -367,6 +368,21 @@ class FourGateFramework:
             elif current_sector_exposure < sector_limit * 0.5:  # Underweight sector
                 score += 5
                 reasons.append(f"Sector diversification opportunity ({sector}: {current_sector_exposure:.1f}% < {sector_limit * 0.5:.1f}%)")
+
+        # Correlation risk check (High Impact 5)
+        if correlation_risk:
+            max_correlation = correlation_risk.get('max_correlation', 0.0)
+            details['max_correlation'] = max_correlation
+            
+            if max_correlation > 0.75:
+                score -= 20
+                reasons.append(f"High correlation risk ({max_correlation:.2f} > 0.75)")
+            elif max_correlation > 0.6:
+                score -= 10
+                reasons.append(f"Moderate correlation risk ({max_correlation:.2f})")
+            elif max_correlation < 0.3:
+                score += 5
+                reasons.append(f"Good diversification (low correlation {max_correlation:.2f})")
 
         # Red flags from risk analysis
         risk_flags = risk_analysis.get('red_flags', [])
@@ -488,6 +504,58 @@ class FourGateFramework:
             details=details
         )
 
+    def get_dynamic_thresholds(
+        self, 
+        confidence_score: int = None,
+        market_regime: str = None,
+        volatility_regime: str = None
+    ) -> Dict[str, int]:
+        """
+        Get dynamic thresholds based on confidence score and market regime.
+        
+        Quick Win 1: Adjust gate thresholds based on confidence level.
+        High Impact 1: Adjust thresholds based on market regime.
+        
+        - High confidence (>85): Lower thresholds (more permissive)
+        - Low confidence (<60): Raise thresholds (more strict)
+        - Bull market: Lower fundamental, raise technical
+        - Bear market: Raise fundamental, lower technical
+        - High volatility: Raise risk threshold
+        
+        Args:
+            confidence_score: Overall confidence score (0-100)
+            market_regime: 'bull', 'bear', or 'neutral' (optional)
+            volatility_regime: 'high', 'low', or 'normal' (optional)
+            
+        Returns:
+            Adjusted thresholds dictionary
+        """
+        thresholds = self.thresholds.copy()
+        
+        # Quick Win 1: Confidence-based adjustments
+        if confidence_score is not None:
+            if confidence_score > 85:
+                # High confidence: Lower thresholds for more opportunities
+                thresholds['fundamental_min_score'] = max(65, thresholds['fundamental_min_score'] - 5)
+                thresholds['technical_min_score'] = max(60, thresholds['technical_min_score'] - 5)
+            elif confidence_score < 60:
+                # Low confidence: Raise thresholds for stricter filtering
+                thresholds['fundamental_min_score'] = min(75, thresholds['fundamental_min_score'] + 5)
+                thresholds['technical_min_score'] = min(70, thresholds['technical_min_score'] + 5)
+        
+        # High Impact 1: Market regime adjustments
+        if market_regime == 'bull':
+            thresholds['fundamental_min_score'] = max(65, thresholds['fundamental_min_score'] - 5)
+            thresholds['technical_min_score'] = min(70, thresholds['technical_min_score'] + 5)
+        elif market_regime == 'bear':
+            thresholds['fundamental_min_score'] = min(75, thresholds['fundamental_min_score'] + 5)
+            thresholds['technical_min_score'] = max(60, thresholds['technical_min_score'] - 5)
+        
+        if volatility_regime == 'high':
+            thresholds['risk_min_score'] = min(75, thresholds['risk_min_score'] + 5)
+        
+        return thresholds
+
     def evaluate_all_gates(
         self,
         fundamentals: Dict[str, Any],
@@ -498,7 +566,9 @@ class FourGateFramework:
         historical_context: Dict[str, Any],
         sector_avg: Dict[str, Any] = None,
         portfolio_context: Dict[str, Any] = None,
-        catalyst_timeline: Dict[str, Any] = None
+        catalyst_timeline: Dict[str, Any] = None,
+        confidence_score: int = None,
+        correlation_risk: Dict[str, Any] = None
     ) -> Dict[str, Any]:
         """
         Evaluate all four gates and generate final recommendation.
@@ -513,15 +583,24 @@ class FourGateFramework:
             sector_avg: Sector averages (optional)
             portfolio_context: Portfolio state (optional)
             catalyst_timeline: Catalyst timeline (optional)
+            confidence_score: Overall confidence score for dynamic thresholds (optional)
 
         Returns:
             Complete evaluation with final recommendation
         """
+        # Apply dynamic thresholds based on confidence (Quick Win 1)
+        original_thresholds = self.thresholds
+        if confidence_score is not None:
+            self.thresholds = self.get_dynamic_thresholds(confidence_score)
+        
         # Evaluate each gate
         gate1 = self.evaluate_fundamental_gate(fundamentals, sector_avg)
         gate2 = self.evaluate_technical_gate(signals, price_data, historical_context)
-        gate3 = self.evaluate_risk_gate(risk_analysis, position_size_pct, portfolio_context)
+        gate3 = self.evaluate_risk_gate(risk_analysis, position_size_pct, portfolio_context, correlation_risk)
         gate4 = self.evaluate_timing_gate(price_data, historical_context, catalyst_timeline)
+        
+        # Restore original thresholds
+        self.thresholds = original_thresholds
 
         # Determine final decision
         # Gates 1-3 must pass, Gate 4 is advisory

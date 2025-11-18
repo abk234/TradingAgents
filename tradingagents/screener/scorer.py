@@ -25,11 +25,16 @@ class PriorityScorer:
     TECHNICAL_RULES = {
         'rsi_oversold': 15,  # RSI < 30
         'rsi_optimal': 10,   # RSI 30-50
+        'rsi_overbought': -10,  # RSI > 70 (penalty)
         'near_bb_lower': 10,  # Near lower Bollinger Band
+        'near_bb_upper': -5,  # Near upper Bollinger Band (overbought)
         'macd_bullish_crossover': 15,
+        'macd_bearish_crossover': -15,  # MACD bearish (penalty)
         'price_above_ma20': 5,
         'price_above_ma50': 5,
         'ma20_above_ma50': 10,
+        'price_below_ma20': -5,  # Below MA20 (penalty)
+        'price_below_ma50': -10,  # Below MA50 (penalty)
     }
 
     # Volume scoring rules
@@ -65,7 +70,7 @@ class PriorityScorer:
         Returns:
             Technical score (0-100)
         """
-        score = 0
+        score = 50  # Start with neutral baseline (was 0, which biased toward low scores)
 
         # RSI scoring
         rsi = signals.get('rsi')
@@ -74,26 +79,36 @@ class PriorityScorer:
                 score += self.TECHNICAL_RULES['rsi_oversold']
             elif 30 <= rsi <= 50:
                 score += self.TECHNICAL_RULES['rsi_optimal']
+            elif signals.get('rsi_overbought'):
+                score += self.TECHNICAL_RULES['rsi_overbought']  # Penalty
 
         # Bollinger Bands
         if signals.get('near_bb_lower'):
             score += self.TECHNICAL_RULES['near_bb_lower']
+        elif signals.get('near_bb_upper'):
+            score += self.TECHNICAL_RULES['near_bb_upper']  # Penalty for overbought
 
-        # MACD
+        # MACD - CRITICAL FIX: Penalize bearish signals
         if signals.get('macd_bullish_crossover'):
             score += self.TECHNICAL_RULES['macd_bullish_crossover']
+        elif signals.get('macd_bearish_crossover'):
+            score += self.TECHNICAL_RULES['macd_bearish_crossover']  # Penalty for bearish
 
         # Moving averages
         if signals.get('price_above_ma20'):
             score += self.TECHNICAL_RULES['price_above_ma20']
+        elif signals.get('price_below_ma20'):
+            score += self.TECHNICAL_RULES['price_below_ma20']  # Penalty
 
         if signals.get('price_above_ma50'):
             score += self.TECHNICAL_RULES['price_above_ma50']
+        elif signals.get('price_below_ma50'):
+            score += self.TECHNICAL_RULES['price_below_ma50']  # Penalty
 
         if signals.get('ma20_above_ma50'):
             score += self.TECHNICAL_RULES['ma20_above_ma50']
 
-        return min(score, 100)
+        return max(0, min(score, 100))  # Clamp between 0-100
 
     def score_volume(self, signals: Dict[str, Any]) -> int:
         """

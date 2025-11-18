@@ -203,6 +203,54 @@ class TickerOperations:
         ticker = self.get_ticker(symbol=symbol)
         return ticker['ticker_id'] if ticker else None
 
+    def get_or_create_ticker(
+        self,
+        symbol: str,
+        company_name: str = None,
+        sector: str = None,
+        industry: str = None,
+        **kwargs
+    ) -> int:
+        """
+        Get existing ticker or create new one if it doesn't exist.
+
+        This is a convenience method that combines get_ticker and add_ticker.
+
+        Args:
+            symbol: Ticker symbol (e.g., 'NVDA')
+            company_name: Company name
+            sector: Business sector
+            industry: Industry classification
+            **kwargs: Additional fields (market_cap, priority_tier, tags, notes)
+
+        Returns:
+            ticker_id
+
+        Example:
+            >>> ticker_ops = TickerOperations(db)
+            >>> ticker_id = ticker_ops.get_or_create_ticker(
+            ...     "AAPL",
+            ...     company_name="Apple Inc.",
+            ...     sector="Technology",
+            ...     industry="Consumer Electronics"
+            ... )
+        """
+        # Try to get existing ticker
+        ticker = self.get_ticker(symbol=symbol)
+
+        if ticker:
+            # Ticker exists, return its ID
+            return ticker['ticker_id']
+        else:
+            # Ticker doesn't exist, create it
+            return self.add_ticker(
+                symbol=symbol,
+                company_name=company_name,
+                sector=sector,
+                industry=industry,
+                **kwargs
+            )
+
     def add_tags(self, symbol: str, tags: List[str]) -> bool:
         """
         Add tags to a ticker.

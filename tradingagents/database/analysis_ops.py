@@ -30,15 +30,21 @@ class AnalysisOperations:
         self,
         ticker_id: int,
         analysis_data: Dict[str, Any],
-        embedding: List[float] = None
+        embedding: List[float] = None,
+        llm_prompts: Dict[str, str] = None,
+        llm_responses: Dict[str, Any] = None,
+        llm_metadata: Dict[str, Any] = None
     ) -> int:
         """
-        Store a deep analysis result.
+        Store a deep analysis result with optional LLM tracking data.
 
         Args:
             ticker_id: ID of the ticker analyzed
             analysis_data: Dictionary containing analysis results
             embedding: Vector embedding for RAG (768-dim array)
+            llm_prompts: Dict of prompts by agent name (e.g., {"fundamentals_analyst": "prompt..."})
+            llm_responses: Dict of responses by agent name
+            llm_metadata: Dict of metadata (tokens, cost, duration, etc.)
 
         Returns:
             analysis_id of the stored analysis
@@ -66,11 +72,20 @@ class AnalysisOperations:
             'expected_return_pct': analysis_data.get('expected_return_pct'),
             'expected_holding_period_days': analysis_data.get('expected_holding_period_days'),
             'llm_model_used': analysis_data.get('llm_model_used'),
-            'embedding': embedding
+            'embedding': embedding,
+            'llm_prompts': json.dumps(llm_prompts) if llm_prompts else None,
+            'llm_responses': json.dumps(llm_responses) if llm_responses else None,
+            'llm_metadata': json.dumps(llm_metadata) if llm_metadata else None
         }
 
         analysis_id = self.db.insert('analyses', data, returning='analysis_id')
-        logger.info(f"Stored analysis {analysis_id} for ticker_id {ticker_id}")
+
+        llm_info = ""
+        if llm_prompts or llm_responses or llm_metadata:
+            agent_count = len(llm_prompts) if llm_prompts else 0
+            llm_info = f" with LLM tracking ({agent_count} agents)"
+
+        logger.info(f"Stored analysis {analysis_id} for ticker_id {ticker_id}{llm_info}")
         return analysis_id
 
     def get_analyses_for_ticker(

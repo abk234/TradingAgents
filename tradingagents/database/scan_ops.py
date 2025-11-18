@@ -189,7 +189,8 @@ class ScanOperations:
     def get_top_opportunities(
         self,
         scan_date: date = None,
-        limit: int = 5
+        limit: int = 5,
+        filter_buy_only: bool = False
     ) -> List[Dict[str, Any]]:
         """
         Get top opportunities from a scan.
@@ -197,27 +198,46 @@ class ScanOperations:
         Args:
             scan_date: Scan date (defaults to today)
             limit: Number of results to return
+            filter_buy_only: If True, prioritize BUY recommendations
 
         Returns:
-            List of top-ranked scan results with ticker info
+            List of top-ranked scan results with ticker info, dividend yield, and entry price
         """
         if scan_date is None:
             scan_date = date.today()
 
+        # Base query with dividend yield
+        # Use NULL instead of 0 to distinguish "no data" from "0% yield"
         query = """
             SELECT
                 ds.*,
                 t.symbol,
                 t.company_name,
-                t.sector
+                t.sector,
+                dyc.dividend_yield_pct,
+                dyc.annual_dividend
             FROM daily_scans ds
             JOIN tickers t ON ds.ticker_id = t.ticker_id
+            LEFT JOIN dividend_yield_cache dyc ON t.ticker_id = dyc.ticker_id
             WHERE ds.scan_date = %s
-            ORDER BY ds.priority_rank
-            LIMIT %s
         """
+        
+        params = [scan_date]
+        
+        # If filtering for BUY only, we'll need to check recommendations
+        # For now, order by priority_rank (we'll filter in Python after getting recommendations)
+        query += " ORDER BY ds.priority_rank LIMIT %s"
+        params.append(limit * 3 if filter_buy_only else limit)  # Get more to filter BUY recommendations
 
-        return self.db.execute_dict_query(query, (scan_date, limit)) or []
+        results = self.db.execute_dict_query(query, tuple(params)) or []
+        
+        # If filtering for BUY, we need to check recommendations
+        if filter_buy_only and results:
+            # We'll filter after adding recommendations in the formatter
+            # For now, just return results
+            pass
+        
+        return results
 
     def get_scan_history(
         self,

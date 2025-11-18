@@ -98,13 +98,22 @@ class MonitoredConnectionPool(psycopg2.pool.SimpleConnectionPool):
         with self.stats_lock:
             borrowed = self.stats['connections_borrowed']
             avg_wait = self.stats['wait_time_total'] / max(1, borrowed)
-            
+
+            # FIX: Handle _used being a dict in some psycopg2 versions
+            used_connections = getattr(self, '_used', 0)
+            if isinstance(used_connections, dict):
+                used_connections = len(used_connections)
+
+            min_conn = getattr(self, '_minconn', 0)
+            max_conn = getattr(self, '_maxconn', 0)
+
             return {
                 **self.stats,
-                'active_connections': getattr(self, '_used', 0),
-                'available_connections': max(0, getattr(self, '_minconn', 0) - getattr(self, '_used', 0)),
-                'max_connections': getattr(self, '_maxconn', 0),
-                'utilization_pct': (getattr(self, '_used', 0) / max(1, getattr(self, '_maxconn', 0))) * 100,
+                'active_connections': used_connections,
+                'available_connections': max(0, max_conn - used_connections),
+                'min_connections': min_conn,
+                'max_connections': max_conn,
+                'utilization_pct': (used_connections / max(1, max_conn)) * 100,
                 'avg_wait_time_ms': avg_wait * 1000,
             }
 

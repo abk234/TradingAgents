@@ -4,7 +4,7 @@ Daily Screener Module
 Main screening logic that coordinates data fetching, analysis, and scoring.
 """
 
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Tuple
 from datetime import date, datetime
 import time
 import logging
@@ -14,6 +14,7 @@ from .indicators import TechnicalIndicators
 from .scorer import PriorityScorer
 from tradingagents.database import get_db_connection, TickerOperations
 from tradingagents.database.scan_ops import ScanOperations
+from tradingagents.validation.earnings_calendar import check_earnings_proximity
 
 logger = logging.getLogger(__name__)
 
@@ -35,10 +36,38 @@ class DailyScreener:
         self.ticker_ops = TickerOperations(self.db)
         self.scan_ops = ScanOperations(self.db)
 
+    def should_skip_ticker(self, symbol: str, analysis_date: date = None) -> Tuple[bool, str]:
+        """
+        Check if ticker should be skipped due to earnings proximity (Quick Win 4).
+        
+        Args:
+            symbol: Ticker symbol
+            analysis_date: Date of analysis (defaults to today)
+            
+        Returns:
+            Tuple of (should_skip, reason)
+        """
+        if analysis_date is None:
+            analysis_date = date.today()
+        
+        try:
+            earnings_report = check_earnings_proximity(symbol, days_before=7, days_after=3)
+            
+            if earnings_report.is_in_proximity_window:
+                days_until = earnings_report.days_until_next_earnings
+                if days_until is not None and -3 <= days_until <= 7:
+                    return True, f"Near earnings ({days_until} days) - skipping to avoid volatility"
+            
+            return False, ""
+        except Exception as e:
+            logger.debug(f"Could not check earnings for {symbol}: {e}")
+            return False, ""  # Don't skip if we can't check
+
     def scan_ticker(
         self,
         ticker_id: int,
-        symbol: str
+        symbol: str,
+        skip_earnings_check: bool = False
     ) -> Optional[Dict[str, Any]]:
         """
         Scan a single ticker.
@@ -46,11 +75,19 @@ class DailyScreener:
         Args:
             ticker_id: Ticker ID
             symbol: Ticker symbol
+            skip_earnings_check: If True, skip earnings proximity check (Quick Win 4)
 
         Returns:
             Dictionary with scan results
         """
         start_time = time.time()
+
+        # Quick Win 4: Skip analysis near earnings
+        if not skip_earnings_check:
+            should_skip, reason = self.should_skip_ticker(symbol)
+            if should_skip:
+                logger.info(f"  ⊙ {symbol:6s} - Skipped: {reason}")
+                return None
 
         try:
             # Get price history from database
@@ -236,7 +273,8 @@ class DailyScreener:
     def get_top_opportunities(
         self,
         limit: int = 5,
-        scan_date: date = None
+        scan_date: date = None,
+        filter_buy_only: bool = False
     ) -> List[Dict[str, Any]]:
         """
         Get top opportunities from latest scan.
@@ -244,11 +282,45 @@ class DailyScreener:
         Args:
             limit: Number of results to return
             scan_date: Scan date (defaults to today)
+            filter_buy_only: If True, prioritize BUY recommendations
 
         Returns:
-            List of top opportunities with details
+            List of top opportunities with details, including dividend yield
         """
-        return self.scan_ops.get_top_opportunities(scan_date, limit)
+        results = self.scan_ops.get_top_opportunities(scan_date, limit * 3 if filter_buy_only else limit, filter_buy_only)
+        
+        # Enrich with current price and change
+        for result in results:
+            # Get latest price data
+            price_query = """
+                SELECT close, volume
+                FROM daily_prices
+                WHERE ticker_id = %s
+                ORDER BY price_date DESC
+                LIMIT 2
+            """
+            prices = self.scan_ops.db.execute_dict_query(
+                price_query,
+                (result['ticker_id'],)
+            )
+            
+            if prices and len(prices) > 0:
+                result['current_price'] = float(prices[0]['close'])
+                result['name'] = result.get('company_name', 'N/A')
+                
+                # Calculate change percentage
+                if len(prices) > 1:
+                    prev_close = float(prices[1]['close'])
+                    curr_close = float(prices[0]['close'])
+                    result['change_pct'] = ((curr_close - prev_close) / prev_close) * 100
+                else:
+                    result['change_pct'] = 0.0
+            else:
+                result['current_price'] = result.get('price', 0.0)
+                result['change_pct'] = 0.0
+                result['name'] = result.get('company_name', 'N/A')
+        
+        return results
 
     def generate_report(
         self,

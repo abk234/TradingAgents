@@ -1,0 +1,28 @@
+# Eddie Conversation Template
+# Generated: Mon Nov 17 22:07:16 EST 2025
+
+## Morning Routine
+1. "What data do you have?"
+2. "What are the best stocks right now?"
+3. "How are sectors doing?"
+
+## For Each Stock of Interest
+1. "What's the news on [TICKER]?"
+2. "Show me [TICKER]'s technicals"
+3. "Should I buy [TICKER]? Portfolio $100000"
+4. "Check earnings risk for [TICKER]"
+5. "Validate price sources for [TICKER]"
+6. "Check data quality for [TICKER]"
+7. "What did you learn about [TICKER]?"
+
+## Portfolio Review
+1. "Show my portfolio status"
+2. "What should I rebalance?"
+3. "Should I sell [LOSING_TICKER]?"
+4. "Should I add more to [WINNING_TICKER]?"
+
+## Notes
+- Always validate before trading
+- Use position sizing (3-5% typical)
+- Set stop losses
+- Review track record

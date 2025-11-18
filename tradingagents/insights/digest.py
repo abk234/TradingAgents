@@ -174,12 +174,12 @@ class MarketDigest:
 
         # Alert 1: Stocks hitting oversold (from today's scan)
         oversold_query = """
-            SELECT t.symbol, ds.rsi
+            SELECT t.symbol, (ds.technical_signals->>'rsi')::float as rsi
             FROM daily_scans ds
             JOIN tickers t ON ds.ticker_id = t.ticker_id
             WHERE ds.scan_date = %s
-            AND ds.rsi < 30
-            ORDER BY ds.rsi ASC
+            AND (ds.technical_signals->>'rsi')::float < 30
+            ORDER BY (ds.technical_signals->>'rsi')::float ASC
             LIMIT 5
         """
         oversold = self.db.execute_dict_query(oversold_query, (target_date,))
@@ -193,12 +193,12 @@ class MarketDigest:
 
         # Alert 2: Stocks hitting overbought
         overbought_query = """
-            SELECT t.symbol, ds.rsi
+            SELECT t.symbol, (ds.technical_signals->>'rsi')::float as rsi
             FROM daily_scans ds
             JOIN tickers t ON ds.ticker_id = t.ticker_id
             WHERE ds.scan_date = %s
-            AND ds.rsi > 70
-            ORDER BY ds.rsi DESC
+            AND (ds.technical_signals->>'rsi')::float > 70
+            ORDER BY (ds.technical_signals->>'rsi')::float DESC
             LIMIT 5
         """
         overbought = self.db.execute_dict_query(overbought_query, (target_date,))
@@ -218,8 +218,8 @@ class MarketDigest:
             SELECT
                 COUNT(*) as total_scanned,
                 AVG(priority_score) as avg_score,
-                COUNT(CASE WHEN rsi < 30 THEN 1 END) as oversold_count,
-                COUNT(CASE WHEN rsi > 70 THEN 1 END) as overbought_count
+                COUNT(CASE WHEN (technical_signals->>'rsi')::float < 30 THEN 1 END) as oversold_count,
+                COUNT(CASE WHEN (technical_signals->>'rsi')::float > 70 THEN 1 END) as overbought_count
             FROM daily_scans
             WHERE scan_date = %s
         """

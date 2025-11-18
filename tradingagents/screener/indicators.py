@@ -257,7 +257,9 @@ class TechnicalIndicators:
         # Moving average signals
         if pd.notna(latest['ma_20']) and pd.notna(latest['ma_50']):
             signals['price_above_ma20'] = latest['close'] > latest['ma_20']
+            signals['price_below_ma20'] = latest['close'] <= latest['ma_20']
             signals['price_above_ma50'] = latest['close'] > latest['ma_50']
+            signals['price_below_ma50'] = latest['close'] <= latest['ma_50']
             signals['ma20_above_ma50'] = latest['ma_20'] > latest['ma_50']
 
             if pd.notna(latest['ma_200']):

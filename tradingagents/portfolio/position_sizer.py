@@ -33,11 +33,13 @@ class PositionSizer:
         'aggressive': Decimal('1.5')     # 150% of normal position
     }
 
-    # Confidence-based position sizing
+    # Confidence-based position sizing (Enhanced - Quick Win 2)
     # Maps confidence level (0-100) to position size percentage
+    # Updated to allow larger positions for high-confidence trades
     CONFIDENCE_RANGES = [
-        (90, 100, Decimal('1.0')),   # Very high confidence: full position
-        (75, 89, Decimal('0.75')),   # High confidence: 75% position
+        (90, 100, Decimal('1.2')),   # Very high confidence: 120% position (up to 12% of portfolio)
+        (80, 89, Decimal('0.8')),    # High confidence: 80% position (up to 8% of portfolio)
+        (75, 79, Decimal('0.75')),   # High confidence: 75% position
         (60, 74, Decimal('0.50')),   # Medium confidence: 50% position
         (50, 59, Decimal('0.35')),   # Low-medium confidence: 35% position
         (0, 49, Decimal('0.25'))     # Low confidence: 25% position
@@ -78,7 +80,9 @@ class PositionSizer:
         current_price: Decimal,
         volatility: Decimal = None,
         target_price: Decimal = None,
-        annual_dividend_yield: Decimal = None
+        annual_dividend_yield: Decimal = None,
+        gate_scores: Dict[str, int] = None,
+        timing_passed: bool = True
     ) -> Dict[str, Any]:
         """
         Calculate optimal position size.
@@ -115,8 +119,30 @@ class PositionSizer:
         base_position_pct = self.max_position_pct * confidence_multiplier
         adjusted_position_pct = base_position_pct * risk_multiplier * volatility_multiplier
 
-        # Cap at max position size
-        position_size_pct = min(adjusted_position_pct, self.max_position_pct)
+        # High Impact 2: Adjust based on gate scores (if provided)
+        if gate_scores:
+            avg_gate_score = sum(gate_scores.values()) / len(gate_scores)
+            if avg_gate_score > 85:
+                # Exceptional gate scores - boost position by 20%
+                adjusted_position_pct *= Decimal('1.2')
+            elif avg_gate_score < 60:
+                # Weak gate scores - reduce position by 20%
+                adjusted_position_pct *= Decimal('0.8')
+        
+        # High Impact 2: Reduce position if timing gate failed
+        if not timing_passed:
+            adjusted_position_pct *= Decimal('0.7')  # Reduce by 30%
+
+        # Cap at max position size (Quick Win 2: Allow up to 12% for very high confidence)
+        max_allowed = self.max_position_pct
+        if confidence >= 90:
+            # Allow up to 12% for very high confidence trades
+            max_allowed = min(Decimal('12.0'), self.max_position_pct * Decimal('1.2'))
+        elif confidence >= 80:
+            # Allow up to 8% for high confidence trades
+            max_allowed = min(Decimal('8.0'), self.max_position_pct * Decimal('0.8'))
+        
+        position_size_pct = min(adjusted_position_pct, max_allowed)
 
         # Step 5: Calculate dollar amounts
         recommended_amount = (self.portfolio_value * position_size_pct / Decimal('100')).quantize(Decimal('0.01'))
@@ -270,6 +296,112 @@ class PositionSizer:
             'ideal_entry_min': ideal_entry_min,
             'ideal_entry_max': ideal_entry_max,
             'timing_reasoning': timing_reasoning
+        }
+
+    def calculate_trailing_stop(
+        self,
+        entry_price: Decimal,
+        current_price: Decimal,
+        highest_price: Decimal = None
+    ) -> Dict[str, Any]:
+        """
+        Calculate trailing stop loss (Quick Win 3).
+        
+        Trails stop loss up as price rises, protecting profits.
+        Stop loss trails 8% below the highest price reached.
+        
+        Args:
+            entry_price: Original entry price
+            current_price: Current stock price
+            highest_price: Highest price reached since entry (optional)
+            
+        Returns:
+            Dict with trailing stop information:
+            - trailing_stop: Current trailing stop price
+            - stop_loss_pct: Stop loss percentage from entry
+            - profit_protected_pct: Profit protected by trailing stop
+            - should_exit: Whether stop loss has been hit
+        """
+        if highest_price is None:
+            highest_price = current_price
+        
+        # Update highest price if current is higher
+        if current_price > highest_price:
+            highest_price = current_price
+        
+        # Trail stop 8% below highest price
+        trailing_stop = highest_price * Decimal('0.92')
+        
+        # Ensure trailing stop never goes below entry stop (initial 8% stop)
+        initial_stop = entry_price * Decimal('0.92')
+        trailing_stop = max(trailing_stop, initial_stop)
+        
+        # Calculate metrics
+        stop_loss_pct = ((entry_price - trailing_stop) / entry_price * Decimal('100')).quantize(Decimal('0.01'))
+        profit_protected_pct = ((highest_price - trailing_stop) / entry_price * Decimal('100')).quantize(Decimal('0.01'))
+        
+        # Check if stop has been hit
+        should_exit = current_price <= trailing_stop
+        
+        return {
+            'trailing_stop': trailing_stop.quantize(Decimal('0.01')),
+            'stop_loss_pct': stop_loss_pct,
+            'profit_protected_pct': profit_protected_pct,
+            'highest_price': highest_price.quantize(Decimal('0.01')),
+            'should_exit': should_exit,
+            'reasoning': f"Trailing stop at ${trailing_stop:.2f} (8% below highest ${highest_price:.2f})"
+        }
+
+    def should_take_partial_profit(
+        self,
+        entry_price: Decimal,
+        current_price: Decimal
+    ) -> Dict[str, Any]:
+        """
+        Determine if partial profits should be taken (High Impact 3).
+        
+        Takes partial profits at:
+        - 5% gain: 25% of position
+        - 10% gain: 25% of position (total 50% sold)
+        - 15% gain: 50% of position (total 100% sold)
+        
+        Args:
+            entry_price: Original entry price
+            current_price: Current stock price
+            
+        Returns:
+            Dict with partial profit recommendation:
+            - should_take_profit: Whether to take partial profit
+            - profit_pct: Percentage of position to sell
+            - gain_pct: Current gain percentage
+            - reasoning: Explanation
+        """
+        gain_pct = ((current_price - entry_price) / entry_price * Decimal('100')).quantize(Decimal('0.01'))
+        
+        should_take_profit = False
+        profit_pct = Decimal('0.0')
+        reasoning = ""
+        
+        if gain_pct >= Decimal('15'):
+            should_take_profit = True
+            profit_pct = Decimal('0.5')  # Sell 50% (remaining position)
+            reasoning = f"Strong gain of {gain_pct}% - take 50% profit to lock in gains"
+        elif gain_pct >= Decimal('10'):
+            should_take_profit = True
+            profit_pct = Decimal('0.25')  # Sell 25%
+            reasoning = f"Good gain of {gain_pct}% - take 25% profit"
+        elif gain_pct >= Decimal('5'):
+            should_take_profit = True
+            profit_pct = Decimal('0.25')  # Sell 25%
+            reasoning = f"Moderate gain of {gain_pct}% - take 25% profit"
+        else:
+            reasoning = f"Gain of {gain_pct}% - hold for higher targets"
+        
+        return {
+            'should_take_profit': should_take_profit,
+            'profit_pct': profit_pct,
+            'gain_pct': gain_pct,
+            'reasoning': reasoning
         }
 
     def _get_confidence_multiplier(self, confidence: int) -> Decimal:

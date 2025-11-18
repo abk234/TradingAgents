@@ -54,4 +54,11 @@ DEFAULT_CONFIG = {
         # Example: "get_stock_data": "alpha_vantage",  # Override category default
         # Example: "get_news": "openai",               # Override category default
     },
+    # Profitability Features Configuration
+    # Enable profitability improvements for enhanced trading performance
+    "enable_profitability_features": True,  # ✅ ENABLED: All profitability features active
+    "portfolio_value": 10000,  # Portfolio value in USD (adjust to your portfolio size)
+    "enable_regime_detection": True,  # Market regime detection (bull/bear/volatility)
+    "enable_sector_rotation": True,  # Sector rotation detection
+    "enable_correlation_check": True,  # Correlation-based risk management
 }

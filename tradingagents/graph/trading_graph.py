@@ -99,6 +99,27 @@ class TradingAgentsGraph:
                 self.enable_rag = False
         else:
             logger.info("RAG system disabled")
+        
+        # Initialize profitability enhancer (optional)
+        self.profitability_enhancer = None
+        if config.get("enable_profitability_features", False):
+            try:
+                from tradingagents.graph.profitability_enhancer import ProfitabilityEnhancer
+                portfolio_value = config.get("portfolio_value")
+                if portfolio_value:
+                    portfolio_value = Decimal(str(portfolio_value))
+                
+                self.profitability_enhancer = ProfitabilityEnhancer(
+                    portfolio_value=portfolio_value,
+                    enable_regime_detection=config.get("enable_regime_detection", True),
+                    enable_sector_rotation=config.get("enable_sector_rotation", True),
+                    enable_correlation_check=config.get("enable_correlation_check", True),
+                    db=self.db if self.enable_rag else None
+                )
+                logger.info("✓ Profitability enhancer initialized")
+            except Exception as e:
+                logger.warning(f"⚠ Profitability enhancer initialization failed: {e}")
+                self.profitability_enhancer = None
 
         # Initialize LLMs
         if self.config["llm_provider"].lower() == "openai" or self.config["llm_provider"] == "ollama" or self.config["llm_provider"] == "openrouter":
@@ -247,9 +268,26 @@ class TradingAgentsGraph:
         # Log state
         self._log_state(trade_date, final_state)
 
+        # Enhance with profitability improvements if enabled
+        profitability_enhancements = None
+        if self.profitability_enhancer:
+            try:
+                profitability_enhancements = self.profitability_enhancer.enhance_analysis(
+                    ticker=company_name,
+                    final_state=final_state,
+                    analysis_date=trade_date
+                )
+                logger.info(f"✓ Profitability enhancements calculated for {company_name}")
+            except Exception as e:
+                logger.warning(f"⚠ Error enhancing analysis: {e}")
+
         # Optionally store analysis to database
         if store_analysis and self.enable_rag:
             self._store_analysis(company_name, trade_date, final_state)
+
+        # Add profitability enhancements to final state if available
+        if profitability_enhancements:
+            final_state["profitability_enhancements"] = profitability_enhancements
 
         # Return decision and processed signal
         return final_state, self.process_signal(final_state["final_trade_decision"])

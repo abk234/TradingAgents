@@ -183,17 +183,18 @@ class PriceAlertSystem:
         query = """
             SELECT
                 t.symbol,
-                ds.rsi,
-                ds.current_price,
+                (ds.technical_signals->>'rsi')::float as rsi,
+                ds.price as current_price,
                 ds.scan_date
             FROM daily_scans ds
             JOIN tickers t ON ds.ticker_id = t.ticker_id
             WHERE ds.scan_date >= CURRENT_DATE - INTERVAL '1 day'
-            AND (ds.rsi < 25 OR ds.rsi > 75)
+            AND (ds.technical_signals->>'rsi')::float IS NOT NULL
+            AND ((ds.technical_signals->>'rsi')::float < 25 OR (ds.technical_signals->>'rsi')::float > 75)
             ORDER BY
                 CASE
-                    WHEN ds.rsi < 25 THEN ds.rsi
-                    ELSE 100 - ds.rsi
+                    WHEN (ds.technical_signals->>'rsi')::float < 25 THEN (ds.technical_signals->>'rsi')::float
+                    ELSE 100 - (ds.technical_signals->>'rsi')::float
                 END ASC
             LIMIT 10
         """

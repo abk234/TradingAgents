@@ -1,0 +1,60 @@
+[0;36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[0;36m  TradingAgents Feature Validation[0m
+[0;36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+
+[1;33m[1/10] Testing Market Screener...[0m
+[0;32m✓ Passed[0m
+
+[1;33m[2/10] Testing Stock Analysis...[0m
+[0;32m✓ Passed[0m
+
+[1;33m[3/10] Testing Morning Briefing...[0m
+[1;33m⚠ Skipped[0m
+[0;32m✓ Passed[0m
+
+[1;33m[4/10] Testing Portfolio Management...[0m
+[1;33m⚠ Skipped (no positions)[0m
+[0;32m✓ Passed[0m
+
+[1;33m[5/10] Testing Dividend Analysis...[0m
+[0;32m✓ Passed[0m
+
+[1;33m[6/10] Testing Performance Evaluation...[0m
+[0;32m✓ Passed[0m
+
+[1;33m[7/10] Testing Notification Configuration...[0m
+[0;32m✓ Passed (config exists)[0m
+
+[1;33m[8/10] Testing Notifications...[0m
+[0;32m✓ Passed[0m
+
+[1;33m[9/10] Testing Session Logs...[0m
+[0;32m✓ Passed[0m
+
+[1;33m[10/10] Testing Multi-Feature Execution...[0m
+[0;32m✓ Passed[0m
+
+
+[0;36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[0;36m  Validation Complete[0m
+[0;36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+
+Total Features: 10[0m
+✅ Passed: [0;32m10[0m
+❌ Failed: [0;31m0[0m
+⚠️ Skipped: [1;33m2[0m
+
+Detailed results saved to: [0;36m/Users/lxupkzwjs/Developer/eval/TradingAgents/feature_validation_results/validation_20251117_201151.md[0m
+
+TradingAgents Feature Validation Summary
+Date: Mon Nov 17 20:12:29 EST 2025
+Timestamp: 20251117_201151
+
+Total Features: 10
+✅ Passed: 10
+❌ Failed: 0
+⚠️ Skipped: 2
+
+Overall Status: ✅ READY
+
+Detailed Report: /Users/lxupkzwjs/Developer/eval/TradingAgents/feature_validation_results/validation_20251117_201151.md

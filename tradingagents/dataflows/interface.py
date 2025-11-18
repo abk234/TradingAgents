@@ -1,4 +1,7 @@
-from typing import Annotated
+from typing import Annotated, List, Dict
+import logging
+
+logger = logging.getLogger(__name__)
 
 # Import from vendor-specific modules
 from .local import get_YFin_data, get_finnhub_news, get_finnhub_company_insider_sentiment, get_finnhub_company_insider_transactions, get_simfin_balance_sheet, get_simfin_cashflow, get_simfin_income_statements, get_reddit_global_news, get_reddit_company_news
@@ -269,3 +272,235 @@ def route_to_vendor(method: str, *args, **kwargs):
     else:
         # Convert all results to strings and concatenate
         return '\n'.join(str(result) for result in results)
+
+
+def route_to_vendor_with_metadata(method: str, *args, **kwargs):
+    """
+    Enhanced version of route_to_vendor that returns data with vendor metadata.
+
+    Returns:
+        Tuple of (data, metadata) where metadata includes:
+        - vendor_used: Which vendor successfully provided the data
+        - primary_vendor: Configured primary vendor
+        - fallback_occurred: Whether fallback was used
+        - failed_vendors: List of vendors that failed
+        - timestamp: When data was fetched
+    """
+    from datetime import datetime
+
+    category = get_category_for_method(method)
+    vendor_config = get_vendor(category, method)
+
+    metadata = {
+        "method": method,
+        "primary_vendor": vendor_config.split(',')[0].strip(),
+        "timestamp": datetime.now().isoformat(),
+        "vendor_used": None,
+        "fallback_occurred": False,
+        "failed_vendors": [],
+        "attempts": 0
+    }
+
+    # Handle "skip" vendor
+    if vendor_config == "skip" or "skip" in vendor_config:
+        optional_methods = [
+            'get_news', 'get_global_news', 'get_insider_sentiment', 'get_insider_transactions',
+            'get_fundamentals', 'get_balance_sheet', 'get_cashflow', 'get_income_statement'
+        ]
+        if method in optional_methods:
+            metadata["vendor_used"] = "skip"
+            return (f"Skipped: '{method}' disabled in fast mode configuration.", metadata)
+
+    primary_vendors = [v.strip() for v in vendor_config.split(',')]
+    all_available_vendors = list(VENDOR_METHODS.get(method, {}).keys())
+
+    fallback_vendors = primary_vendors.copy()
+    for vendor in all_available_vendors:
+        if vendor not in fallback_vendors:
+            fallback_vendors.append(vendor)
+
+    # Try each vendor
+    for i, vendor in enumerate(fallback_vendors):
+        if vendor not in VENDOR_METHODS.get(method, {}):
+            if vendor in primary_vendors:
+                metadata["failed_vendors"].append({"vendor": vendor, "reason": "not supported for method"})
+            continue
+
+        vendor_impl = VENDOR_METHODS[method][vendor]
+        is_primary = vendor in primary_vendors
+        metadata["attempts"] += 1
+
+        if not is_primary:
+            metadata["fallback_occurred"] = True
+
+        # Handle list of methods
+        vendor_methods = [(vendor_impl, vendor)] if not isinstance(vendor_impl, list) else [(impl, vendor) for impl in vendor_impl]
+
+        for impl_func, vendor_name in vendor_methods:
+            try:
+                result = impl_func(*args, **kwargs)
+                metadata["vendor_used"] = vendor_name
+                return (result, metadata)
+
+            except AlphaVantageRateLimitError as e:
+                metadata["failed_vendors"].append({
+                    "vendor": vendor_name,
+                    "reason": "rate_limit",
+                    "error": str(e)
+                })
+                continue
+
+            except Exception as e:
+                metadata["failed_vendors"].append({
+                    "vendor": vendor_name,
+                    "reason": "error",
+                    "error": str(e)
+                })
+                continue
+
+    # All vendors failed
+    optional_methods = [
+        'get_news', 'get_global_news', 'get_insider_sentiment', 'get_insider_transactions',
+        'get_fundamentals', 'get_balance_sheet', 'get_cashflow', 'get_income_statement'
+    ]
+
+    if method in optional_methods:
+        placeholder = f"Data unavailable for '{method}'. All vendors require API keys or local data files that are not configured."
+        return (placeholder, metadata)
+
+    raise RuntimeError(f"All vendor implementations failed for method '{method}'. Metadata: {metadata}")
+
+
+def route_to_vendor_with_cache(method: str, *args, **kwargs):
+    """
+    Route method calls with caching support for stock price data.
+
+    For get_stock_data:
+        1. Check cache first
+        2. If cache hit and not stale: return cached data
+        3. If cache miss: fetch from vendor and cache result
+
+    Returns:
+        Same format as the original method (CSV string for get_stock_data, etc.)
+    """
+    # Only cache stock price data
+    if method == "get_stock_data" and len(args) >= 3:
+        ticker = args[0]
+        start_date = args[1]
+        end_date = args[2]
+
+        # Convert string dates to date objects if needed
+        from datetime import date as date_type
+        if isinstance(start_date, str):
+            from datetime import datetime
+            start_date = datetime.strptime(start_date, "%Y-%m-%d").date()
+        if isinstance(end_date, str):
+            from datetime import datetime
+            end_date = datetime.strptime(end_date, "%Y-%m-%d").date()
+
+        # Try cache first
+        try:
+            from tradingagents.database import get_db_connection
+            from tradingagents.database.price_cache_ops import PriceCacheOperations
+
+            db = get_db_connection()
+            cache_ops = PriceCacheOperations(db)
+
+            cached_prices = cache_ops.get_cached_prices(ticker, start_date, end_date)
+
+            if cached_prices:
+                logger.info(f"✓ Cache hit for {ticker} {start_date} to {end_date}")
+                # Convert to CSV format (same as yfinance)
+                return _prices_to_csv(cached_prices)
+        except Exception as e:
+            logger.warning(f"Cache lookup failed, fetching from vendor: {e}")
+
+    # Cache miss or error - fetch from vendor
+    data, metadata = route_to_vendor_with_metadata(method, *args, **kwargs)
+
+    # Store in cache for future use (only for get_stock_data)
+    if method == "get_stock_data" and data and len(args) >= 3:
+        ticker = args[0]
+        start_date = args[1]
+        end_date = args[2]
+
+        # Convert string dates to date objects if needed
+        from datetime import date as date_type, datetime
+        if isinstance(start_date, str):
+            start_date = datetime.strptime(start_date, "%Y-%m-%d").date()
+        if isinstance(end_date, str):
+            end_date = datetime.strptime(end_date, "%Y-%m-%d").date()
+
+        try:
+            from tradingagents.database import get_db_connection
+            from tradingagents.database.price_cache_ops import PriceCacheOperations
+
+            db = get_db_connection()
+            cache_ops = PriceCacheOperations(db)
+
+            prices = _csv_to_prices(data)
+            is_realtime = end_date >= date_type.today()
+
+            cache_ops.store_prices(
+                ticker_symbol=ticker,
+                prices=prices,
+                data_source=metadata.get('vendor_used', 'unknown'),
+                is_realtime=is_realtime
+            )
+            logger.info(f"✓ Cached {len(prices)} prices for {ticker}")
+        except Exception as e:
+            logger.warning(f"Failed to cache prices: {e}")
+
+    return data
+
+
+def _prices_to_csv(prices: List[Dict]) -> str:
+    """Convert price dicts to CSV string (yfinance format)."""
+    import io
+
+    output = io.StringIO()
+    output.write("Date,Open,High,Low,Close,Adj Close,Volume\n")
+
+    for price in prices:
+        date_str = price['date'].strftime('%Y-%m-%d') if hasattr(price['date'], 'strftime') else str(price['date'])
+        open_val = price.get('open', '') if price.get('open') is not None else ''
+        high_val = price.get('high', '') if price.get('high') is not None else ''
+        low_val = price.get('low', '') if price.get('low') is not None else ''
+        close_val = price.get('close', '') if price.get('close') is not None else ''
+        adj_close_val = price.get('adj_close', '') if price.get('adj_close') is not None else ''
+        volume_val = price.get('volume', '') if price.get('volume') is not None else ''
+
+        output.write(f"{date_str},{open_val},{high_val},{low_val},{close_val},{adj_close_val},{volume_val}\n")
+
+    return output.getvalue()
+
+
+def _csv_to_prices(csv_data: str) -> List[Dict]:
+    """Convert CSV string to price dicts."""
+    import csv
+    from io import StringIO
+    from datetime import datetime
+
+    prices = []
+    reader = csv.DictReader(StringIO(csv_data))
+
+    for row in reader:
+        # Parse date
+        date_val = row.get('Date', '')
+        if date_val:
+            try:
+                date_obj = datetime.strptime(date_val, '%Y-%m-%d').date()
+            except:
+                date_obj = date_val
+
+            prices.append({
+                'date': date_obj,
+                'open': float(row.get('Open')) if row.get('Open') and row['Open'] != '' else None,
+                'high': float(row.get('High')) if row.get('High') and row['High'] != '' else None,
+                'low': float(row.get('Low')) if row.get('Low') and row['Low'] != '' else None,
+                'close': float(row.get('Close')) if row.get('Close') and row['Close'] != '' else None,
+                'adj_close': float(row.get('Adj Close')) if row.get('Adj Close') and row['Adj Close'] != '' else None,
+                'volume': int(float(row.get('Volume'))) if row.get('Volume') and row['Volume'] != '' else None
+            })
+
+    return prices

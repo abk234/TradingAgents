@@ -114,7 +114,9 @@ def cmd_run(args):
         if use_rich:
             # Use rich formatted output
             print_header("Daily Screener Results", f"{len(results)} stocks analyzed")
-            print_screener_results(results, limit=args.top)
+            # Check if user wants BUY recommendations only
+            show_buy_only = getattr(args, 'buy_only', False)
+            print_screener_results(results, limit=args.top, show_buy_only=show_buy_only)
         else:
             # Use traditional text output
             print("\n")
@@ -289,7 +291,7 @@ def main():
         '--top',
         type=int,
         default=20,
-        help='Number of top opportunities to show (default: 20)'
+        help='Number of top opportunities to show (default: 20, use --buy-only to see top BUY recommendations)'
     )
     run_parser.add_argument(
         '--quiet',
@@ -343,6 +345,11 @@ def main():
         type=int,
         default=3,
         help='Stocks to analyze from each top sector (default: 3, use with --sector-first)'
+    )
+    run_parser.add_argument(
+        '--buy-only',
+        action='store_true',
+        help='Show only BUY and STRONG BUY recommendations'
     )
     run_parser.set_defaults(func=cmd_run)
 
