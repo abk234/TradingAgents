@@ -149,8 +149,18 @@ class TradingAgentsGraph:
         if self.config["llm_provider"].lower() == "openai" or self.config["llm_provider"] == "ollama" or self.config["llm_provider"] == "openrouter":
             # For Ollama, we need to set a dummy API key since it doesn't require authentication
             api_key = "ollama" if self.config["llm_provider"] == "ollama" else None
-            # Set generous timeout for local Ollama or API calls
-            timeout = 120  # 2 minutes timeout for LLM responses
+            
+            # Set timeout based on provider and model size
+            # Ollama with large models (70B+) can take 5-10+ minutes for complex analysis
+            if self.config["llm_provider"] == "ollama":
+                # Check if using a large model (70B+)
+                large_models = ["llama3.3", "llama3.3:70b", "llama3.3:70b-instruct"]
+                is_large_model = any(lm in self.config["deep_think_llm"].lower() for lm in large_models)
+                timeout = 600 if is_large_model else 300  # 10 min for large models, 5 min for others
+                logger.info(f"Using timeout of {timeout}s for Ollama model: {self.config['deep_think_llm']}")
+            else:
+                timeout = 120  # 2 minutes for cloud APIs
+            
             self.deep_thinking_llm = ChatOpenAI(
                 model=self.config["deep_think_llm"],
                 base_url=self.config["backend_url"],
@@ -158,12 +168,14 @@ class TradingAgentsGraph:
                 temperature=0.7,
                 timeout=timeout
             )
+            # Quick thinking can use shorter timeout since it's for simpler tasks
+            quick_timeout = timeout // 2 if self.config["llm_provider"] == "ollama" else timeout
             self.quick_thinking_llm = ChatOpenAI(
                 model=self.config["quick_think_llm"],
                 base_url=self.config["backend_url"],
                 api_key=api_key,
                 temperature=0.7,
-                timeout=timeout
+                timeout=quick_timeout
             )
         elif self.config["llm_provider"].lower() == "anthropic":
             self.deep_thinking_llm = ChatAnthropic(model=self.config["deep_think_llm"], base_url=self.config["backend_url"])

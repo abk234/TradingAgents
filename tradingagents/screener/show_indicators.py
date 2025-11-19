@@ -7,13 +7,19 @@ Helps traders understand what each indicator means and how to use them.
 
 import sys
 from typing import Optional
-from tradingagents.database import get_db_connection
+from tradingagents.database import get_db_connection, TickerOperations, ScanOperations
 from tradingagents.utils.cli_formatter import CLIFormatter
 from tradingagents.utils import display_next_steps
 from tradingagents.screener.indicators import TechnicalIndicators
 from tradingagents.screener.pattern_recognition import PatternRecognition
+from tradingagents.screener.data_fetcher import DataFetcher
+from tradingagents.screener.screener import DailyScreener
+from tradingagents.screener.scorer import PriorityScorer
 import pandas as pd
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class IndicatorDisplay:
@@ -22,11 +28,32 @@ class IndicatorDisplay:
     def __init__(self):
         self.formatter = CLIFormatter()
         self.db = get_db_connection()
+        self.ticker_ops = TickerOperations(self.db)
+        self.scan_ops = ScanOperations(self.db)
+        self.data_fetcher = DataFetcher(self.db)
+        self.indicators = TechnicalIndicators()
+        self.scorer = PriorityScorer()
 
-    def show_all_indicators(self, ticker: Optional[str] = None):
-        """Show all indicators with interpretations."""
+    def show_all_indicators(self, ticker: Optional[str] = None, refresh: bool = False, refresh_data: bool = False):
+        """Show all indicators with interpretations.
 
+        Args:
+            ticker: Ticker symbol (optional)
+            refresh: If True, recalculate indicators from existing price data
+            refresh_data: If True, fetch fresh price data first, then recalculate indicators
+        """
         if ticker:
+            # Handle refresh flags
+            if refresh_data:
+                print(f"{self.formatter.YELLOW}Refreshing price data for {ticker}...{self.formatter.NC}\n")
+                self._refresh_price_data(ticker)
+                print(f"{self.formatter.GREEN}✓ Price data refreshed{self.formatter.NC}\n")
+            
+            if refresh or refresh_data:
+                print(f"{self.formatter.YELLOW}Recalculating indicators for {ticker}...{self.formatter.NC}\n")
+                self._recalculate_indicators(ticker)
+                print(f"{self.formatter.GREEN}✓ Indicators recalculated{self.formatter.NC}\n")
+            
             self._show_ticker_indicators(ticker)
         else:
             self._show_indicator_guide()
@@ -857,6 +884,89 @@ class IndicatorDisplay:
             'score_color': score_color
         }
 
+    def _refresh_price_data(self, ticker: str):
+        """Fetch fresh price data for a ticker."""
+        try:
+            # Get ticker ID
+            ticker_info = self.ticker_ops.get_ticker_by_symbol(ticker.upper())
+            if not ticker_info:
+                print(f"{self.formatter.RED}Error: Ticker {ticker} not found{self.formatter.NC}")
+                return False
+            
+            ticker_id = ticker_info['ticker_id']
+            
+            # Use screener's data fetcher to update prices
+            screener = DailyScreener()
+            screener.data_fetcher.update_ticker_prices(ticker_id, ticker.upper())
+            
+            return True
+        except Exception as e:
+            logger.error(f"Error refreshing price data for {ticker}: {e}")
+            print(f"{self.formatter.RED}Error refreshing price data: {e}{self.formatter.NC}")
+            return False
+
+    def _recalculate_indicators(self, ticker: str):
+        """Recalculate indicators for a ticker and update daily_scans table."""
+        try:
+            # Get ticker ID
+            ticker_info = self.ticker_ops.get_ticker_by_symbol(ticker.upper())
+            if not ticker_info:
+                print(f"{self.formatter.RED}Error: Ticker {ticker} not found{self.formatter.NC}")
+                return False
+            
+            ticker_id = ticker_info['ticker_id']
+            
+            # Get price history from database
+            price_data = self.data_fetcher.get_price_history(ticker_id, days=250)
+            
+            if price_data is None or len(price_data) < 50:
+                print(f"{self.formatter.RED}Error: Insufficient price data for {ticker}{self.formatter.NC}")
+                return False
+            
+            # Calculate indicators
+            price_data = self.indicators.calculate_all_indicators(price_data)
+            
+            # Generate signals
+            signals = self.indicators.generate_signals(price_data)
+            
+            # Get latest quote
+            quote = self.data_fetcher.get_latest_quote(ticker.upper(), use_database=True)
+            if quote is None:
+                print(f"{self.formatter.RED}Error: Could not get quote for {ticker}{self.formatter.NC}")
+                return False
+            
+            # Calculate priority score and alerts
+            score_result = self.scorer.calculate_priority_score(signals, quote)
+            
+            # Get latest price from price data
+            latest_price = float(price_data.iloc[-1]['close'])
+            
+            # Store/update in daily_scans table
+            scan_date = date.today()
+            scan_data = {
+                'price': latest_price,
+                'volume': float(price_data.iloc[-1]['volume']) if 'volume' in price_data.columns else 0,
+                'priority_score': score_result.get('priority_score', 0),
+                'priority_rank': 0,  # Will be set by update_rankings if needed
+                'technical_signals': signals,
+                'triggered_alerts': score_result.get('triggered_alerts', []),
+                'pe_ratio': quote.get('pe_ratio'),
+                'forward_pe': quote.get('forward_pe'),
+                'news_sentiment_score': None,
+                'scan_duration_seconds': 0,
+            }
+            
+            # Store scan result
+            self.scan_ops.store_scan_result(ticker_id, scan_date, scan_data)
+            
+            return True
+        except Exception as e:
+            logger.error(f"Error recalculating indicators for {ticker}: {e}")
+            print(f"{self.formatter.RED}Error recalculating indicators: {e}{self.formatter.NC}")
+            import traceback
+            traceback.print_exc()
+            return False
+
 
 def main():
     """Main entry point."""
@@ -864,11 +974,25 @@ def main():
 
     parser = argparse.ArgumentParser(description='Show technical indicators')
     parser.add_argument('ticker', nargs='?', help='Ticker symbol (optional)')
+    parser.add_argument(
+        '--refresh',
+        action='store_true',
+        help='Recalculate indicators from existing price data and update database'
+    )
+    parser.add_argument(
+        '--refresh-data',
+        action='store_true',
+        help='Fetch fresh price data first, then recalculate indicators (includes --refresh)'
+    )
 
     args = parser.parse_args()
 
     display = IndicatorDisplay()
-    display.show_all_indicators(args.ticker)
+    display.show_all_indicators(
+        args.ticker,
+        refresh=args.refresh or args.refresh_data,
+        refresh_data=args.refresh_data
+    )
 
 
 if __name__ == '__main__':

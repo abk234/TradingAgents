@@ -102,10 +102,10 @@ class PromptFormatter:
         similar = context.get('similar_situations', [])
 
         if not similar:
-            return ""
+            return "\n## SIMILAR PAST SITUATIONS\nNo similar past analyses found in database. This is normal for new databases or when analyzing stocks for the first time.\n"
 
         lines = ["\n## SIMILAR PAST SITUATIONS\n"]
-        lines.append("We've seen similar market conditions before:\n")
+        lines.append(f"We've found {len(similar)} similar past situation(s):\n")
 
         for i, situation in enumerate(similar[:3], 1):
             similarity = situation.get('similarity', 0)

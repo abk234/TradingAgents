@@ -38,7 +38,19 @@ class DeepAnalyzer:
             db: DatabaseConnection instance (creates new if None)
             debug: Whether to run in debug mode with detailed output
         """
-        self.config = config or DEFAULT_CONFIG
+        # Merge config with DEFAULT_CONFIG to ensure all required fields are present
+        if config:
+            import copy
+            merged_config = copy.deepcopy(DEFAULT_CONFIG)
+            # Deep merge nested dictionaries
+            for key, value in config.items():
+                if isinstance(value, dict) and key in merged_config and isinstance(merged_config[key], dict):
+                    merged_config[key].update(value)
+                else:
+                    merged_config[key] = value
+            self.config = merged_config
+        else:
+            self.config = DEFAULT_CONFIG
         self.enable_rag = enable_rag
         self.db = db or (get_db_connection() if enable_rag else None)
         self.debug = debug
@@ -289,6 +301,8 @@ class DeepAnalyzer:
 
     def close(self):
         """Clean up resources."""
-        if self.db:
-            self.db.close()
-            logger.info("Database connection closed")
+        # Note: Database connection is a singleton shared across the application,
+        # so we don't close it here. The connection pool manages itself.
+        # If you need to close the database connection, use close_db_connection() from
+        # tradingagents.database.connection module.
+        logger.debug("DeepAnalyzer cleanup complete (database connection pool remains active)")

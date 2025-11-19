@@ -223,15 +223,42 @@ def cmd_top(args):
     """Show top opportunities."""
     screener = DailyScreener()
 
-    scan_date = date.fromisoformat(args.date) if args.date else None
-    opportunities = screener.get_top_opportunities(limit=args.limit, scan_date=scan_date)
+    # Refresh scan if requested
+    if args.refresh:
+        print("Running fresh screener scan...")
+        screener.scan_all(update_prices=True, store_results=True)
+        print("✓ Scan complete\n")
+
+    # Determine requested date
+    requested_date = date.fromisoformat(args.date) if args.date else date.today()
+    # Pass None to let get_top_opportunities use its fallback logic when no date specified
+    scan_date_arg = date.fromisoformat(args.date) if args.date else None
+    opportunities = screener.get_top_opportunities(limit=args.limit, scan_date=scan_date_arg)
 
     if not opportunities:
-        print("No opportunities found.")
+        # Check if there are any scans at all
+        latest_scan_date = screener.scan_ops.get_latest_scan_date()
+        if latest_scan_date:
+            print(f"No opportunities found for the requested date ({requested_date}).")
+            print(f"Latest scan date in database: {latest_scan_date}")
+            if latest_scan_date != requested_date:
+                print(f"\nTip: Use --date {latest_scan_date} to see opportunities from the latest scan")
+            print(f"Or run a new scan with: python -m tradingagents.screener run")
+        else:
+            print("No opportunities found. No scans exist in the database.")
+            print(f"\nTip: Run the screener first with: python -m tradingagents.screener run")
         return 1
 
+    # Determine which scan date was actually used
+    actual_scan_date = opportunities[0].get('scan_date') if opportunities else None
+    
     print("="*70)
     print(f"TOP {len(opportunities)} OPPORTUNITIES")
+    if actual_scan_date:
+        if actual_scan_date != requested_date:
+            print(f"(from scan date: {actual_scan_date} - fallback from requested {requested_date})")
+        else:
+            print(f"(from scan date: {actual_scan_date})")
     print("="*70)
     print()
 
@@ -386,6 +413,11 @@ def main():
     top_parser.add_argument(
         '--date',
         help='Scan date (YYYY-MM-DD, default: today)'
+    )
+    top_parser.add_argument(
+        '--refresh',
+        action='store_true',
+        help='Run fresh screener scan before showing top opportunities'
     )
     top_parser.set_defaults(func=cmd_top)
 

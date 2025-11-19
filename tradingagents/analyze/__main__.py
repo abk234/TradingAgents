@@ -32,6 +32,8 @@ from typing import List
 from tradingagents.analyze import DeepAnalyzer
 from tradingagents.default_config import DEFAULT_CONFIG
 from tradingagents.utils import display_next_steps
+from tradingagents.database import get_db_connection, TickerOperations
+from tradingagents.screener.data_fetcher import DataFetcher
 
 # Configure logging
 logging.basicConfig(
@@ -106,6 +108,19 @@ def parse_args():
         help='Your total portfolio value (e.g., 100000 for $100k) - used for position sizing'
     )
 
+    parser.add_argument(
+        '--refresh-data',
+        action='store_true',
+        help='Fetch fresh price and fundamental data before analysis (slower but ensures latest data)'
+    )
+
+    parser.add_argument(
+        '--use-cache',
+        action='store_true',
+        default=True,
+        help='Use cached/database data (default: True, faster)'
+    )
+
     return parser.parse_args()
 
 
@@ -119,12 +134,26 @@ def parse_date(date_str: str) -> date:
 
 
 def load_custom_config(config_path: str):
-    """Load custom configuration from JSON file."""
+    """Load custom configuration from JSON file and merge with DEFAULT_CONFIG."""
     import json
+    import copy
 
     try:
         with open(config_path, 'r') as f:
-            return json.load(f)
+            custom_config = json.load(f)
+        
+        # Merge with DEFAULT_CONFIG - custom config values override defaults
+        merged_config = copy.deepcopy(DEFAULT_CONFIG)
+        
+        # Deep merge nested dictionaries (like data_vendors, tool_vendors, validation)
+        for key, value in custom_config.items():
+            if isinstance(value, dict) and key in merged_config and isinstance(merged_config[key], dict):
+                merged_config[key].update(value)
+            else:
+                merged_config[key] = value
+        
+        logger.info(f"Loaded config from {config_path} and merged with defaults")
+        return merged_config
     except FileNotFoundError:
         logger.error(f"Config file not found: {config_path}")
         sys.exit(1)
@@ -175,12 +204,43 @@ def analyze_ticker(
         return None
 
 
+def refresh_ticker_data(ticker: str):
+    """Refresh price and fundamental data for a ticker."""
+    try:
+        db = get_db_connection()
+        ticker_ops = TickerOperations(db)
+        data_fetcher = DataFetcher(db)
+        
+        ticker_info = ticker_ops.get_ticker_by_symbol(ticker.upper())
+        if not ticker_info:
+            logger.warning(f"Ticker {ticker} not found in database")
+            return False
+        
+        ticker_id = ticker_info['ticker_id']
+        logger.info(f"Refreshing data for {ticker}...")
+        data_fetcher.update_ticker_prices(ticker_id, ticker.upper())
+        logger.info(f"✓ Data refreshed for {ticker}")
+        return True
+    except Exception as e:
+        logger.warning(f"Error refreshing data for {ticker}: {e}")
+        return False
+
+
 def main():
     """Main CLI entry point."""
     args = parse_args()
 
     # Parse date
     analysis_date = parse_date(args.date) if args.date else date.today()
+
+    # Refresh data if requested
+    if args.refresh_data:
+        print("\n" + "="*70)
+        print("REFRESHING DATA")
+        print("="*70)
+        for ticker in args.tickers:
+            refresh_ticker_data(ticker)
+        print("="*70 + "\n")
 
     # Load config
     if args.config:
@@ -196,6 +256,7 @@ def main():
     print(f"Tickers: {', '.join(args.tickers)}")
     print(f"RAG: {'Disabled' if args.no_rag else 'Enabled'}")
     print(f"Store Results: {'No' if args.no_store else 'Yes'}")
+    print(f"Data Refresh: {'Yes' if args.refresh_data else 'No (using cache)'}")
     print("="*70 + "\n")
 
     # Initialize analyzer

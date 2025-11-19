@@ -282,7 +282,12 @@ def main():
     subparsers = parser.add_subparsers(dest='command', help='Command to run')
 
     # View portfolio (default)
-    subparsers.add_parser('view', help='View portfolio summary')
+    view_parser = subparsers.add_parser('view', help='View portfolio summary')
+    view_parser.add_argument(
+        '--refresh',
+        action='store_true',
+        help='Refresh portfolio positions and prices before displaying'
+    )
 
     # Buy command
     buy_parser = subparsers.add_parser('buy', help='Buy stock')
@@ -301,6 +306,11 @@ def main():
     # Performance command
     perf_parser = subparsers.add_parser('performance', help='View performance history')
     perf_parser.add_argument('--days', type=int, default=30, help='Days of history (default: 30)')
+    perf_parser.add_argument(
+        '--refresh',
+        action='store_true',
+        help='Refresh portfolio prices before calculating performance'
+    )
 
     # Dividends command
     div_parser = subparsers.add_parser('dividends', help='View upcoming dividends')
@@ -321,6 +331,20 @@ def main():
 
     # Default command
     if args.command is None or args.command == 'view':
+        # Refresh if requested
+        if hasattr(args, 'refresh') and args.refresh:
+            print("Refreshing portfolio prices...")
+            from tradingagents.screener.data_fetcher import DataFetcher
+            data_fetcher = DataFetcher(db)
+            positions = portfolio_ops.get_positions(args.portfolio_id)
+            for pos in positions:
+                ticker_id = pos.get('ticker_id')
+                symbol = pos.get('symbol')
+                if ticker_id and symbol:
+                    data_fetcher.update_ticker_prices(ticker_id, symbol)
+            # Update portfolio totals
+            portfolio_ops._update_portfolio_totals(args.portfolio_id)
+            print("✓ Portfolio refreshed\n")
         print_portfolio_summary(portfolio_ops, args.portfolio_id)
         display_next_steps('portfolio')
 
@@ -337,6 +361,20 @@ def main():
         display_next_steps('portfolio')
 
     elif args.command == 'performance':
+        # Refresh if requested
+        if args.refresh:
+            print("Refreshing portfolio prices...")
+            from tradingagents.screener.data_fetcher import DataFetcher
+            data_fetcher = DataFetcher(db)
+            positions = portfolio_ops.get_positions(args.portfolio_id)
+            for pos in positions:
+                ticker_id = pos.get('ticker_id')
+                symbol = pos.get('symbol')
+                if ticker_id and symbol:
+                    data_fetcher.update_ticker_prices(ticker_id, symbol)
+            # Update portfolio totals
+            portfolio_ops._update_portfolio_totals(args.portfolio_id)
+            print("✓ Portfolio refreshed\n")
         show_performance(portfolio_ops, args.portfolio_id, args.days)
         display_next_steps('performance')
 

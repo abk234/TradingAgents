@@ -247,6 +247,17 @@ class ScanOperations:
 
         return self.db.execute_dict_query(query, (scan_date,)) or []
 
+    def get_latest_scan_date(self) -> Optional[date]:
+        """
+        Get the most recent scan date from the database.
+
+        Returns:
+            Most recent scan date or None if no scans exist
+        """
+        query = "SELECT MAX(scan_date) FROM daily_scans"
+        result = self.db.execute_query(query, fetch_one=True)
+        return result[0] if result and result[0] else None
+
     def get_top_opportunities(
         self,
         scan_date: date = None,
@@ -257,7 +268,7 @@ class ScanOperations:
         Get top opportunities from a scan.
 
         Args:
-            scan_date: Scan date (defaults to today)
+            scan_date: Scan date (defaults to today, falls back to most recent scan if today has no results)
             limit: Number of results to return
             filter_buy_only: If True, prioritize BUY recommendations
 
@@ -291,6 +302,15 @@ class ScanOperations:
         params.append(limit * 3 if filter_buy_only else limit)  # Get more to filter BUY recommendations
 
         results = self.db.execute_dict_query(query, tuple(params)) or []
+        
+        # If no results for the requested date and scan_date was today (or None), try most recent scan
+        if not results and scan_date == date.today():
+            latest_scan_date = self.get_latest_scan_date()
+            if latest_scan_date and latest_scan_date != scan_date:
+                logger.info(f"No scan results for today ({scan_date}), using most recent scan date: {latest_scan_date}")
+                # Retry with the latest scan date
+                params[0] = latest_scan_date
+                results = self.db.execute_dict_query(query, tuple(params)) or []
         
         # If filtering for BUY, we need to check recommendations
         if filter_buy_only and results:

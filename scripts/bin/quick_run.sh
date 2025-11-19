@@ -31,21 +31,31 @@ show_usage() {
     echo "  screener          - Run screener with sector analysis (top 10)"
     echo "  screener-fast     - Fast screener (no news, optimized)"
     echo "  analyze TICKER    - Analyze specific stock (AI-powered)"
+    echo "                     Use --refresh-data to fetch fresh data first"
     echo "  morning           - Full morning briefing"
     echo ""
     echo -e "${GREEN}Portfolio & Performance:${NC}"
     echo "  portfolio         - View portfolio summary"
+    echo "                     Use --refresh to refresh portfolio prices"
     echo "  performance       - View portfolio performance"
+    echo "                     Use --refresh to refresh portfolio prices"
     echo "  dividends         - View upcoming dividends"
+    echo "                     Use --refresh-data to fetch fresh dividend data"
     echo "  evaluate          - Performance evaluation report"
     echo ""
     echo -e "${GREEN}Quick Checks:${NC}"
     echo "  digest            - Quick market digest"
+    echo "                     Use --refresh to refresh underlying data"
     echo "  alerts            - Check price alerts"
+    echo "                     Use --refresh to refresh price data"
     echo "  top               - Show top 5 opportunities"
+    echo "                     Use --refresh to run fresh screener scan"
     echo "  stats             - Quick performance statistics"
     echo "  indicators [TICK] - Show all indicators (or for specific ticker)"
+    echo "                     Use --refresh to recalculate indicators"
+    echo "                     Use --refresh-data to fetch fresh data first"
     echo "  indexes           - Show market indexes and regime analysis"
+    echo "                     Use --refresh to force refresh index data"
     echo ""
     echo -e "${GREEN}Configuration:${NC}"
     echo "  setup             - Configure notifications"
@@ -106,11 +116,27 @@ case "$COMMAND" in
     "analyze")
         if [ -z "$2" ]; then
             echo -e "${RED}Error: Please provide a ticker symbol${NC}"
-            echo "Usage: ./quick_run.sh analyze AAPL"
+            echo "Usage: ./quick_run.sh analyze AAPL [--refresh-data]"
             exit 1
         fi
-        echo -e "${CYAN}Analyzing $2...${NC}\n"
-        $VENV_PATH/bin/python -m tradingagents.analyze "$2" --plain-english --portfolio-value 100000
+        TICKER="$2"
+        REFRESH_FLAG=""
+        shift 2
+        for arg in "$@"; do
+            case "$arg" in
+                --refresh-data)
+                    REFRESH_FLAG="--refresh-data"
+                    ;;
+            esac
+        done
+        
+        echo -e "${CYAN}Analyzing $TICKER...${NC}\n"
+        # Use Ollama config if it exists, otherwise use default
+        if [ -f "config/config_ollama.json" ]; then
+            $VENV_PATH/bin/python -m tradingagents.analyze "$TICKER" --plain-english --portfolio-value 100000 --config config/config_ollama.json $REFRESH_FLAG
+        else
+            $VENV_PATH/bin/python -m tradingagents.analyze "$TICKER" --plain-english --portfolio-value 100000 $REFRESH_FLAG
+        fi
         ;;
 
     "morning")
@@ -120,18 +146,45 @@ case "$COMMAND" in
 
     # Portfolio & Performance
     "portfolio")
+        REFRESH_FLAG=""
+        shift
+        for arg in "$@"; do
+            case "$arg" in
+                --refresh)
+                    REFRESH_FLAG="--refresh"
+                    ;;
+            esac
+        done
         echo -e "${CYAN}Portfolio Summary:${NC}\n"
-        $VENV_PATH/bin/python -m tradingagents.portfolio view
+        $VENV_PATH/bin/python -m tradingagents.portfolio view $REFRESH_FLAG
         ;;
 
     "performance")
+        REFRESH_FLAG=""
+        shift
+        for arg in "$@"; do
+            case "$arg" in
+                --refresh)
+                    REFRESH_FLAG="--refresh"
+                    ;;
+            esac
+        done
         echo -e "${CYAN}Portfolio Performance:${NC}\n"
-        $VENV_PATH/bin/python -m tradingagents.portfolio performance
+        $VENV_PATH/bin/python -m tradingagents.portfolio performance $REFRESH_FLAG
         ;;
 
     "dividends")
+        REFRESH_FLAG=""
+        shift
+        for arg in "$@"; do
+            case "$arg" in
+                --refresh-data)
+                    REFRESH_FLAG="--refresh-data"
+                    ;;
+            esac
+        done
         echo -e "${CYAN}Upcoming Dividends:${NC}\n"
-        $VENV_PATH/bin/python -m tradingagents.dividends upcoming
+        $VENV_PATH/bin/python -m tradingagents.dividends upcoming $REFRESH_FLAG
         ;;
 
     "evaluate")
@@ -141,18 +194,45 @@ case "$COMMAND" in
 
     # Quick Checks
     "digest")
+        REFRESH_FLAG=""
+        shift
+        for arg in "$@"; do
+            case "$arg" in
+                --refresh)
+                    REFRESH_FLAG="--refresh"
+                    ;;
+            esac
+        done
         echo -e "${CYAN}Market Digest:${NC}\n"
-        $VENV_PATH/bin/python -m tradingagents.insights digest
+        $VENV_PATH/bin/python -m tradingagents.insights digest $REFRESH_FLAG
         ;;
 
     "alerts")
+        REFRESH_FLAG=""
+        shift
+        for arg in "$@"; do
+            case "$arg" in
+                --refresh)
+                    REFRESH_FLAG="--refresh"
+                    ;;
+            esac
+        done
         echo -e "${CYAN}Price Alerts:${NC}\n"
-        $VENV_PATH/bin/python -m tradingagents.insights alerts
+        $VENV_PATH/bin/python -m tradingagents.insights alerts $REFRESH_FLAG
         ;;
 
     "top")
+        REFRESH_FLAG=""
+        shift
+        for arg in "$@"; do
+            case "$arg" in
+                --refresh)
+                    REFRESH_FLAG="--refresh"
+                    ;;
+            esac
+        done
         echo -e "${CYAN}Top 5 Opportunities:${NC}\n"
-        $VENV_PATH/bin/python -m tradingagents.screener top 5
+        $VENV_PATH/bin/python -m tradingagents.screener top 5 $REFRESH_FLAG
         ;;
 
     "stats")
@@ -162,8 +242,33 @@ case "$COMMAND" in
 
     "indicators")
         if [ -n "$2" ]; then
-            echo -e "${CYAN}Technical Indicators for $2:${NC}\n"
-            $VENV_PATH/bin/python -m tradingagents.screener.show_indicators "$2"
+            TICKER="$2"
+            REFRESH_FLAG=""
+            REFRESH_DATA_FLAG=""
+            
+            # Check for refresh flags (remaining arguments after ticker)
+            shift 2  # Remove 'indicators' and ticker from $@
+            for arg in "$@"; do
+                case "$arg" in
+                    --refresh)
+                        REFRESH_FLAG="--refresh"
+                        ;;
+                    --refresh-data)
+                        REFRESH_DATA_FLAG="--refresh-data"
+                        ;;
+                esac
+            done
+            
+            echo -e "${CYAN}Technical Indicators for $TICKER:${NC}\n"
+            if [ -n "$REFRESH_DATA_FLAG" ]; then
+                echo -e "${YELLOW}Note: Refreshing price data and recalculating indicators...${NC}\n"
+                $VENV_PATH/bin/python -m tradingagents.screener.show_indicators "$TICKER" --refresh-data
+            elif [ -n "$REFRESH_FLAG" ]; then
+                echo -e "${YELLOW}Note: Recalculating indicators from existing data...${NC}\n"
+                $VENV_PATH/bin/python -m tradingagents.screener.show_indicators "$TICKER" --refresh
+            else
+                $VENV_PATH/bin/python -m tradingagents.screener.show_indicators "$TICKER"
+            fi
         else
             echo -e "${CYAN}Technical Indicators Reference Guide:${NC}\n"
             $VENV_PATH/bin/python -m tradingagents.screener.show_indicators
@@ -171,8 +276,17 @@ case "$COMMAND" in
         ;;
 
     "indexes")
+        REFRESH_FLAG=""
+        shift
+        for arg in "$@"; do
+            case "$arg" in
+                --refresh)
+                    REFRESH_FLAG="--refresh"
+                    ;;
+            esac
+        done
         echo -e "${CYAN}Market Indexes & Analysis:${NC}\n"
-        $VENV_PATH/bin/python -m tradingagents.market.show_indexes
+        $VENV_PATH/bin/python -m tradingagents.market.show_indexes $REFRESH_FLAG
         ;;
 
     # Strategy Testing

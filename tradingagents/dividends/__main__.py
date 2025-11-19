@@ -68,6 +68,31 @@ def cmd_backfill(args):
 
 def cmd_upcoming(args):
     """Show upcoming dividend payments."""
+    # Refresh data if requested
+    if args.refresh_data:
+        print("Refreshing dividend data...")
+        fetcher = DividendFetcher()
+        if args.symbol:
+            fetcher.fetch_and_store(args.symbol)
+            fetcher.update_yield_cache(args.symbol)
+        else:
+            # Refresh for all tickers (this might take a while)
+            print("This may take a few minutes...")
+            from tradingagents.database import DatabaseConnection
+            db = DatabaseConnection()
+            query = "SELECT DISTINCT t.symbol FROM tickers t WHERE t.active = TRUE ORDER BY t.symbol"
+            with db.get_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(query)
+                    symbols = [row[0] for row in cur.fetchall()]
+            for symbol in symbols[:50]:  # Limit to first 50 to avoid timeout
+                try:
+                    fetcher.fetch_and_store(symbol)
+                    fetcher.update_yield_cache(symbol)
+                except:
+                    pass
+        print("✓ Dividend data refreshed\n")
+
     calendar = DividendCalendar()
 
     if args.symbol:
@@ -288,6 +313,11 @@ def main():
     upcoming_parser.add_argument('-s', '--symbol', type=str, help='Specific symbol')
     upcoming_parser.add_argument('-d', '--days', type=int, default=60, help='Days ahead (default: 60)')
     upcoming_parser.add_argument('-y', '--min-yield', type=float, help='Minimum yield filter')
+    upcoming_parser.add_argument(
+        '--refresh-data',
+        action='store_true',
+        help='Fetch fresh dividend data before showing upcoming dividends'
+    )
 
     # Income command
     income_parser = subparsers.add_parser('income', help='Show dividend income report')

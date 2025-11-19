@@ -138,11 +138,11 @@ class ContextRetriever:
         Returns:
             List of similar patterns from other stocks
         """
-        # Get all similar analyses
+        # Get all similar analyses with lower threshold for cross-ticker search
         all_similar = self.rag_ops.find_similar_analyses(
             query_embedding,
             limit=limit * 2,  # Get more to filter
-            similarity_threshold=0.6
+            similarity_threshold=0.4  # Lower threshold for cross-ticker patterns
         )
 
         # Filter out the excluded ticker and limit results
@@ -251,12 +251,29 @@ class ContextRetriever:
             }
 
         # 2. Find similar past situations
+        # Start with a lower threshold to find more results, especially if database is new
         similar_analyses = self.find_similar_analyses(
             current_situation_embedding,
             ticker_id=ticker_id,
-            limit=3,
-            similarity_threshold=0.7
+            limit=5,
+            similarity_threshold=0.5  # Lower threshold to find more matches
         )
+        
+        # If no results with 0.5 threshold, try even lower (0.3) or without threshold
+        if not similar_analyses:
+            logger.info(f"No similar analyses found with threshold 0.5, trying lower threshold...")
+            similar_analyses = self.find_similar_analyses(
+                current_situation_embedding,
+                ticker_id=ticker_id,
+                limit=5,
+                similarity_threshold=0.3  # Very low threshold for new databases
+            )
+        
+        if similar_analyses:
+            logger.info(f"Found {len(similar_analyses)} similar analyses for {symbol or ticker_id}")
+        else:
+            logger.info(f"No similar analyses found in database for {symbol or ticker_id} - this is normal for new databases")
+        
         context['similar_situations'] = similar_analyses
 
         # 3. Find cross-ticker patterns

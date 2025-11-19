@@ -28,6 +28,14 @@ logger = logging.getLogger(__name__)
 
 def digest_command(args):
     """Generate and display daily market digest."""
+    # Refresh data if requested
+    if args.refresh:
+        print("Refreshing underlying data...")
+        from tradingagents.screener import DailyScreener
+        screener = DailyScreener()
+        screener.scan_all(update_prices=True, store_results=True)
+        print("✓ Data refreshed\n")
+
     digest_gen = MarketDigest()
 
     target_date = date.today()
@@ -51,6 +59,14 @@ def digest_command(args):
 
 def alerts_command(args):
     """Check and display price alerts."""
+    # Refresh data if requested
+    if args.refresh:
+        print("Refreshing price data...")
+        from tradingagents.screener import DailyScreener
+        screener = DailyScreener()
+        screener.scan_all(update_prices=True, store_results=True)
+        print("✓ Price data refreshed\n")
+
     alert_system = PriceAlertSystem()
 
     alerts = alert_system.check_all_alerts()
@@ -155,10 +171,20 @@ Examples:
     digest_parser = subparsers.add_parser('digest', help='Generate daily market digest')
     digest_parser.add_argument('--date', type=str, help='Date for digest (YYYY-MM-DD)')
     digest_parser.add_argument('--output', type=str, help='Save digest to file')
+    digest_parser.add_argument(
+        '--refresh',
+        action='store_true',
+        help='Refresh underlying data (scans, analyses) before generating digest'
+    )
 
     # Alerts command
     alerts_parser = subparsers.add_parser('alerts', help='Check price alerts')
     alerts_parser.add_argument('--output', type=str, help='Save alerts to file')
+    alerts_parser.add_argument(
+        '--refresh',
+        action='store_true',
+        help='Refresh price data before checking alerts'
+    )
 
     # Notify command
     notify_parser = subparsers.add_parser('notify', help='Send test notification')

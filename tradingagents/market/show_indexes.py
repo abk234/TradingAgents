@@ -17,13 +17,20 @@ class IndexDisplay:
         self.tracker = MarketIndexTracker()
         self.formatter = CLIFormatter()
 
-    def show_all_indexes(self):
-        """Show all market indexes with analysis."""
+    def show_all_indexes(self, refresh: bool = False):
+        """Show all market indexes with analysis.
 
+        Args:
+            refresh: If True, force refresh of index data (default: False, uses cache if available)
+        """
         print(f"\n{self.formatter.CYAN}{self.formatter.BOLD}Market Indexes & Analysis{self.formatter.NC}\n")
-        print(f"{self.formatter.YELLOW}Fetching data from yfinance...{self.formatter.NC}\n")
+        
+        if refresh:
+            print(f"{self.formatter.YELLOW}Refreshing index data from yfinance...{self.formatter.NC}\n")
+        else:
+            print(f"{self.formatter.YELLOW}Fetching data from yfinance...{self.formatter.NC}\n")
 
-        # Get all index data
+        # Get all index data (tracker always fetches fresh, but we can add cache later)
         data = self.tracker.get_all_indexes()
 
         # Display market summary first
@@ -349,8 +356,17 @@ class IndexDisplay:
 
 def main():
     """Main entry point."""
+    import argparse
+    parser = argparse.ArgumentParser(description='Show market indexes and analysis')
+    parser.add_argument(
+        '--refresh',
+        action='store_true',
+        help='Force refresh of index data (default: uses cache if available)'
+    )
+    args = parser.parse_args()
+    
     display = IndexDisplay()
-    display.show_all_indexes()
+    display.show_all_indexes(refresh=args.refresh)
 
 
 if __name__ == '__main__':

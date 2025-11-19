@@ -148,6 +148,7 @@ def route_to_vendor(method: str, *args, **kwargs):
     """Route method calls to appropriate vendor implementation with fallback support."""
     category = get_category_for_method(method)
     vendor_config = get_vendor(category, method)
+    config = get_config()
 
     # Handle "skip" vendor - return placeholder immediately for optional methods
     if vendor_config == "skip" or "skip" in vendor_config:
@@ -169,6 +170,13 @@ def route_to_vendor(method: str, *args, **kwargs):
 
     # Get all available vendors for this method for fallback
     all_available_vendors = list(VENDOR_METHODS[method].keys())
+
+    # If using Ollama, exclude OpenAI from fallbacks to avoid API key errors
+    llm_provider = config.get("llm_provider", "").lower()
+    if llm_provider == "ollama":
+        # Remove OpenAI from fallback list when using Ollama
+        all_available_vendors = [v for v in all_available_vendors if v != "openai"]
+        logger.debug(f"Using Ollama - excluding OpenAI from fallbacks for {method}")
 
     # Create fallback vendor list: primary vendors first, then remaining vendors as fallbacks
     fallback_vendors = primary_vendors.copy()
