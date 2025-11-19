@@ -20,6 +20,8 @@ class PriceValidationReport:
     # Price data from different sources
     yfinance_price: Optional[float] = None
     alphavantage_price: Optional[float] = None
+    alpaca_price: Optional[float] = None
+    polygon_price: Optional[float] = None
 
     # Validation metrics
     price_discrepancy_percent: Optional[float] = None
@@ -30,6 +32,8 @@ class PriceValidationReport:
     # Volume data
     yfinance_volume: Optional[int] = None
     alphavantage_volume: Optional[int] = None
+    alpaca_volume: Optional[int] = None
+    polygon_volume: Optional[int] = None
     volume_discrepancy_percent: Optional[float] = None
 
     # Metadata
@@ -44,18 +48,19 @@ class PriceValidationReport:
         Args:
             threshold_percent: Maximum acceptable discrepancy (default 2%)
         """
-        if self.yfinance_price and self.alphavantage_price:
-            diff = abs(self.yfinance_price - self.alphavantage_price)
-            avg_price = (self.yfinance_price + self.alphavantage_price) / 2
-            self.price_discrepancy_percent = (diff / avg_price) * 100 if avg_price > 0 else 0
+        prices = [p for p in [self.yfinance_price, self.alphavantage_price, self.alpaca_price, self.polygon_price] if p is not None]
+        if len(prices) >= 2:
+            min_price = min(prices)
+            max_price = max(prices)
+            avg_price = sum(prices) / len(prices)
+            self.price_discrepancy_percent = ((max_price - min_price) / avg_price) * 100 if avg_price > 0 else 0
 
             if self.price_discrepancy_percent > threshold_percent:
                 self.is_discrepancy_significant = True
                 self.validation_passed = False
                 self.warnings.append(
                     f"Price discrepancy: {self.price_discrepancy_percent:.2f}% "
-                    f"(yfinance: ${self.yfinance_price:.2f}, "
-                    f"alphavantage: ${self.alphavantage_price:.2f})"
+                    f"(Range: ${min_price:.2f} - ${max_price:.2f})"
                 )
             else:
                 self.flags.append(
@@ -132,6 +137,10 @@ class PriceValidationReport:
                 lines.append(f"  yfinance: ${self.yfinance_price:.2f}")
             if self.alphavantage_price:
                 lines.append(f"  Alpha Vantage: ${self.alphavantage_price:.2f}")
+            if self.alpaca_price:
+                lines.append(f"  Alpaca:       ${self.alpaca_price:.2f}")
+            if self.polygon_price:
+                lines.append(f"  Polygon:      ${self.polygon_price:.2f}")
 
         lines.append("")
 
@@ -227,6 +236,62 @@ def get_alphavantage_current_price(ticker: str) -> Tuple[Optional[float], Option
         return (None, None)
 
 
+def get_alpaca_current_price(ticker: str) -> Tuple[Optional[float], Optional[int]]:
+    """Fetch current price and volume from Alpaca."""
+    try:
+        from tradingagents.dataflows.alpaca import get_stock
+        from datetime import date, timedelta
+        
+        # Get data for last few days to ensure we get latest close
+        end_date = date.today().strftime("%Y-%m-%d")
+        start_date = (date.today() - timedelta(days=5)).strftime("%Y-%m-%d")
+        
+        csv_data = get_stock(ticker, start_date, end_date)
+        
+        # Parse CSV
+        import csv
+        from io import StringIO
+        reader = list(csv.DictReader(StringIO(csv_data)))
+        
+        if reader:
+            last_row = reader[-1]
+            price = float(last_row.get('Close', 0))
+            volume = int(float(last_row.get('Volume', 0)))
+            return (price, volume)
+            
+        return (None, None)
+    except Exception as e:
+        print(f"Error fetching Alpaca data for {ticker}: {e}")
+        return (None, None)
+
+
+def get_polygon_current_price(ticker: str) -> Tuple[Optional[float], Optional[int]]:
+    """Fetch current price and volume from Polygon."""
+    try:
+        from tradingagents.dataflows.polygon import get_stock
+        from datetime import date, timedelta
+        
+        end_date = date.today().strftime("%Y-%m-%d")
+        start_date = (date.today() - timedelta(days=5)).strftime("%Y-%m-%d")
+        
+        csv_data = get_stock(ticker, start_date, end_date)
+        
+        import csv
+        from io import StringIO
+        reader = list(csv.DictReader(StringIO(csv_data)))
+        
+        if reader:
+            last_row = reader[-1]
+            price = float(last_row.get('Close', 0))
+            volume = int(float(last_row.get('Volume', 0)))
+            return (price, volume)
+            
+        return (None, None)
+    except Exception as e:
+        print(f"Error fetching Polygon data for {ticker}: {e}")
+        return (None, None)
+
+
 def validate_price_multi_source(
     ticker: str,
     discrepancy_threshold: float = 2.0,
@@ -258,6 +323,20 @@ def validate_price_multi_source(
         report.alphavantage_price = av_price
         report.alphavantage_volume = av_volume
         report.sources_checked.append("alpha_vantage")
+
+    # Fetch from Alpaca
+    alp_price, alp_volume = get_alpaca_current_price(ticker)
+    if alp_price:
+        report.alpaca_price = alp_price
+        report.alpaca_volume = alp_volume
+        report.sources_checked.append("alpaca")
+
+    # Fetch from Polygon
+    poly_price, poly_volume = get_polygon_current_price(ticker)
+    if poly_price:
+        report.polygon_price = poly_price
+        report.polygon_volume = poly_volume
+        report.sources_checked.append("polygon")
 
     # Calculate discrepancies
     report.calculate_discrepancy(threshold_percent=discrepancy_threshold)

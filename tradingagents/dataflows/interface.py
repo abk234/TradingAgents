@@ -19,6 +19,8 @@ from .alpha_vantage import (
     get_news as get_alpha_vantage_news,
     get_global_news as get_alpha_vantage_global_news
 )
+from .alpaca import get_stock as get_alpaca_stock
+from .polygon import get_stock as get_polygon_stock
 from .alpha_vantage_common import AlphaVantageRateLimitError
 
 # Configuration and routing logic
@@ -62,7 +64,9 @@ VENDOR_LIST = [
     "local",
     "yfinance",
     "openai",
-    "google"
+    "google",
+    "alpaca",
+    "polygon"
 ]
 
 # Mapping of methods to their vendor-specific implementations
@@ -72,6 +76,8 @@ VENDOR_METHODS = {
         "alpha_vantage": get_alpha_vantage_stock,
         "yfinance": get_YFin_data_online,
         "local": get_YFin_data,
+        "alpaca": get_alpaca_stock,
+        "polygon": get_polygon_stock,
     },
     # technical_indicators
     "get_indicators": {

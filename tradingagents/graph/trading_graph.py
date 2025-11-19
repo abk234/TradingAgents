@@ -48,6 +48,8 @@ from .signal_processing import SignalProcessor
 from tradingagents.database import get_db_connection, DatabaseConnection, TickerOperations
 from tradingagents.rag import EmbeddingGenerator, ContextRetriever, PromptFormatter
 from tradingagents.decision import FourGateFramework, GateResult
+from tradingagents.validation.circuit_breaker import check_circuit_breaker, CircuitBreakerException
+from tradingagents.market.regime import detect_market_regime
 
 # Langfuse integration (optional)
 try:
@@ -101,6 +103,21 @@ class TradingAgentsGraph:
 
         # Update the interface's config
         set_config(self.config)
+
+        # Adaptive Configuration based on Market Regime
+        if self.config.get("enable_adaptive_config", True):
+            regime = detect_market_regime()
+            logger.info(f"Detected Market Regime: {regime}")
+            
+            if regime == "BEAR":
+                self.config["max_risk_discuss_rounds"] = 3 # More caution
+                logger.info("Adjusted risk discussion rounds to 3 (Bear Market)")
+            elif regime == "VOLATILE":
+                self.config["max_risk_discuss_rounds"] = 5 # Max caution
+                logger.info("Adjusted risk discussion rounds to 5 (Volatile Market)")
+            else: # BULL
+                self.config["max_risk_discuss_rounds"] = 1 # Standard
+                logger.info("Adjusted risk discussion rounds to 1 (Bull Market)")
 
         # Create necessary directories
         os.makedirs(
@@ -271,6 +288,20 @@ class TradingAgentsGraph:
             Tuple of (final_state, processed_signal)
         """
         self.ticker = company_name
+
+        # Circuit Breaker Check
+        if self.config.get("validation", {}).get("enable_circuit_breaker", True):
+            try:
+                check_circuit_breaker(company_name)
+            except CircuitBreakerException as e:
+                logger.error(f"Circuit breaker triggered: {e}")
+                # Return a safe "WAIT" state
+                return {
+                    "final_trade_decision": "WAIT",
+                    "reason": str(e),
+                    "company_of_interest": company_name,
+                    "trade_date": trade_date
+                }, "WAIT"
 
         # Generate historical context if RAG is enabled
         historical_context = None

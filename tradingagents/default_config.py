@@ -25,7 +25,7 @@ DEFAULT_CONFIG = {
     # Data vendor configuration
     # Category-level configuration (default for all tools in category)
     "data_vendors": {
-        "core_stock_apis": "yfinance",       # Options: yfinance, alpha_vantage, local
+        "core_stock_apis": "yfinance",       # Options: yfinance, alpha_vantage, alpaca, polygon, local
         "technical_indicators": "yfinance",  # Options: yfinance, alpha_vantage, local
         "fundamental_data": "yfinance",      # Options: yfinance, alpha_vantage, local (using yfinance - no API key needed)
         "news_data": "skip",                 # Skip news to avoid OpenAI fallback when using Ollama (set to "alpha_vantage" if you have API key)
@@ -36,6 +36,9 @@ DEFAULT_CONFIG = {
         "enable_price_staleness_check": True,      # ✅ Warn if data is stale
         "max_data_age_minutes": 15,                # ✅ Flag data older than this during market hours
         "show_data_sources": True,                 # ✅ Show which sources were used in analysis
+
+        "show_data_sources": True,                 # ✅ Show which sources were used in analysis
+        "enable_circuit_breaker": True,            # ✅ Halt trading on data anomalies
 
         # Phase 2: Multi-Source Validation & Earnings Risk (ACTIVE!)
         "require_multi_source_validation": True,   # ✅ Cross-validate prices across sources
@@ -62,4 +65,5 @@ DEFAULT_CONFIG = {
     "enable_regime_detection": True,  # Market regime detection (bull/bear/volatility)
     "enable_sector_rotation": True,  # Sector rotation detection
     "enable_correlation_check": True,  # Correlation-based risk management
+    "enable_adaptive_config": True,  # ✅ Adjust strategy based on market regime
 }
