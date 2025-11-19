@@ -12,7 +12,7 @@ Langfuse needs about 30-60 seconds to fully start. Check status:
 
 ```bash
 cd /Users/lxupkzwjs/Developer/eval/TradingAgents
-docker compose -f docker-compose.langfuse.yml ps
+docker compose -f docker-compose.langfuse-v2.yml ps
 ```
 
 You should see:
@@ -108,29 +108,29 @@ print("✅ Analysis complete! Check Langfuse dashboard.")
 
 ```bash
 cd /Users/lxupkzwjs/Developer/eval/TradingAgents
-docker compose -f docker-compose.langfuse.yml up -d
+docker compose -f docker-compose.langfuse-v2.yml up -d
 ```
 
 ### Stop Services
 
 ```bash
-docker compose -f docker-compose.langfuse.yml stop
+docker compose -f docker-compose.langfuse-v2.yml stop
 ```
 
 ### View Logs
 
 ```bash
 # All services
-docker compose -f docker-compose.langfuse.yml logs -f
+docker compose -f docker-compose.langfuse-v2.yml logs -f
 
 # Just Langfuse server
-docker compose -f docker-compose.langfuse.yml logs -f langfuse-server
+docker compose -f docker-compose.langfuse-v2.yml logs -f langfuse
 ```
 
 ### Restart Services
 
 ```bash
-docker compose -f docker-compose.langfuse.yml restart
+docker compose -f docker-compose.langfuse-v2.yml restart
 ```
 
 ---
@@ -141,13 +141,13 @@ docker compose -f docker-compose.langfuse.yml restart
 
 ```bash
 # Check if containers are running
-docker compose -f docker-compose.langfuse.yml ps
+docker compose -f docker-compose.langfuse-v2.yml ps
 
 # Check logs
-docker compose -f docker-compose.langfuse.yml logs langfuse-server --tail 50
+docker compose -f docker-compose.langfuse-v2.yml logs langfuse --tail 50
 
 # Restart
-docker compose -f docker-compose.langfuse.yml restart langfuse-server
+docker compose -f docker-compose.langfuse-v2.yml restart langfuse
 ```
 
 ### Can't Connect from TradingAgents
@@ -168,9 +168,9 @@ docker compose -f docker-compose.langfuse.yml restart langfuse-server
 ### Port Conflicts
 
 If port 3000 is already in use:
-- Edit `docker-compose.langfuse.yml`
-- Change `"3000:3000"` to `"3001:3000"`
-- Update `LANGFUSE_HOST=http://localhost:3001` in `.env`
+- Edit `docker-compose.langfuse-v2.yml`
+- Change `"3001:3000"` to `"3002:3000"` (already uses 3001 to avoid conflicts)
+- Update `LANGFUSE_HOST=http://localhost:3002` in `.env`
 
 ---
 

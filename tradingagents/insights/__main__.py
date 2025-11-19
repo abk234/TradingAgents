@@ -16,6 +16,7 @@ load_dotenv()
 from tradingagents.insights.digest import MarketDigest
 from tradingagents.insights.alerts import PriceAlertSystem
 from tradingagents.insights.notifications import NotificationDelivery
+from tradingagents.utils import display_next_steps
 
 # Set up logging
 logging.basicConfig(
@@ -43,6 +44,9 @@ def digest_command(args):
     else:
         # Print to terminal
         print(digest)
+    
+    # Display next steps and recommendations
+    display_next_steps('digest')
 
 
 def alerts_command(args):
@@ -64,6 +68,9 @@ def alerts_command(args):
         with open(args.output, 'w') as f:
             f.write(formatted)
         print(f"\nAlerts saved to {args.output}")
+    
+    # Display next steps and recommendations
+    display_next_steps('alerts')
 
 
 def notify_command(args):
@@ -113,6 +120,9 @@ def morning_command(args):
         print("\n")
         formatted_alerts = alert_system.format_alerts(alerts)
         print(formatted_alerts)
+    
+    # Display next steps and recommendations
+    display_next_steps('morning')
 
 
 def main():

@@ -23,24 +23,24 @@ cd /Users/lxupkzwjs/Developer/langfuse
 ### Step 2: Check Current Status
 
 ```bash
-docker-compose ps
+docker compose ps
 ```
 
 ### Step 3: Restart Web Container
 
 ```bash
 # Restart just the web container
-docker-compose restart langfuse-web
+docker compose restart langfuse-web
 
 # Or recreate it
-docker-compose up -d --force-recreate langfuse-web
+docker compose up -d --force-recreate langfuse-web
 ```
 
 ### Step 4: Check Logs
 
 ```bash
 # Watch logs to see if it starts successfully
-docker-compose logs -f langfuse-web
+docker compose logs -f langfuse-web
 ```
 
 ### Step 5: Verify Web UI
@@ -68,10 +68,10 @@ docker ps | grep langfuse-postgres
 
 # If not running, start it
 cd /Users/lxupkzwjs/Developer/langfuse
-docker-compose up -d postgres
+docker compose up -d postgres
 
 # Wait for it to be healthy, then restart web
-docker-compose restart langfuse-web
+docker compose restart langfuse-web
 ```
 
 ### Issue 2: Port 3000 Already in Use
@@ -89,18 +89,18 @@ lsof -i :3000
 **Solution:**
 ```bash
 # Check logs for errors
-docker-compose logs langfuse-web --tail 50
+docker compose logs langfuse-web --tail 50
 
 # Common fixes:
 # 1. Ensure all dependencies are healthy
-docker-compose ps
+docker compose ps
 
 # 2. Restart all services
-docker-compose restart
+docker compose restart
 
 # 3. Recreate everything
-docker-compose down
-docker-compose up -d
+docker compose down
+docker compose up -d
 ```
 
 ---
@@ -120,7 +120,7 @@ If you prefer a fresh setup specifically for TradingAgents:
 
 ```bash
 cd /Users/lxupkzwjs/Developer/eval/TradingAgents
-docker-compose -f docker-compose.langfuse.yml up -d
+docker compose -f docker-compose.langfuse-v2.yml up -d
 ```
 
 This will run on port 3000 (make sure to stop your existing Langfuse first).

@@ -86,6 +86,7 @@ class TradingAgentsGraph:
         self.config = config or DEFAULT_CONFIG
         self.enable_rag = enable_rag
         self.enable_langfuse = enable_langfuse
+        self.selected_analysts = selected_analysts
         
         # Initialize Langfuse tracer if available and enabled
         self.langfuse_tracer = None
@@ -272,16 +273,26 @@ class TradingAgentsGraph:
         # Get Langfuse callback handler if enabled
         langfuse_callbacks = []
         if self.langfuse_tracer and self.langfuse_tracer.enabled:
-            callback_handler = self.langfuse_tracer.get_callback_handler()
+            # Create trace name and metadata for better trace identification
+            trace_name = f"Stock Analysis: {company_name}"
+            trace_metadata = {
+                "ticker": company_name,
+                "analysis_date": str(trade_date),
+                "enable_rag": self.enable_rag,
+                "selected_analysts": self.selected_analysts,
+            }
+            
+            callback_handler = self.langfuse_tracer.get_callback_handler(
+                trace_name=trace_name,
+                metadata=trace_metadata
+            )
             if callback_handler:
                 langfuse_callbacks.append(callback_handler)
-                # Create trace for this analysis
+                # Note: trace_analysis is a no-op in v3 (auto-tracing via handler)
                 self.langfuse_tracer.trace_analysis(
                     ticker=company_name,
                     analysis_date=str(trade_date),
-                    metadata={
-                        "enable_rag": self.enable_rag,
-                    }
+                    metadata=trace_metadata
                 )
         
         # Get graph args with callbacks

@@ -26,6 +26,7 @@ from tradingagents.dividends import (
     DividendTracker,
     DividendMetrics
 )
+from tradingagents.utils import display_next_steps
 
 # Setup logging
 logging.basicConfig(
@@ -92,6 +93,9 @@ def cmd_upcoming(args):
             min_yield=args.min_yield
         )
         print(output)
+    
+    # Display next steps and recommendations
+    display_next_steps('dividends')
 
 
 def cmd_income(args):

@@ -402,5 +402,11 @@ class DataFetcher:
             df = pd.DataFrame(data, columns=columns)
             # Reverse to get chronological order
             df = df.iloc[::-1].reset_index(drop=True)
+            
+            # Convert numeric columns from Decimal to float to avoid type mismatch errors
+            numeric_columns = ['open', 'high', 'low', 'close', 'volume', 'ma_20', 'ma_50', 'ma_200', 'rsi_14']
+            for col in numeric_columns:
+                if col in df.columns:
+                    df[col] = pd.to_numeric(df[col], errors='coerce')
 
             return df

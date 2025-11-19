@@ -34,6 +34,10 @@ from .help_text import (
     format_score_with_context,
 )
 
+from .recommendations import (
+    display_next_steps,
+)
+
 __all__ = [
     'console',
     'print_header',
@@ -63,4 +67,5 @@ __all__ = [
     'show_interpretation_tips',
     'show_filtering_help',
     'format_score_with_context',
+    'display_next_steps',
 ]

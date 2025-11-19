@@ -45,10 +45,10 @@ This guide will help you:
 cd /path/to/TradingAgents
 
 # Start Langfuse services
-docker-compose -f docker-compose.langfuse.yml up -d
+docker compose -f docker-compose.langfuse-v2.yml up -d
 
 # Check status
-docker-compose -f docker-compose.langfuse.yml ps
+docker compose -f docker-compose.langfuse-v2.yml ps
 ```
 
 You should see:
@@ -249,19 +249,19 @@ echo $LANGFUSE_SECRET_KEY
 **Solution:**
 ```bash
 # Check if Langfuse is running
-docker-compose -f docker-compose.langfuse.yml ps
+docker compose -f docker-compose.langfuse-v2.yml ps
 
 # Check logs
-docker-compose -f docker-compose.langfuse.yml logs langfuse
+docker compose -f docker-compose.langfuse-v2.yml logs langfuse
 
 # Restart if needed
-docker-compose -f docker-compose.langfuse.yml restart
+docker compose -f docker-compose.langfuse-v2.yml restart
 ```
 
 ### Issue: "Port 3000 already in use"
 
 **Solution:**
-Edit `docker-compose.langfuse.yml`:
+Edit `docker-compose.langfuse-v2.yml`:
 ```yaml
 ports:
   - "3001:3000"  # Use different port
@@ -274,13 +274,13 @@ Then update `LANGFUSE_HOST=http://localhost:3001`
 **Solution:**
 ```bash
 # Check PostgreSQL container
-docker-compose -f docker-compose.langfuse.yml logs postgres
+docker compose -f docker-compose.langfuse-v2.yml logs postgres
 
 # Restart database
-docker-compose -f docker-compose.langfuse.yml restart postgres
+docker compose -f docker-compose.langfuse-v2.yml restart postgres
 
 # Wait for health check
-docker-compose -f docker-compose.langfuse.yml ps
+docker compose -f docker-compose.langfuse-v2.yml ps
 ```
 
 ---
@@ -291,29 +291,29 @@ docker-compose -f docker-compose.langfuse.yml ps
 
 ```bash
 # Start services
-docker-compose -f docker-compose.langfuse.yml up -d
+docker compose -f docker-compose.langfuse-v2.yml up -d
 
 # Check status
-docker-compose -f docker-compose.langfuse.yml ps
+docker compose -f docker-compose.langfuse-v2.yml ps
 ```
 
 ### Stop Langfuse
 
 ```bash
-docker-compose -f docker-compose.langfuse.yml stop
+docker compose -f docker-compose.langfuse-v2.yml stop
 ```
 
 ### View Logs
 
 ```bash
 # All services
-docker-compose -f docker-compose.langfuse.yml logs
+docker compose -f docker-compose.langfuse-v2.yml logs
 
 # Just Langfuse
-docker-compose -f docker-compose.langfuse.yml logs langfuse
+docker compose -f docker-compose.langfuse-v2.yml logs langfuse
 
 # Follow logs
-docker-compose -f docker-compose.langfuse.yml logs -f langfuse
+docker compose -f docker-compose.langfuse-v2.yml logs -f langfuse
 ```
 
 ### Backup Database

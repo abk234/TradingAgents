@@ -914,21 +914,49 @@ class PortfolioOperations:
 
     def get_positions(self, portfolio_id: int) -> List[Dict[str, Any]]:
         """Get current positions for a portfolio (for CLI compatibility)."""
-        query = """
-            SELECT
-                pp.*,
-                t.symbol,
-                t.company_name,
-                pp.current_price,
-                (pp.shares * pp.current_price) as current_value,
-                ((pp.shares * pp.current_price) - (pp.shares * pp.average_cost)) as unrealized_gain_loss,
-                (((pp.shares * pp.current_price) - (pp.shares * pp.average_cost)) / (pp.shares * pp.average_cost) * 100) as unrealized_gain_loss_pct
-            FROM portfolio_positions pp
-            JOIN tickers t ON pp.ticker_id = t.ticker_id
-            WHERE pp.portfolio_id = %s AND pp.is_open = true
-            ORDER BY (pp.shares * pp.current_price) DESC
+        # Check if current_price column exists by querying information_schema
+        # If it doesn't exist, use fallback query without current_price
+        check_column_query = """
+            SELECT column_name 
+            FROM information_schema.columns 
+            WHERE table_name = 'portfolio_holdings' AND column_name = 'current_price'
         """
-        return self.db.execute_dict_query(query, (portfolio_id,))
+        has_current_price = self.db.execute_dict_query(check_column_query, (), fetch_one=True)
+        
+        if has_current_price:
+            # Use query with current_price (migration 005 schema)
+            query = """
+                SELECT
+                    pp.*,
+                    t.symbol,
+                    t.company_name,
+                    pp.current_price,
+                    (pp.shares * COALESCE(pp.current_price, pp.avg_cost_basis)) as current_value,
+                    ((pp.shares * COALESCE(pp.current_price, pp.avg_cost_basis)) - (pp.shares * pp.avg_cost_basis)) as unrealized_gain_loss,
+                    (((pp.shares * COALESCE(pp.current_price, pp.avg_cost_basis)) - (pp.shares * pp.avg_cost_basis)) / (pp.shares * pp.avg_cost_basis) * 100) as unrealized_gain_loss_pct
+                FROM portfolio_holdings pp
+                JOIN tickers t ON pp.ticker_id = t.ticker_id
+                WHERE pp.is_open = true
+                ORDER BY (pp.shares * COALESCE(pp.current_price, pp.avg_cost_basis)) DESC
+            """
+        else:
+            # Fallback: use avg_cost_basis as current_price (migration 001 schema)
+            query = """
+                SELECT
+                    pp.*,
+                    t.symbol,
+                    t.company_name,
+                    pp.avg_cost_basis as current_price,
+                    (pp.shares * pp.avg_cost_basis) as current_value,
+                    0 as unrealized_gain_loss,
+                    0 as unrealized_gain_loss_pct
+                FROM portfolio_holdings pp
+                JOIN tickers t ON pp.ticker_id = t.ticker_id
+                WHERE pp.is_open = true
+                ORDER BY (pp.shares * pp.avg_cost_basis) DESC
+            """
+        
+        return self.db.execute_dict_query(query, ())
 
     def record_transaction(
         self,
@@ -983,9 +1011,9 @@ class PortfolioOperations:
         """Update or create portfolio position after a transaction."""
         # Get existing position
         existing = self.db.execute_dict_query(
-            """SELECT * FROM portfolio_positions
-               WHERE portfolio_id = %s AND ticker_id = %s AND is_open = true""",
-            (portfolio_id, ticker_id),
+            """SELECT * FROM portfolio_holdings
+               WHERE ticker_id = %s AND is_open = true""",
+            (ticker_id,),
             fetch_one=True
         )
 
@@ -993,25 +1021,25 @@ class PortfolioOperations:
             if existing:
                 # Update existing position
                 old_shares = Decimal(str(existing['shares']))
-                old_avg_cost = Decimal(str(existing['average_cost']))
+                old_avg_cost = Decimal(str(existing['avg_cost_basis']))
 
                 new_shares = old_shares + shares
                 new_avg_cost = ((old_shares * old_avg_cost) + (shares * price)) / new_shares
 
                 self.db.execute_query(
-                    """UPDATE portfolio_positions
-                       SET shares = %s, average_cost = %s, current_price = %s, last_updated = CURRENT_TIMESTAMP
-                       WHERE position_id = %s""",
-                    (new_shares, new_avg_cost, price, existing['position_id']),
+                    """UPDATE portfolio_holdings
+                       SET shares = %s, avg_cost_basis = %s, current_price = %s, updated_at = CURRENT_TIMESTAMP
+                       WHERE holding_id = %s""",
+                    (new_shares, new_avg_cost, price, existing['holding_id']),
                     fetch=False
                 )
             else:
                 # Create new position
                 self.db.execute_query(
-                    """INSERT INTO portfolio_positions
-                       (portfolio_id, ticker_id, shares, average_cost, current_price, acquisition_date, is_open)
-                       VALUES (%s, %s, %s, %s, %s, %s, true)""",
-                    (portfolio_id, ticker_id, shares, price, price, transaction_date),
+                    """INSERT INTO portfolio_holdings
+                       (ticker_id, shares, avg_cost_basis, current_price, acquisition_date, is_open)
+                       VALUES (%s, %s, %s, %s, %s, true)""",
+                    (ticker_id, shares, price, price, transaction_date),
                     fetch=False
                 )
 
@@ -1023,19 +1051,19 @@ class PortfolioOperations:
                 if remaining_shares > 0:
                     # Partial sell
                     self.db.execute_query(
-                        """UPDATE portfolio_positions
-                           SET shares = %s, current_price = %s, last_updated = CURRENT_TIMESTAMP
-                           WHERE position_id = %s""",
-                        (remaining_shares, price, existing['position_id']),
+                        """UPDATE portfolio_holdings
+                           SET shares = %s, current_price = %s, updated_at = CURRENT_TIMESTAMP
+                           WHERE holding_id = %s""",
+                        (remaining_shares, price, existing['holding_id']),
                         fetch=False
                     )
                 else:
                     # Full sell - close position
                     self.db.execute_query(
-                        """UPDATE portfolio_positions
-                           SET is_open = false, closed_date = %s, current_price = %s, last_updated = CURRENT_TIMESTAMP
-                           WHERE position_id = %s""",
-                        (transaction_date, price, existing['position_id']),
+                        """UPDATE portfolio_holdings
+                           SET is_open = false, closed_date = %s, current_price = %s, updated_at = CURRENT_TIMESTAMP
+                           WHERE holding_id = %s""",
+                        (transaction_date, price, existing['holding_id']),
                         fetch=False
                     )
 
@@ -1148,9 +1176,9 @@ class PortfolioOperations:
                 0.50 as dividend_per_share,
                 (pp.shares * 0.50) as total_dividend,
                 CURRENT_DATE + INTERVAL '30 days' as payment_date
-            FROM portfolio_positions pp
+            FROM portfolio_holdings pp
             JOIN tickers t ON pp.ticker_id = t.ticker_id
-            WHERE pp.portfolio_id = %s AND pp.is_open = true
+            WHERE pp.is_open = true
             ORDER BY t.symbol
             LIMIT 5
         """

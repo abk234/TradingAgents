@@ -33,17 +33,11 @@ LANGFUSE_HOST=http://localhost:3000  # Use existing instance
 
 ### Option 2: Use Langfuse v2 (More Stable)
 
-Edit `docker-compose.langfuse.yml`:
+Use the provided `docker-compose.langfuse-v2.yml`:
 
-```yaml
-langfuse:
-  image: langfuse/langfuse:2.0.0  # Use v2 instead of v3
-```
-
-Then:
 ```bash
-docker compose -f docker-compose.langfuse.yml down
-docker compose -f docker-compose.langfuse.yml up -d
+docker compose -f docker-compose.langfuse-v2.yml down
+docker compose -f docker-compose.langfuse-v2.yml up -d
 ```
 
 **Note:** v2 doesn't require ClickHouse, so you can simplify the setup.

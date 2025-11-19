@@ -32,7 +32,8 @@ open http://localhost:3000
 
 ```bash
 cd /Users/lxupkzwjs/Developer/langfuse
-docker-compose ps
+docker compose ps
+# Note: If your existing setup uses older Docker Compose V1, use: docker-compose ps
 ```
 
 ### 3. Check Web Container Logs
@@ -51,14 +52,16 @@ If the web container is restarting, it's likely a database connection issue:
 
 ```bash
 cd /Users/lxupkzwjs/Developer/langfuse
-docker-compose restart
+docker compose restart
+# Note: If your existing setup uses older Docker Compose V1, use: docker-compose restart
 ```
 
 ### Option 2: Recreate Web Container
 
 ```bash
 cd /Users/lxupkzwjs/Developer/langfuse
-docker-compose up -d --force-recreate langfuse-web
+docker compose up -d --force-recreate langfuse-web
+# Note: If your existing setup uses older Docker Compose V1, use: docker-compose up -d --force-recreate langfuse-web
 ```
 
 ### Option 3: Check Database Connection
@@ -155,28 +158,32 @@ result, signal = graph.propagate("AAPL", date.today())
 
 ```bash
 cd /Users/lxupkzwjs/Developer/langfuse
-docker-compose up -d
+docker compose up -d
+# Note: If your existing setup uses older Docker Compose V1, use: docker-compose up -d
 ```
 
 ### Stop Services
 
 ```bash
 cd /Users/lxupkzwjs/Developer/langfuse
-docker-compose stop
+docker compose stop
+# Note: If your existing setup uses older Docker Compose V1, use: docker-compose stop
 ```
 
 ### View Logs
 
 ```bash
 cd /Users/lxupkzwjs/Developer/langfuse
-docker-compose logs -f langfuse-web
+docker compose logs -f langfuse-web
+# Note: If your existing setup uses older Docker Compose V1, use: docker-compose logs -f langfuse-web
 ```
 
 ### Restart Services
 
 ```bash
 cd /Users/lxupkzwjs/Developer/langfuse
-docker-compose restart
+docker compose restart
+# Note: If your existing setup uses older Docker Compose V1, use: docker-compose restart
 ```
 
 ---
@@ -203,7 +210,8 @@ docker logs langfuse-langfuse-web-1 --tail 50
 
 # Restart web container
 cd /Users/lxupkzwjs/Developer/langfuse
-docker-compose restart langfuse-web
+docker compose restart langfuse-web
+# Note: If your existing setup uses older Docker Compose V1, use: docker-compose restart langfuse-web
 ```
 
 ### Can't Connect from TradingAgents

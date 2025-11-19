@@ -15,7 +15,7 @@
 
 ```bash
 cd /Users/lxupkzwjs/Developer/eval/TradingAgents
-docker compose -f docker-compose.langfuse.yml ps
+docker compose -f docker-compose.langfuse-v2.yml ps
 ```
 
 ---
@@ -70,13 +70,13 @@ docker logs langfuse-server --tail 50
 
 ```bash
 # Check if server is running
-docker compose -f docker-compose.langfuse.yml ps
+docker compose -f docker-compose.langfuse-v2.yml ps
 
 # Check logs
-docker logs langfuse-server --tail 30
+docker logs langfuse-v2-server --tail 30
 
 # Restart if needed
-docker compose -f docker-compose.langfuse.yml restart langfuse
+docker compose -f docker-compose.langfuse-v2.yml restart langfuse
 ```
 
 ---

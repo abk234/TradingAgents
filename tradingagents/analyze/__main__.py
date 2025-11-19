@@ -31,6 +31,7 @@ from typing import List
 
 from tradingagents.analyze import DeepAnalyzer
 from tradingagents.default_config import DEFAULT_CONFIG
+from tradingagents.utils import display_next_steps
 
 # Configure logging
 logging.basicConfig(
@@ -245,6 +246,11 @@ def main():
 
     # Cleanup
     analyzer.close()
+
+    # Display next steps and recommendations
+    if results_list:
+        ticker = results_list[0].get('ticker', args.tickers[0] if args.tickers else 'TICKER')
+        display_next_steps('analyze', context={'ticker': ticker})
 
     logger.info("Analysis complete!")
 

@@ -118,9 +118,22 @@ class LangfuseTracer:
                 _os.environ["LANGFUSE_SECRET_KEY"] = self.secret_key
                 _os.environ["LANGFUSE_HOST"] = self.host
 
-                # Initialize the callback handler (reads from env)
-                # Note: session_id, user_id, release are handled via tags/metadata
-                self.handler = CallbackHandler()
+                # Initialize the callback handler with metadata
+                # Langfuse v3 CallbackHandler supports name, session_id, user_id, release, metadata
+                handler_kwargs = {}
+                if session_id:
+                    handler_kwargs["session_id"] = session_id
+                if user_id:
+                    handler_kwargs["user_id"] = user_id
+                if release:
+                    handler_kwargs["release"] = release
+                
+                # Try to initialize with kwargs (some versions may not support all params)
+                try:
+                    self.handler = CallbackHandler(**handler_kwargs)
+                except TypeError:
+                    # Fallback: initialize without kwargs if version doesn't support them
+                    self.handler = CallbackHandler()
 
                 # Store metadata for tagging traces
                 self.metadata = {
@@ -152,14 +165,47 @@ class LangfuseTracer:
             self.handler = None
             self.langfuse_client = None
     
-    def get_callback_handler(self):
+    def get_callback_handler(self, trace_name: Optional[str] = None, metadata: Optional[Dict[str, Any]] = None):
         """
         Get Langfuse callback handler for LangGraph.
+        
+        Args:
+            trace_name: Optional name for the trace (e.g., "Stock Analysis: AAPL")
+            metadata: Optional metadata to attach to the trace
         
         Returns:
             CallbackHandler instance or None if disabled
         """
-        return self.handler if self.enabled else None
+        if not self.enabled or not self.handler:
+            return None
+        
+        # If trace_name or metadata provided, create a new handler instance with them
+        # Note: Langfuse v3 CallbackHandler may support these via config instead
+        if trace_name or metadata:
+            try:
+                # Try to create handler with name/metadata (if supported)
+                handler_kwargs = {}
+                if trace_name:
+                    handler_kwargs["name"] = trace_name
+                if metadata:
+                    handler_kwargs["metadata"] = metadata
+                if self.metadata.get("session_id"):
+                    handler_kwargs["session_id"] = self.metadata["session_id"]
+                if self.metadata.get("user_id"):
+                    handler_kwargs["user_id"] = self.metadata["user_id"]
+                if self.metadata.get("release"):
+                    handler_kwargs["release"] = self.metadata["release"]
+                
+                try:
+                    return CallbackHandler(**handler_kwargs)
+                except TypeError:
+                    # Fallback: return original handler if kwargs not supported
+                    return self.handler
+            except Exception as e:
+                logger.debug(f"Could not create handler with metadata: {e}, using default handler")
+                return self.handler
+        
+        return self.handler
     
     def get_config(self, additional_config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """

@@ -32,7 +32,8 @@ from tradingagents.utils import (
     create_progress_bar,
     show_screener_legend,
     show_sector_recommendations,
-    show_interpretation_tips
+    show_interpretation_tips,
+    display_next_steps
 )
 
 # Set up logging
@@ -110,7 +111,7 @@ def cmd_run(args):
                     print(f"✅ Selected {len(results)} stocks from top sectors")
 
     # Show report
-    if results and not args.quiet and not args.sector_analysis:
+    if results and not args.quiet:
         if use_rich:
             # Use rich formatted output
             print_header("Daily Screener Results", f"{len(results)} stocks analyzed")
@@ -201,6 +202,9 @@ def cmd_run(args):
                 print(f"\n⚠️  Could not run AI analysis: {e}\n")
                 print("Tip: Make sure you have the analyze module properly configured.\n")
 
+    # Display next steps and recommendations
+    display_next_steps('screener', context={'results_count': len(results) if results else 0})
+
     return 0
 
 
@@ -243,6 +247,9 @@ def cmd_top(args):
             print(f"   Alerts: {', '.join(alerts)}")
 
         print()
+
+    # Display next steps and recommendations
+    display_next_steps('top', context={'limit': args.limit})
 
     return 0
 

@@ -4,11 +4,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-TradingAgents is a multi-agent LLM-powered trading framework built with LangGraph. It simulates a real trading firm structure with specialized agents (analysts, researchers, traders, risk managers) that collaboratively evaluate stocks and make trading decisions. The system supports multiple LLM providers (OpenAI, Anthropic, Google Gemini, Ollama) and includes advanced features like RAG-based historical context, PostgreSQL database integration, and a Chainlit-based chat interface ("Eddie").
+TradingAgents is a multi-agent LLM-powered financial trading framework that mirrors real-world trading firms. It uses specialized AI agents (Analysts, Researchers, Traders, Risk Managers) to collaboratively evaluate market conditions and inform trading decisions via LangGraph orchestration.
 
-**Note:** This is a research framework designed for experimentation, not production trading.
+**Key Architecture Principle**: The system follows a 3-phase workflow:
+1. **Screening Phase**: Scan tickers, calculate indicators, generate priority scores (stored in `daily_scans`)
+2. **Analysis Phase**: Run 13+ specialized agents across 5 teams for deep analysis (stored in `analyses`)
+3. **Decision Phase**: Apply Four-Gate validation framework with profitability enhancements
 
-## Development Setup
+## Development Commands
 
 ### Environment Setup
 ```bash
@@ -19,523 +22,339 @@ conda activate tradingagents
 # Install dependencies
 pip install -r requirements.txt
 
-# Configure environment variables
+# Configure environment
 cp .env.example .env
-# Edit .env with your API keys (OPENAI_API_KEY, ALPHA_VANTAGE_API_KEY required)
+# Edit .env with your API keys (OPENAI_API_KEY, ALPHA_VANTAGE_API_KEY)
 ```
 
-### Database Setup (Optional but Recommended)
+### Running the System
+
+**CLI Interface** (Interactive):
 ```bash
-# Install PostgreSQL 14
-brew install postgresql@14
-brew services start postgresql@14
-
-# Initialize database
-export PATH="/opt/homebrew/opt/postgresql@14/bin:$PATH"
-python scripts/init_database.py
-```
-
-### Common Commands
-
-#### Running Analysis
-```bash
-# CLI interface
 python -m cli.main
-
-# Python API
-python main.py
-
-# Fast mode with Ollama
-python main_ollama_fast.py
-
-# With Gemini
-python main_gemini.py
 ```
 
-#### Testing
+**Phase-by-Phase Testing** (Recommended for understanding data flow):
 ```bash
-# Run basic test
-python test.py
+# Phase 1: Run screener to find opportunities
+./scripts/phase1_screening.sh
 
-# Test improvements
-python test_improvements.py
+# Phase 2: Run full agent analysis on a ticker
+./scripts/phase2_agents.sh AAPL
 
-# Test natural language interface
-python test_natural_language.py
+# Phase 3: View stored analysis reports
+./scripts/phase3_reports.sh AAPL
 
-# Validate high-priority fixes
-python validate_high_priority_fixes.py
+# Phase 4: Full end-to-end workflow
+./scripts/phase4_full_workflow.sh
 ```
 
-#### Interactive Shell & Bot
+**Quick Commands**:
 ```bash
-# Launch interactive shell (comprehensive menu system)
-./trading_interactive.sh
+# Fast screener (no news, optimized)
+./quick_run.sh screener-fast
 
-# Launch Eddie chatbot (Chainlit interface)
-./trading_bot.sh
-# or
-venv/bin/chainlit run tradingagents/bot/chainlit_app.py
-
-# Quick screener run
-./run_screener.sh
-```
-
-#### Scripts
-```bash
-# Database backup
-./scripts/backup_database.sh
-
-# Daily analysis (cron-ready)
-./scripts/run_daily_analysis.sh
+# Analyze specific stock
+./quick_run.sh analyze NVDA
 
 # Morning briefing
-./scripts/morning_briefing.sh
+./quick_run.sh morning
 
-# Setup automated cron jobs
-./scripts/setup_cron.sh
-
-# Evaluate performance
-./scripts/evaluate.sh
-
-# Track progress
-./scripts/progress_tracker.py watch
+# Portfolio performance
+./quick_run.sh portfolio
 ```
 
-## Architecture
+**Profit-Making Workflow**:
+```bash
+# Full profit optimization workflow
+./make_profit.sh --portfolio-value 100000 --top 5
 
-### Core Components
-
-**1. TradingAgentsGraph** (`tradingagents/graph/trading_graph.py`)
-- Main orchestrator class that coordinates all agents
-- Implements LangGraph workflow with conditional routing
-- Manages LLM initialization (OpenAI, Anthropic, Google, Ollama)
-- Integrates RAG system for historical context
-- Entry point: `TradingAgentsGraph.propagate(ticker, date)`
-
-**2. Agent System** (`tradingagents/agents/`)
-- **analysts/** - Fundamentals, Technical, News, Sentiment analysts
-- **researchers/** - Bull/Bear researchers (debate framework)
-- **trader/** - Trading decision agent
-- **risk_mgmt/** - Risk assessment and portfolio management
-- **managers/** - Portfolio manager (final approval)
-- Each agent uses specialized tools from `agents/utils/agent_utils.py`
-
-**3. Multi-Source Data Layer** (`tradingagents/dataflows/`)
-- **interface.py** - Abstract vendor-agnostic API with caching and metadata tracking:
-  - `route_to_vendor()` - Basic vendor routing with fallback
-  - `route_to_vendor_with_metadata()` - Returns data + vendor metadata (NEW)
-  - `route_to_vendor_with_cache()` - Automatic price caching (NEW - 10x faster repeat analyses)
-- **y_finance.py** - yfinance implementation (default for prices/technicals)
-- **alpha_vantage.py** - Alpha Vantage implementation (default for fundamentals/news)
-- **local.py** - Cached data for offline/testing
-- **openai.py**, **google.py** - LLM-based data extraction
-- Configuration via `default_config.py` → `data_vendors` dict
-- **Price Caching**: Automatic caching of stock prices (5min realtime, 24hr EOD, permanent historical)
-
-**4. RAG System** (`tradingagents/rag/`)
-- **EmbeddingGenerator** - Creates embeddings for historical analyses
-- **ContextRetriever** - Fetches relevant past decisions
-- **PromptFormatter** - Augments prompts with historical context
-- Stores/retrieves from PostgreSQL via `database/rag_ops.py`
-
-**5. Database Layer** (`tradingagents/database/`)
-- **connection.py** - DatabaseConnection singleton with connection pooling
-- **ticker_ops.py** - Stock metadata operations (includes `get_or_create_ticker()` helper)
-- **portfolio_ops.py** - Position tracking, transactions
-- **analysis_ops.py** - Store analysis results with LLM tracking support
-- **price_cache_ops.py** - Price caching operations (NEW - reduces API calls by 80%)
-- **rag_ops.py** - Embeddings and similarity search
-- **scan_ops.py** - Screener results storage
-
-**6. Decision Framework** (`tradingagents/decision/`)
-- **FourGateFramework** - Multi-gate validation system:
-  - Data Freshness Gate
-  - Multi-Source Validation Gate
-  - Earnings Proximity Gate
-  - External Intelligence Gate (future)
-- **validation_gates.py** - Comprehensive validation gate system (NEW):
-  - `DataFreshnessGate` - Validates data recency
-  - `MultiSourceValidationGate` - Cross-validates prices across vendors
-  - `EarningsProximityGate` - Warns about earnings volatility periods
-  - `ValidationGateOrchestrator` - Runs all gates and aggregates results
-- Enhances credibility with cross-validation
-
-**7. Screener** (`tradingagents/screener/`)
-- Sector-based stock screening
-- Technical indicator analysis (MACD, RSI, Bollinger Bands)
-- Priority scoring algorithm
-- Fast mode for quick scans
-
-**8. Eddie Bot** (`tradingagents/bot/`)
-- **chainlit_app.py** - Chainlit chat interface
-- **agent.py** - Natural language command routing
-- **tools.py** - Extensive tool library (70+ tools)
-- **prompts.py** - System prompts and templates
-- Supports conversational stock analysis and screening
-
-**9. Orchestration** (`tradingagents/orchestration/`)
-- High-level orchestration for batch operations
-- Quick analysis modes for faster execution
-
-**10. Data Validation** (`tradingagents/utils/`)
-- **data_validator.py** - Comprehensive data quality checks (NEW):
-  - Stock data validation (completeness, freshness)
-  - Price consistency validation (cross-source)
-  - Price reasonableness checks (range, change %)
-  - Volume validation
-  - Fundamentals validation
-
-### Data Flow
-
+# Fast mode
+./make_profit.sh --fast
 ```
-User Request
-    ↓
-TradingAgentsGraph.propagate(ticker, date)
-    ↓
-Data Layer (dataflows/interface.py)
-    ↓ [checks cache first, then fetches via configured vendor]
-    ↓ [caches results for future use]
-    ↓
-Data Validation (data_validator.py) - NEW
-    ↓ [validates freshness, consistency, reasonableness]
-    ↓
-Analyst Agents (parallel execution)
-    ↓ [fundamental, technical, news, sentiment]
-    ↓ [LLM prompts/responses tracked]
-    ↓
-Researcher Debate (bull vs bear)
-    ↓ [max_debate_rounds iterations]
-    ↓
-Trader Decision
-    ↓
-Risk Management Assessment
-    ↓
-Portfolio Manager Approval
-    ↓
-Validation Gates (validation_gates.py) - NEW
-    ↓ [data freshness, multi-source, earnings proximity]
-    ↓
-Decision + Four Gate Validation
-    ↓ [stores LLM tracking data]
-    ↓ [optional RAG storage]
-    ↓
-Database/Results Storage
+
+**Package Usage** (Python):
+```python
+from tradingagents.graph.trading_graph import TradingAgentsGraph
+from tradingagents.default_config import DEFAULT_CONFIG
+
+# Create custom config
+config = DEFAULT_CONFIG.copy()
+config["deep_think_llm"] = "gpt-4o-mini"
+config["quick_think_llm"] = "gpt-4o-mini"
+
+# Initialize graph
+ta = TradingAgentsGraph(debug=True, config=config, enable_rag=True)
+
+# Run analysis (stores to database if store_analysis=True)
+_, decision = ta.propagate("NVDA", "2024-05-10", store_analysis=True)
 ```
+
+### Testing
+```bash
+# Run validation suite
+python validate_system_data_flow.py
+
+# Test profitability features
+python test_profitability_features.py
+
+# Test specific components
+python test_eddie.py  # Natural language interface
+python test_langfuse_monitoring.py  # Observability
+```
+
+### Database Operations
+```bash
+# Initialize database with watchlist
+python scripts/init_database.py
+
+# Check database state
+./scripts/show_database_state.sh
+
+# Backup database
+./scripts/backup_database.sh
+```
+
+## Architecture Overview
+
+### Multi-Agent System (LangGraph)
+
+**Agent Teams** (orchestrated via `TradingAgentsGraph`):
+
+1. **Analyst Team** (parallel execution):
+   - `market_analyst.py`: Technical analysis (MACD, RSI, moving averages)
+   - `social_media_analyst.py`: Sentiment from Reddit, social platforms
+   - `news_analyst.py`: Global news and macroeconomic events
+   - `fundamentals_analyst.py`: Financial statements, metrics
+
+2. **Research Team** (sequential debate):
+   - `bull_researcher.py`: Identifies upside potential
+   - `bear_researcher.py`: Identifies risks and downside
+   - `research_manager.py`: Synthesizes debate into recommendation
+
+3. **Trader Agent**:
+   - `trader.py`: Makes trading decisions (BUY/SELL/HOLD/WAIT) based on all inputs
+
+4. **Risk Management Team** (sequential debate):
+   - `aggressive_debator.py`: High-risk, high-reward perspective
+   - `conservative_debator.py`: Risk-averse perspective
+   - `neutral_debator.py`: Balanced perspective
+   - `risk_manager.py` (Portfolio Manager): Final decision approval
+
+### Core Modules
+
+**`tradingagents/graph/`** - LangGraph orchestration:
+- `trading_graph.py`: Main graph setup, agent coordination, RAG integration
+- `propagation.py`: State initialization and propagation logic
+- `conditional_logic.py`: Graph routing decisions
+- `setup.py`: Graph construction and node wiring
+- `signal_processing.py`: Signal extraction from agent outputs
+
+**`tradingagents/decision/`** - Four-Gate validation framework:
+- `four_gate.py`: 4-gate system (Trend, Value, Timing, Risk)
+- `validation_gates.py`: Gate-specific validation logic
+- `market_regime.py`: Bull/bear/volatility regime detection
+- `sector_rotation.py`: Sector strength analysis
+
+**`tradingagents/rag/`** - Historical context retrieval:
+- `embeddings.py`: Generate embeddings for analyses
+- `context_retriever.py`: Query ChromaDB for similar past analyses
+- `prompt_formatter.py`: Format RAG context into prompts
+
+**`tradingagents/database/`** - PostgreSQL operations:
+- `connection.py`: Database connection management
+- `ticker_ops.py`: Watchlist CRUD operations
+- `scan_ops.py`: Daily screener results
+- `analysis_ops.py`: Agent analysis storage/retrieval
+- `portfolio_ops.py`: Portfolio tracking
+- `rag_ops.py`: Vector embeddings storage
+
+**`tradingagents/screener/`** - Opportunity identification:
+- `screener.py`: Main screening logic
+- `indicators.py`: Technical indicator calculation
+- `scorer.py`: Priority score generation
+- `sector_analyzer.py`: Sector-based screening
+
+**`tradingagents/dataflows/`** - Data vendor abstraction:
+- `config.py`: Vendor routing logic
+- `yfinance.py`, `alpha_vantage.py`: Data source implementations
+- Tool categories: `core_stock_apis`, `technical_indicators`, `fundamental_data`, `news_data`
 
 ### Configuration System
 
-All configuration lives in `tradingagents/default_config.py`:
+**`tradingagents/default_config.py`**:
+- LLM provider selection: `openai`, `google` (Gemini), `anthropic` (Claude), `ollama`
+- Data vendor routing (category-level and tool-level)
+- Validation settings (price staleness, multi-source validation, earnings proximity)
+- Profitability features (regime detection, sector rotation, correlation checks)
 
+**Key config patterns**:
 ```python
-DEFAULT_CONFIG = {
-    # LLM settings
-    "llm_provider": "ollama",  # openai, anthropic, google, ollama
-    "deep_think_llm": "llama3.3",
-    "quick_think_llm": "llama3.1",
-    "backend_url": "http://localhost:11434/v1",
+config["llm_provider"] = "ollama"  # or "openai", "google", "anthropic"
+config["deep_think_llm"] = "llama3.3"  # Complex reasoning
+config["quick_think_llm"] = "llama3.1"  # Fast operations
 
-    # Data vendors (category-level)
-    "data_vendors": {
-        "core_stock_apis": "yfinance",
-        "technical_indicators": "yfinance",
-        "fundamental_data": "yfinance",  # or alpha_vantage
-        "news_data": "alpha_vantage",
-    },
-
-    # Validation gates
-    "validation": {
-        "enable_price_staleness_check": True,
-        "require_multi_source_validation": True,
-        "check_earnings_proximity": True,
-        # ... more gates
-    },
-
-    # Debate rounds
-    "max_debate_rounds": 1,
-    "max_risk_discuss_rounds": 1,
+# Data vendor routing (category-level)
+config["data_vendors"] = {
+    "core_stock_apis": "yfinance",
+    "fundamental_data": "alpha_vantage",
+    "news_data": "skip",  # Skip to avoid OpenAI fallback
 }
-```
 
-Override in your code:
-```python
-from tradingagents.default_config import DEFAULT_CONFIG
-config = DEFAULT_CONFIG.copy()
-config["deep_think_llm"] = "gpt-4o"
-ta = TradingAgentsGraph(config=config)
-```
+# Override specific tools (tool-level)
+config["tool_vendors"] = {
+    "get_news": "skip",
+}
 
-## Key Design Patterns
-
-### 1. Vendor Abstraction
-The framework uses an abstract data interface (`dataflows/interface.py`) to support multiple data sources. To add a new vendor:
-- Implement functions in `dataflows/your_vendor.py`
-- Update `dataflows/interface.py` routing logic
-- Configure via `DEFAULT_CONFIG["data_vendors"]`
-
-### 2. Agent Tools
-Agents access data via centralized tool functions in `agents/utils/agent_utils.py`:
-- `get_stock_data()`, `get_indicators()`, `get_fundamentals()`, `get_news()`
-- These route to the configured vendor via `dataflows/interface.py`
-- **Use `route_to_vendor_with_cache()` for automatic caching** (10x faster repeat analyses)
-- Never call vendor-specific functions directly from agents
-
-### 3. State Management
-LangGraph uses typed state objects:
-- `AgentState` - Main workflow state
-- `InvestDebateState` - Researcher debate state
-- `RiskDebateState` - Risk management discussion state
-
-### 4. Database Access
-Always use connection pooling:
-```python
-from tradingagents.database import get_db_connection
-db = get_db_connection()  # Singleton pattern
-ticker_ops = TickerOperations(db)
-
-# Use helper methods when available
-ticker_id = ticker_ops.get_or_create_ticker(
-    symbol="AAPL",
-    company_name="Apple Inc.",
-    sector="Technology"
-)
-```
-
-### 5. Price Caching
-Use cached data fetching for better performance:
-```python
-from tradingagents.dataflows.interface import route_to_vendor_with_cache
-
-# Automatic cache check and store
-data = route_to_vendor_with_cache("get_stock_data", "AAPL", start_date, end_date)
-# First call: fetches from API and caches
-# Subsequent calls: instant cache hit (<0.1s vs 2-5s)
-```
-
-### 6. Data Validation
-Validate data quality before analysis:
-```python
-from tradingagents.utils.data_validator import DataValidator
-
-validator = DataValidator(config=DEFAULT_CONFIG)
-results = validator.validate_all(ticker="AAPL", data_dict={
-    "stock_data": csv_string,
-    "prices": {"yfinance": 150.25, "alpha_vantage": 150.30},
-    "fundamentals": {...},
-    "current_price": 150.25,
-    "volume": 50000000
-})
-summary = validator.get_validation_summary(results)
-```
-
-### 7. Validation Gates
-Run validation gates before trading decisions:
-```python
-from tradingagents.decision.validation_gates import ValidationGateOrchestrator
-
-orchestrator = ValidationGateOrchestrator(config=DEFAULT_CONFIG)
-results = orchestrator.validate_all("AAPL", {
-    "data_timestamp": datetime.now(),
-    "prices": {"yfinance": 150.25, "alpha_vantage": 150.30},
-    "earnings_date": date(2024, 11, 25),
-    "analysis_date": date.today()
-})
-overall = orchestrator.get_overall_result(results)
-```
-
-### 8. Async/Streaming in Bot
-Eddie bot uses async throughout:
-- `chainlit_app.py` - All handlers are async
-- Streaming responses with `cl.Message().stream_token()`
-- Timeout handling with `asyncio.wait_for()`
-
-## Important Conventions
-
-### Data Fetching
-- **Default sources**: yfinance (price/technical), Alpha Vantage (fundamentals/news)
-- **Caching**: 
-  - **Price caching**: Automatic database caching via `price_cache` table (NEW)
-    - Realtime data: 5 minutes expiration
-    - Recent EOD data: 24 hours expiration
-    - Historical data: Never expires
-  - **File caching**: Data cached in `tradingagents/dataflows/data_cache/` (legacy)
-- **Date format**: Always use `YYYY-MM-DD` strings
-- **Ticker format**: Uppercase (e.g., "AAPL", "NVDA")
-- **Performance**: Use `route_to_vendor_with_cache()` for 10x faster repeat analyses
-
-### Environment Variables
-Required:
-- `OPENAI_API_KEY` - For OpenAI models
-- `ALPHA_VANTAGE_API_KEY` - For fundamental/news data
-
-Optional:
-- `GOOGLE_API_KEY` - For Gemini models
-- `ANTHROPIC_API_KEY` - For Claude models
-- `TRADINGAGENTS_RESULTS_DIR` - Custom results directory
-- See `.env.example` for notification/portfolio settings
-
-### Logging
-```python
-import logging
-logger = logging.getLogger(__name__)
-logger.info("✓ Success message")
-logger.warning("⚠ Warning message")
-logger.error("✗ Error message")
+# Profitability features (enabled by default)
+config["enable_profitability_features"] = True
+config["enable_regime_detection"] = True
+config["enable_sector_rotation"] = True
 ```
 
 ### Database Schema
-Key tables:
-- `tickers` - Stock metadata
-- `analyses` - Historical analysis results (includes `llm_prompts`, `llm_responses`, `llm_metadata` JSONB columns)
-- `price_cache` - Cached stock price data (NEW - reduces API calls by 80%)
-- `portfolio_positions` - Current holdings
-- `transactions` - Trade history
-- `embeddings` - RAG vector storage
-- `scan_results` - Screener output
 
-**Database Migrations:**
-- `012_add_price_cache.sql` - Creates `price_cache` table with indexes
-- `013_add_llm_tracking.sql` - Adds LLM tracking columns to `analyses` table
+**Key Tables**:
+- `tickers`: Watchlist management (symbol, sector, industry, priority_tier)
+- `daily_scans`: Screener results (priority_score, technical_signals JSONB, triggered_alerts)
+- `analyses`: Agent outputs (final_decision, confidence_score, reports as JSONB, embeddings vector)
+- `daily_prices`: Historical OHLCV + indicators (ma_20, ma_50, rsi_14)
+- `portfolio_positions`: Active holdings
+- `portfolio_transactions`: Trade history
 
-## Testing & Validation
+**Important**: The database is the system's memory. Always check `analyses` table for historical context before running new analyses.
 
-### Running Tests
-```bash
-# Quick validation
-python test.py
+### LLM Provider Support
 
-# Comprehensive test suite
-python test_improvements.py
-python test_core_improvements.py
-python test_natural_language.py
+**Supported Providers** (via LangChain):
+- **OpenAI**: `gpt-4o`, `gpt-4o-mini`, `o3-mini`, `o4-mini`
+- **Google Gemini**: `gemini-2.0-flash-lite`, `gemini-2.0-flash`, `gemini-2.5-flash`
+- **Anthropic Claude**: `claude-3-5-haiku-latest`, `claude-3-5-sonnet-latest`
+- **Ollama** (local): `llama3.1`, `llama3.3`, `mistral`, `qwen2.5`
 
-# Validate specific fixes
-python validate_high_priority_fixes.py
-
-# Test caching implementation
-python test_caching_implementation.py
-
-# Validate system data flow
-python validate_system_data_flow.py
-python validate_data_accuracy.py
-python validate_agents.py
-python validate_screener.py
+**Provider Selection Pattern** (in `trading_graph.py:108-155`):
+```python
+if config["llm_provider"] == "ollama":
+    llm = ChatOpenAI(base_url=config["backend_url"], model_name=model)
+elif config["llm_provider"] == "openai":
+    llm = ChatOpenAI(model_name=model)
+elif config["llm_provider"] == "google":
+    llm = ChatGoogleGenerativeAI(model=model)
+elif config["llm_provider"] == "anthropic":
+    llm = ChatAnthropic(model=model)
 ```
 
-### Common Issues
+### Data Vendor Abstraction
 
-**1. Ollama not running**
-```bash
-ollama list  # Check if running
-ollama pull llama3.3  # Download model
+**Tool Routing** (in `agents/utils/agent_utils.py`):
+- Uses `TOOL_TO_CATEGORY` mapping to determine vendor
+- Falls back to category-level vendor if tool-level not specified
+- Each tool checks `config["tool_vendors"]` then `config["data_vendors"]`
+
+**Adding New Vendor**:
+1. Create vendor implementation in `tradingagents/dataflows/`
+2. Register in `dataflows/config.py:VENDOR_REGISTRY`
+3. Update tool vendor logic in `agents/utils/agent_utils.py`
+
+### Profitability Enhancements
+
+When `enable_profitability_features=True` (default):
+- **Market Regime Detection**: Identifies bull/bear/high-volatility periods
+- **Sector Rotation**: Tracks sector strength and rotation patterns
+- **Correlation Analysis**: Checks portfolio correlation for diversification
+- **Four-Gate Framework**: Validates decisions against Trend/Value/Timing/Risk gates
+
+**Access in code**:
+```python
+from tradingagents.decision import FourGateFramework
+
+gates = FourGateFramework(config)
+result = gates.evaluate(ticker, analysis_data, portfolio_context)
 ```
 
-**2. Database connection errors**
-```bash
-# Check PostgreSQL status
-brew services list | grep postgresql
+## Observability & Monitoring
 
-# Restart if needed
-brew services restart postgresql@14
+**Langfuse Integration** (optional):
+```python
+# Enable in config
+ta = TradingAgentsGraph(config=config, enable_langfuse=True)
 
-# Verify connection
-psql -d investment_intelligence -c "SELECT 1;"
+# Or via environment
+export LANGFUSE_ENABLED=true
 ```
 
-**3. Alpha Vantage rate limits**
-- Free tier: 25 requests/day
-- TradingAgents users: 60 requests/minute (no daily limit)
-- Switch to yfinance: `config["data_vendors"]["fundamental_data"] = "yfinance"`
+**Monitoring module**: `tradingagents/monitoring/langfuse_integration.py`
 
-**4. Async timeout errors in bot**
-- Default timeout: 120 seconds for analysis
-- Adjust in `bot/chainlit_app.py`: `asyncio.wait_for(task, timeout=X)`
+## Common Patterns
 
-## Important Notes
+### Running Analysis with RAG
+```python
+ta = TradingAgentsGraph(enable_rag=True, config=config)
+_, decision = ta.propagate("AAPL", "2024-05-10", store_analysis=True)
+# RAG automatically retrieves similar past analyses and injects into agent prompts
+```
 
-### Data Quality
-- **DataValidator**: Comprehensive validation layer (`tradingagents/utils/data_validator.py`)
-  - Validates stock data completeness and freshness
-  - Cross-validates prices across multiple sources
-  - Checks price reasonableness and volume thresholds
-- **Validation Gates**: Systematic quality checks (`tradingagents/decision/validation_gates.py`)
-  - Data Freshness Gate: Ensures data is recent enough
-  - Multi-Source Validation Gate: Cross-validates prices (2% threshold)
-  - Earnings Proximity Gate: Warns about earnings volatility periods
-- The framework includes multi-source validation (`validation.require_multi_source_validation`)
-- Earnings proximity warnings help avoid volatile periods
-- Data staleness checks ensure fresh information
-- **Vendor Metadata Tracking**: Track which vendor provided data and when fallbacks occurred
+### Custom Analyst Selection
+```python
+ta = TradingAgentsGraph(
+    selected_analysts=["market", "fundamentals"],  # Skip social, news
+    config=config
+)
+```
 
-### LLM Costs
-- Framework makes **many** API calls (analyst team + debate rounds)
-- For testing: Use `o4-mini` or Ollama models
-- For production: Consider `gpt-4o` or Claude for deep thinking
+### Debugging Agent Flow
+```python
+ta = TradingAgentsGraph(debug=True, config=config)
+# Enables verbose logging of agent decisions and state transitions
+```
 
-### Performance
-- **Price Caching**: Automatic database caching provides 10x faster repeat analyses
-  - First analysis: 2-5 seconds (fetch + cache)
-  - Subsequent analyses: <0.1 seconds (cache hit)
-  - API call reduction: 80% fewer calls for repeated tickers
-- Fast mode: Skip RAG lookups, reduce debate rounds
-- Sector-first screening: Analyze top sectors only
-- Database caching: Reduces redundant data fetches
-- **Cache cleanup**: Automated via `scripts/cleanup_price_cache.sh` (cron-ready)
+### Accessing Database
+```python
+from tradingagents.database import get_db_connection
 
-### Security
-- Never commit `.env` file
-- Use app passwords for Gmail notifications
-- Rotate API keys regularly
+db = get_db_connection()
+results = db.execute_dict_query("SELECT * FROM analyses WHERE ticker_id = 1")
+```
 
-## Recent Updates (2025-11-17)
+## Critical Implementation Notes
 
-### Major Features Added
+1. **Agent State Management**: All agent state flows through `AgentState` TypedDict (defined in `agents/utils/agent_states.py`). Never modify state structure without updating all agents.
 
-1. **Price Caching System** ✅
-   - Automatic database caching of stock prices
-   - 10x faster repeat analyses
-   - 80% reduction in API calls
-   - See `CACHING_IMPLEMENTATION_COMPLETE.md` for details
+2. **Debate Rounds**: Research and Risk teams use debate rounds (`max_debate_rounds`, `max_risk_discuss_rounds`). Each round accumulates in `debate_state.history`.
 
-2. **LLM Tracking** ✅
-   - Full audit trail of all LLM prompts and responses
-   - Tracks tokens, costs, and duration per agent
-   - Stored in `analyses.llm_prompts`, `llm_responses`, `llm_metadata` columns
+3. **Tool Binding**: Each agent has tools bound via `llm.bind_tools()`. Tools are defined in `agents/utils/*_tools.py`.
 
-3. **Data Validation Layer** ✅
-   - `DataValidator` class for comprehensive data quality checks
-   - Validates freshness, consistency, reasonableness
-   - See `tradingagents/utils/data_validator.py`
+4. **Graph Recursion**: Default recursion limit is 100 (`max_recur_limit`). Increase if graph doesn't complete.
 
-4. **Validation Gates System** ✅
-   - Systematic data quality gates before trading decisions
-   - Data freshness, multi-source validation, earnings proximity checks
-   - See `tradingagents/decision/validation_gates.py`
+5. **Data Caching**: Alpha Vantage responses cached in `dataflows/data_cache/`. Clear with `scripts/cleanup_price_cache.sh`.
 
-5. **Vendor Metadata Tracking** ✅
-   - Track which vendor provided data
-   - Monitor fallback occurrences
-   - Audit trail for data sources
+6. **Earnings Proximity Warnings**: When `check_earnings_proximity=True`, system warns about analyses near earnings dates (±7 days by default).
 
-6. **Database Improvements** ✅
-   - Added `get_or_create_ticker()` helper method
-   - Fixed connection pool statistics handling
-   - Enhanced error handling
+7. **Multi-Source Validation**: When `require_multi_source_validation=True`, prices cross-validated between yfinance and Alpha Vantage. Alerts if discrepancy > 2%.
 
-### Performance Improvements
-- **10x faster** repeat analyses (price caching)
-- **80% fewer** API calls for repeated tickers
-- **Sub-second** response times for cached data
-- **Full LLM audit trail** for debugging and optimization
+## File Organization Principles
 
-## Documentation References
+- **Agents**: One file per agent in `tradingagents/agents/{analysts,researchers,risk_mgmt,trader}/`
+- **Tools**: Grouped by category in `tradingagents/agents/utils/*_tools.py`
+- **Database ops**: Grouped by table in `tradingagents/database/*_ops.py`
+- **Scripts**: User-facing scripts in `scripts/`, internal utilities in `tradingagents/`
+- **Tests**: Root-level for integration tests, module-level for unit tests
 
-For detailed feature guides, see:
-- `README.md` - Overview and installation
-- `QUICK_START.md` - Getting started quickly
-- `BOT_GUIDE.md` - Eddie chatbot usage
-- `SCREENER_GUIDE.md` - Understanding screener metrics
-- `INTERACTIVE_SHELL_GUIDE.md` - Interactive menu system
-- `EVALUATION_AND_DATABASE_ACCESS.md` - Database usage
-- `CACHING_IMPLEMENTATION_COMPLETE.md` - Price caching details
-- `FIXES_IMPLEMENTED_SUMMARY.md` - Recent fixes and improvements
+## Known Gotchas
+
+- **Ollama + News**: When using Ollama, set `news_data: "skip"` to avoid OpenAI fallback
+- **PostgreSQL Required**: Database operations will fail without PostgreSQL running
+- **API Rate Limits**: Alpha Vantage free tier is 25 requests/day. TradingAgents users get 60/min.
+- **Debate Rounds = API Calls**: Each debate round is 2-3 LLM calls. Set to 1 for testing.
+- **Store Analysis Flag**: Use `store_analysis=True` in `propagate()` to save to database for RAG
+- **Virtual Environment**: Always activate venv before running scripts (many scripts auto-activate)
+
+## Phase-by-Phase Workflow Scripts
+
+The `scripts/phase*.sh` scripts are the best way to understand system data flow:
+- **phase1_screening.sh**: See how screener populates `daily_scans` table
+- **phase2_agents.sh**: See how agents populate `analyses` table
+- **phase3_reports.sh**: See how to query and display stored data
+- **phase4_full_workflow.sh**: See complete end-to-end execution
+
+When modifying core logic, run these scripts to verify data flow integrity.

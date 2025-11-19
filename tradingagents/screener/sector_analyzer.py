@@ -75,12 +75,36 @@ class SectorAnalyzer:
             with self.db_conn.get_connection() as conn:
                 with conn.cursor() as cur:
                     # Get scan results for this sector
+                    # Count buy signals by recommendation (aligned with screener display)
+                    # BUY signals: STRONG BUY, BUY, BUY DIP, ACCUMULATION, BUY (Below VAL), etc.
                     query = """
                     SELECT
                         COUNT(*) as total_stocks,
-                        COUNT(*) FILTER (WHERE sr.priority_score >= 70) as buy_signals,
-                        COUNT(*) FILTER (WHERE sr.priority_score >= 40 AND sr.priority_score < 70) as wait_signals,
-                        COUNT(*) FILTER (WHERE sr.priority_score < 40) as sell_signals,
+                        COUNT(*) FILTER (
+                            WHERE sr.recommendation IS NOT NULL 
+                            AND (
+                                sr.recommendation LIKE 'STRONG BUY%%' 
+                                OR sr.recommendation LIKE 'BUY%%'
+                                OR sr.recommendation LIKE '%%ACCUMULATION%%'
+                                OR sr.recommendation LIKE '%%BUY DIP%%'
+                            )
+                        ) as buy_signals,
+                        COUNT(*) FILTER (
+                            WHERE sr.recommendation IS NOT NULL 
+                            AND (
+                                sr.recommendation = 'WAIT'
+                                OR sr.recommendation = 'NEUTRAL'
+                                OR sr.recommendation LIKE '%%BREAKOUT IMMINENT%%'
+                            )
+                        ) as wait_signals,
+                        COUNT(*) FILTER (
+                            WHERE sr.recommendation IS NOT NULL 
+                            AND (
+                                sr.recommendation LIKE 'SELL%%'
+                                OR sr.recommendation LIKE '%%DISTRIBUTION%%'
+                                OR sr.recommendation LIKE '%%SELL RALLY%%'
+                            )
+                        ) as sell_signals,
                         AVG(sr.priority_score) as avg_priority,
                         AVG((sr.technical_signals->>'rsi')::float) as avg_rsi,
                         AVG((sr.technical_signals->>'volume_ratio')::float) as avg_volume_ratio,
@@ -95,18 +119,28 @@ class SectorAnalyzer:
                     cur.execute(query, (sector, analysis_date))
                     result = cur.fetchone()
 
-                    if not result or result[0] == 0:  # total_stocks
+                    if not result:
                         logger.debug(f"No scan results for sector: {sector}")
                         return None
+                    
+                    # Check if we have enough columns
+                    if len(result) < 8:
+                        logger.warning(f"Unexpected result length {len(result)} for sector {sector}, expected 8")
+                        return None
+                    
+                    # Check if there are any stocks
+                    if result[0] == 0:
+                        logger.debug(f"No stocks scanned for sector: {sector}")
+                        return None
 
-                    total_stocks = result[0]
+                    total_stocks = result[0] or 0
                     buy_signals = result[1] or 0
                     wait_signals = result[2] or 0
                     sell_signals = result[3] or 0
-                    avg_priority = float(result[4]) if result[4] else 0
-                    avg_rsi = float(result[5]) if result[5] else 50
-                    avg_volume_ratio = float(result[6]) if result[6] else 1.0
-                    priority_stddev = float(result[7]) if result[7] else 0
+                    avg_priority = float(result[4]) if result[4] is not None else 0
+                    avg_rsi = float(result[5]) if result[5] is not None else 50
+                    avg_volume_ratio = float(result[6]) if result[6] is not None else 1.0
+                    priority_stddev = float(result[7]) if result[7] is not None else 0
 
                     # Calculate strength score (0-100)
                     strength_score = self._calculate_strength_score(
@@ -145,7 +179,9 @@ class SectorAnalyzer:
                     }
 
         except Exception as e:
+            import traceback
             logger.error(f"Error analyzing sector {sector}: {e}")
+            logger.debug(f"Traceback: {traceback.format_exc()}")
             return None
 
     def get_top_sectors(self, n: int = 3, analysis_date: Optional[date] = None) -> List[Dict[str, Any]]:

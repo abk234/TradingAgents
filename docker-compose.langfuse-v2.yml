@@ -39,10 +39,11 @@ services:
     volumes:
       - langfuse-v2-uploads:/app/packages/db/prisma/uploads
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000/api/public/health"]
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:3000/api/public/health || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
+      start_period: 40s
 
 volumes:
   langfuse-v2-db-data:

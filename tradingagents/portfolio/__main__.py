@@ -28,6 +28,7 @@ from decimal import Decimal
 from typing import List, Dict, Any
 
 from tradingagents.database import get_db_connection, TickerOperations, PortfolioOperations
+from tradingagents.utils import display_next_steps
 
 logging.basicConfig(level=logging.INFO, format='%(message)s')
 logger = logging.getLogger(__name__)
@@ -321,19 +322,23 @@ def main():
     # Default command
     if args.command is None or args.command == 'view':
         print_portfolio_summary(portfolio_ops, args.portfolio_id)
+        display_next_steps('portfolio')
 
     elif args.command == 'buy':
         trans_date = datetime.strptime(args.date, '%Y-%m-%d').date() if args.date else date.today()
         buy_stock(portfolio_ops, ticker_ops, args.portfolio_id, args.symbol, args.shares, args.price, trans_date)
         print_portfolio_summary(portfolio_ops, args.portfolio_id)
+        display_next_steps('portfolio')
 
     elif args.command == 'sell':
         trans_date = datetime.strptime(args.date, '%Y-%m-%d').date() if args.date else date.today()
         sell_stock(portfolio_ops, ticker_ops, args.portfolio_id, args.symbol, args.shares, args.price, trans_date)
         print_portfolio_summary(portfolio_ops, args.portfolio_id)
+        display_next_steps('portfolio')
 
     elif args.command == 'performance':
         show_performance(portfolio_ops, args.portfolio_id, args.days)
+        display_next_steps('performance')
 
     elif args.command == 'dividends':
         show_dividends(portfolio_ops, args.portfolio_id, args.days)
@@ -342,6 +347,7 @@ def main():
         portfolio_ops.create_snapshot(args.portfolio_id)
         print("\n✅ Snapshot created successfully.\n")
         show_performance(portfolio_ops, args.portfolio_id, days=7)
+        display_next_steps('performance')
 
 
 if __name__ == '__main__':

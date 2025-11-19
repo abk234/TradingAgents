@@ -12,6 +12,7 @@ import logging
 from .data_fetcher import DataFetcher
 from .indicators import TechnicalIndicators
 from .scorer import PriorityScorer
+from .entry_price_calculator import EntryPriceCalculator
 from tradingagents.database import get_db_connection, TickerOperations
 from tradingagents.database.scan_ops import ScanOperations
 from tradingagents.validation.earnings_calendar import check_earnings_proximity
@@ -33,6 +34,7 @@ class DailyScreener:
         self.data_fetcher = DataFetcher(self.db)
         self.indicators = TechnicalIndicators()
         self.scorer = PriorityScorer()
+        self.entry_calculator = EntryPriceCalculator()
         self.ticker_ops = TickerOperations(self.db)
         self.scan_ops = ScanOperations(self.db)
 
@@ -113,6 +115,20 @@ class DailyScreener:
             # Calculate priority score
             score_result = self.scorer.calculate_priority_score(signals, quote)
 
+            # Calculate entry price recommendation
+            entry_data = self.entry_calculator.calculate_entry_price(
+                current_price=quote['price'],
+                technical_signals=signals,
+                quote=quote
+            )
+
+            # Generate recommendation (plain text for database storage)
+            recommendation = self._generate_recommendation_plain_text(
+                rsi=signals.get('rsi'),
+                signals=score_result['triggered_alerts'],
+                technical_signals=signals
+            )
+
             # Compile result
             result = {
                 'ticker_id': ticker_id,
@@ -129,7 +145,10 @@ class DailyScreener:
                 'pe_ratio': quote.get('pe_ratio'),
                 'forward_pe': quote.get('forward_pe'),
                 'market_cap': quote.get('market_cap'),
-                'scan_duration_seconds': int(time.time() - start_time)
+                'recommendation': recommendation,  # Store recommendation for sector analysis
+                'scan_duration_seconds': int(time.time() - start_time),
+                # Entry price tracking data
+                **entry_data
             }
 
             logger.info(
@@ -204,15 +223,28 @@ class DailyScreener:
         if store_results and results:
             logger.info("\nStoring scan results...")
             for result in results:
-                self.scan_ops.store_scan_result(
+                scan_id = self.scan_ops.store_scan_result(
                     result['ticker_id'],
                     scan_date,
                     result
                 )
 
+                # Create entry price outcome tracking if entry price was calculated
+                if (scan_id and result.get('entry_price_min') and
+                    result.get('entry_price_max')):
+                    from decimal import Decimal
+                    self.scan_ops.create_entry_price_outcome(
+                        scan_id=scan_id,
+                        ticker_id=result['ticker_id'],
+                        scan_date=scan_date,
+                        entry_price_min=Decimal(str(result['entry_price_min'])),
+                        entry_price_max=Decimal(str(result['entry_price_max'])),
+                        recommended_timing=result.get('entry_timing')
+                    )
+
             # Update rankings
             self.scan_ops.update_rankings(scan_date)
-            logger.info(f"Stored {len(results)} scan results")
+            logger.info(f"Stored {len(results)} scan results with entry price tracking")
 
         # Summary
         duration = time.time() - start_time
@@ -408,3 +440,186 @@ class DailyScreener:
         lines.append("="*70)
 
         return "\n".join(lines)
+
+    def _generate_recommendation_plain_text(
+        self,
+        rsi: Optional[float],
+        signals: List[str],
+        technical_signals: Dict[str, Any]
+    ) -> str:
+        """
+        Generate plain text recommendation (without Rich markup) for database storage.
+        
+        This mirrors the logic in cli_formatter._generate_recommendation but returns
+        plain text suitable for database storage and sector analysis.
+        
+        Args:
+            rsi: RSI value
+            signals: List of triggered alert strings
+            technical_signals: Dictionary of technical signals
+            
+        Returns:
+            Plain text recommendation string (e.g., "STRONG BUY", "BUY", "HOLD", "SELL", "WAIT")
+        """
+        from typing import Optional as Opt
+        
+        if not technical_signals or not isinstance(technical_signals, dict):
+            # Fallback to basic RSI if no signals
+            if rsi is None:
+                return "HOLD"
+            if rsi < 30:
+                return "BUY"
+            elif rsi > 70:
+                return "SELL"
+            else:
+                return "HOLD"
+
+        # Check for Phase 3 Multi-Timeframe Analysis (highest priority)
+        mtf_signal = technical_signals.get('mtf_signal')
+        mtf_confidence = technical_signals.get('mtf_confidence', 0)
+
+        if mtf_signal and mtf_confidence > 0.8:
+            if rsi and rsi > 80:
+                if mtf_signal == 'BUY_THE_DIP':
+                    return "BUY DIP"
+                else:
+                    return "WAIT"
+            elif rsi and rsi > 70:
+                if mtf_signal == 'BUY_THE_DIP':
+                    return "BUY DIP"
+                else:
+                    return "WAIT"
+            
+            # Normal multi-timeframe signals
+            if mtf_signal == 'STRONG_BUY':
+                return "STRONG BUY"
+            elif mtf_signal == 'BUY_THE_DIP':
+                return "BUY DIP"
+            elif mtf_signal == 'BUY':
+                return "BUY"
+            elif mtf_signal == 'STRONG_SELL':
+                return "STRONG SELL"
+            elif mtf_signal == 'SELL_THE_RALLY':
+                return "SELL RALLY"
+
+        # Check for Phase 3 Institutional Activity
+        of_signal = technical_signals.get('of_signal')
+        if of_signal:
+            if rsi and rsi > 80:
+                if of_signal in ['BULLISH_ACCUMULATION', 'STRONG_BUYING']:
+                    return "WAIT"
+                elif of_signal == 'BEARISH_DISTRIBUTION':
+                    return "DISTRIBUTION"
+                elif of_signal == 'STRONG_SELLING':
+                    return "STRONG SELL"
+            elif rsi and rsi > 70:
+                if of_signal in ['STRONG_BUYING', 'BULLISH_ACCUMULATION']:
+                    return "WAIT"
+            
+            # Normal institutional signals
+            if of_signal == 'BULLISH_ACCUMULATION':
+                return "ACCUMULATION"
+            elif of_signal == 'BEARISH_DISTRIBUTION':
+                return "DISTRIBUTION"
+            elif of_signal == 'STRONG_BUYING':
+                return "STRONG BUY"
+            elif of_signal == 'STRONG_SELLING':
+                return "STRONG SELL"
+
+        # Check for Phase 3 Volume Profile position
+        vp_position = technical_signals.get('vp_profile_position')
+        if vp_position:
+            if vp_position == 'BELOW_VALUE_AREA':
+                return "BUY (Below VAL)"
+            elif vp_position == 'ABOVE_VALUE_AREA':
+                return "SELL (Above VAH)"
+
+        # Check for Phase 2 RSI Divergence
+        bullish_div = technical_signals.get('rsi_bullish_divergence', False)
+        bearish_div = technical_signals.get('rsi_bearish_divergence', False)
+        div_strength = technical_signals.get('rsi_divergence_strength', 0)
+
+        if bullish_div and div_strength > 0.7:
+            return "REVERSAL (Bullish Div)"
+        elif bearish_div and div_strength > 0.7:
+            return "REVERSAL (Bearish Div)"
+
+        # Check for Phase 2 BB Squeeze
+        bb_squeeze = technical_signals.get('bb_squeeze_detected', False)
+        if bb_squeeze:
+            return "BREAKOUT IMMINENT"
+
+        # Fall back to Phase 1-2 basic signals
+        macd_bullish = technical_signals.get('macd_bullish_crossover', False)
+        macd_bearish = technical_signals.get('macd_bearish_crossover', False)
+        volume_ratio = technical_signals.get('volume_ratio', 1.0)
+
+        # Check for MACD in signal list
+        if 'MACD_BULLISH_CROSS' in signals:
+            macd_bullish = True
+        if 'MACD_BEARISH_CROSS' in signals:
+            macd_bearish = True
+
+        # Check for other signals
+        rsi_oversold = 'RSI_OVERSOLD' in signals or (rsi and rsi < 30)
+        rsi_overbought = 'RSI_OVERBOUGHT' in signals or (rsi and rsi > 70)
+        volume_spike = 'VOLUME_SPIKE' in signals or volume_ratio > 1.5
+        bb_lower = 'BB_LOWER_TOUCH' in signals or technical_signals.get('near_bb_lower', False)
+        bb_upper = 'BB_UPPER_TOUCH' in signals or technical_signals.get('near_bb_upper', False)
+
+        # STRONG BUY: RSI oversold + MACD bullish + volume spike
+        if rsi_oversold and macd_bullish and volume_spike:
+            return "STRONG BUY"
+
+        # STRONG BUY: RSI oversold + MACD bullish
+        if rsi_oversold and macd_bullish:
+            return "STRONG BUY"
+
+        # STRONG BUY: RSI oversold + BB lower touch
+        if rsi_oversold and bb_lower:
+            return "STRONG BUY"
+
+        # BUY: RSI oversold alone (stronger signal if extremely oversold)
+        if rsi_oversold:
+            if rsi and rsi < 20:
+                return "STRONG BUY"  # Extremely oversold
+            return "BUY"
+
+        # BUY: MACD bullish + RSI neutral/low
+        if macd_bullish and rsi and rsi < 50:
+            return "BUY"
+
+        # BUY: MACD bullish + volume spike
+        if macd_bullish and volume_spike:
+            return "BUY"
+
+        # STRONG SELL: RSI overbought + MACD bearish
+        if rsi_overbought and macd_bearish:
+            return "STRONG SELL"
+
+        # STRONG SELL: RSI overbought + BB upper touch
+        if rsi_overbought and bb_upper:
+            return "STRONG SELL"
+
+        # SELL: RSI overbought alone
+        if rsi_overbought:
+            return "SELL"
+
+        # SELL: MACD bearish + RSI high
+        if macd_bearish and rsi and rsi > 50:
+            return "SELL"
+
+        # WAIT: MACD bullish but RSI high (wait for pullback)
+        if macd_bullish and rsi and rsi > 70:
+            return "WAIT"
+
+        # WAIT: MACD bearish but RSI low (might bounce)
+        if macd_bearish and rsi and rsi < 30:
+            return "WAIT"
+
+        # NEUTRAL: MACD bullish or RSI in neutral range
+        if macd_bullish or (rsi and rsi >= 30 and rsi <= 50):
+            return "NEUTRAL"
+
+        # Default neutral
+        return "HOLD"

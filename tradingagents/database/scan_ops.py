@@ -18,19 +18,34 @@ logger = logging.getLogger(__name__)
 
 def json_serializable(obj):
     """Convert numpy/pandas/decimal types to JSON-serializable types."""
-    if isinstance(obj, (np.integer, np.floating)):
+    if obj is None:
+        return None
+    # Check for numpy integer types
+    elif isinstance(obj, (np.integer, np.int_, np.intc, np.intp, np.int8, np.int16, np.int32, np.int64)):
+        return int(obj)
+    # Check for numpy floating types (avoid np.float_ which was removed in NumPy 2.0)
+    elif isinstance(obj, (np.floating, np.float16, np.float32, np.float64)):
         return float(obj)
     elif isinstance(obj, np.ndarray):
         return obj.tolist()
+    # Check for numpy bool types (np.bool was removed in NumPy 2.0)
     elif isinstance(obj, np.bool_):
         return bool(obj)
     elif isinstance(obj, Decimal):
         return float(obj)
+    elif hasattr(obj, 'item'):  # Handle pandas scalar types
+        return obj.item()
     elif isinstance(obj, dict):
         return {k: json_serializable(v) for k, v in obj.items()}
     elif isinstance(obj, list):
         return [json_serializable(item) for item in obj]
-    return obj
+    elif isinstance(obj, (str, int, float, bool)):
+        return obj
+    # Fallback: try to convert to float if it's a numeric type
+    try:
+        return float(obj)
+    except (ValueError, TypeError):
+        return obj
 
 
 class ScanOperations:
@@ -65,19 +80,34 @@ class ScanOperations:
         # Make technical signals JSON-serializable
         technical_signals = json_serializable(scan_data.get('technical_signals', {}))
 
+        # Convert all numeric fields to ensure they're not numpy types
         data = {
             'ticker_id': ticker_id,
             'scan_date': scan_date,
-            'price': scan_data.get('price'),
-            'volume': scan_data.get('volume'),
-            'priority_score': scan_data.get('priority_score'),
-            'priority_rank': scan_data.get('priority_rank'),
+            'price': json_serializable(scan_data.get('price')),
+            'volume': json_serializable(scan_data.get('volume')),
+            'priority_score': json_serializable(scan_data.get('priority_score')),
+            'priority_rank': json_serializable(scan_data.get('priority_rank')),
             'technical_signals': json.dumps(technical_signals),
             'triggered_alerts': scan_data.get('triggered_alerts', []),
-            'pe_ratio': scan_data.get('pe_ratio'),
-            'forward_pe': scan_data.get('forward_pe'),
-            'news_sentiment_score': scan_data.get('news_sentiment_score'),
-            'scan_duration_seconds': scan_data.get('scan_duration_seconds')
+            'pe_ratio': json_serializable(scan_data.get('pe_ratio')),
+            'forward_pe': json_serializable(scan_data.get('forward_pe')),
+            'news_sentiment_score': json_serializable(scan_data.get('news_sentiment_score')),
+            'scan_duration_seconds': json_serializable(scan_data.get('scan_duration_seconds')),
+            # Entry price tracking fields
+            'entry_price_min': json_serializable(scan_data.get('entry_price_min')),
+            'entry_price_max': json_serializable(scan_data.get('entry_price_max')),
+            'entry_price_reasoning': scan_data.get('entry_price_reasoning'),  # String, no conversion needed
+            'bb_upper': json_serializable(scan_data.get('bb_upper')),
+            'bb_lower': json_serializable(scan_data.get('bb_lower')),
+            'bb_middle': json_serializable(scan_data.get('bb_middle')),
+            'support_level': json_serializable(scan_data.get('support_level')),
+            'resistance_level': json_serializable(scan_data.get('resistance_level')),
+            'enterprise_value': json_serializable(scan_data.get('enterprise_value')),
+            'enterprise_to_ebitda': json_serializable(scan_data.get('enterprise_to_ebitda')),
+            'market_cap': json_serializable(scan_data.get('market_cap')),
+            'entry_timing': scan_data.get('entry_timing'),  # String, no conversion needed
+            'recommendation': scan_data.get('recommendation')  # Store recommendation for sector analysis
         }
 
         # Use upsert to handle re-running scans on same day
@@ -85,8 +115,13 @@ class ScanOperations:
             INSERT INTO daily_scans (
                 ticker_id, scan_date, price, volume, priority_score, priority_rank,
                 technical_signals, triggered_alerts, pe_ratio, forward_pe,
-                news_sentiment_score, scan_duration_seconds
-            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                news_sentiment_score, scan_duration_seconds,
+                entry_price_min, entry_price_max, entry_price_reasoning,
+                bb_upper, bb_lower, bb_middle,
+                support_level, resistance_level,
+                enterprise_value, enterprise_to_ebitda, market_cap,
+                entry_timing, recommendation
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             ON CONFLICT (ticker_id, scan_date) DO UPDATE
             SET price = EXCLUDED.price,
                 volume = EXCLUDED.volume,
@@ -97,7 +132,20 @@ class ScanOperations:
                 pe_ratio = EXCLUDED.pe_ratio,
                 forward_pe = EXCLUDED.forward_pe,
                 news_sentiment_score = EXCLUDED.news_sentiment_score,
-                scan_duration_seconds = EXCLUDED.scan_duration_seconds
+                scan_duration_seconds = EXCLUDED.scan_duration_seconds,
+                entry_price_min = EXCLUDED.entry_price_min,
+                entry_price_max = EXCLUDED.entry_price_max,
+                entry_price_reasoning = EXCLUDED.entry_price_reasoning,
+                bb_upper = EXCLUDED.bb_upper,
+                bb_lower = EXCLUDED.bb_lower,
+                bb_middle = EXCLUDED.bb_middle,
+                support_level = EXCLUDED.support_level,
+                resistance_level = EXCLUDED.resistance_level,
+                enterprise_value = EXCLUDED.enterprise_value,
+                enterprise_to_ebitda = EXCLUDED.enterprise_to_ebitda,
+                market_cap = EXCLUDED.market_cap,
+                entry_timing = EXCLUDED.entry_timing,
+                recommendation = EXCLUDED.recommendation
             RETURNING scan_id
         """
 
@@ -115,13 +163,26 @@ class ScanOperations:
                 data['pe_ratio'],
                 data['forward_pe'],
                 data['news_sentiment_score'],
-                data['scan_duration_seconds']
+                data['scan_duration_seconds'],
+                data['entry_price_min'],
+                data['entry_price_max'],
+                data['entry_price_reasoning'],
+                data['bb_upper'],
+                data['bb_lower'],
+                data['bb_middle'],
+                data['support_level'],
+                data['resistance_level'],
+                data['enterprise_value'],
+                data['enterprise_to_ebitda'],
+                data['market_cap'],
+                data['entry_timing'],
+                data['recommendation']
             ),
             fetch_one=True
         )
 
         scan_id = result[0] if result else None
-        logger.info(f"Stored scan result {scan_id} for ticker_id {ticker_id}")
+        logger.info(f"Stored scan result {scan_id} for ticker_id {ticker_id} with entry price: {data.get('entry_price_min')}-{data.get('entry_price_max')}")
         return scan_id
 
     def get_latest_scan(
@@ -333,3 +394,88 @@ class ScanOperations:
 
         self.db.execute_query(query, (scan_date,), fetch=False)
         logger.info(f"Updated rankings for {scan_date}")
+
+    def create_entry_price_outcome(
+        self,
+        scan_id: int,
+        ticker_id: int,
+        scan_date: date,
+        entry_price_min: Decimal,
+        entry_price_max: Decimal,
+        recommended_timing: str = None
+    ) -> int:
+        """
+        Create an entry price outcome record for tracking.
+
+        Args:
+            scan_id: Scan ID this outcome tracks
+            ticker_id: Ticker ID
+            scan_date: Date of the original scan
+            entry_price_min: Minimum recommended entry price
+            entry_price_max: Maximum recommended entry price
+            recommended_timing: Entry timing recommendation
+
+        Returns:
+            outcome_id of the created record
+        """
+        query = """
+            INSERT INTO entry_price_outcomes (
+                scan_id, ticker_id, scan_date,
+                entry_price_min, entry_price_max,
+                recommended_timing, outcome_status
+            ) VALUES (%s, %s, %s, %s, %s, %s, 'STILL_WAITING')
+            ON CONFLICT (scan_id) DO NOTHING
+            RETURNING outcome_id
+        """
+
+        result = self.db.execute_query(
+            query,
+            (scan_id, ticker_id, scan_date, entry_price_min, entry_price_max, recommended_timing),
+            fetch_one=True
+        )
+
+        outcome_id = result[0] if result else None
+        if outcome_id:
+            logger.info(f"Created entry price outcome {outcome_id} for scan {scan_id}")
+        return outcome_id
+
+    def update_entry_outcomes(self):
+        """
+        Update all entry price outcomes based on actual price movements.
+        Calls the database function that checks if entry targets were hit.
+        """
+        query = "SELECT update_entry_price_outcomes()"
+        self.db.execute_query(query, fetch=False)
+        logger.info("Updated entry price outcomes")
+
+    def get_entry_price_trends(
+        self,
+        ticker_id: int = None,
+        days: int = 30
+    ) -> List[Dict[str, Any]]:
+        """
+        Get entry price trends over time.
+
+        Args:
+            ticker_id: Ticker ID (optional, if None returns all tickers)
+            days: Number of days to retrieve
+
+        Returns:
+            List of entry price history records
+        """
+        if ticker_id:
+            query = """
+                SELECT * FROM entry_price_history
+                WHERE symbol = (SELECT symbol FROM tickers WHERE ticker_id = %s)
+                    AND scan_date >= CURRENT_DATE - INTERVAL '%s days'
+                ORDER BY scan_date DESC
+            """
+            return self.db.execute_dict_query(query, (ticker_id, days)) or []
+        else:
+            query = """
+                SELECT * FROM entry_price_history
+                WHERE scan_date >= CURRENT_DATE - INTERVAL '%s days'
+                ORDER BY scan_date DESC, priority_score DESC
+                LIMIT 100
+            """
+            return self.db.execute_dict_query(query, (days,)) or []

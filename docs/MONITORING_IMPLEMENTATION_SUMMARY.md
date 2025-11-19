@@ -5,7 +5,7 @@
 ### Phase 1: Langfuse Self-Hosted (COMPLETE)
 
 1. **Docker Compose Setup** ✅
-   - `docker-compose.langfuse.yml` - Complete Langfuse stack
+   - `docker-compose.langfuse-v2.yml` - Complete Langfuse v2 stack
    - PostgreSQL database for Langfuse
    - Health checks and volume management
 
@@ -35,7 +35,7 @@
 ### 1. Start Langfuse
 
 ```bash
-docker-compose -f docker-compose.langfuse.yml up -d
+docker compose -f docker-compose.langfuse-v2.yml up -d
 ```
 
 ### 2. Get API Keys
@@ -117,7 +117,7 @@ Open `http://localhost:3000` and check the Traces view!
 ## 📁 Files Created/Modified
 
 ### New Files
-- `docker-compose.langfuse.yml` - Docker Compose configuration
+- `docker-compose.langfuse-v2.yml` - Docker Compose configuration (Langfuse v2)
 - `tradingagents/monitoring/langfuse_integration.py` - Langfuse integration module
 - `docs/LANGFUSE_SETUP_GUIDE.md` - Setup guide
 - `docs/PROMETHEUS_GRAFANA_FUTURE_PLAN.md` - Future plan

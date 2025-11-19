@@ -11,6 +11,7 @@ from datetime import datetime
 
 from tradingagents.evaluate.outcome_tracker import OutcomeTracker
 from tradingagents.evaluate.performance import PerformanceAnalyzer
+from tradingagents.utils import display_next_steps
 
 # Set up logging
 logging.basicConfig(
@@ -96,6 +97,8 @@ def report_command(args):
     analyzer = PerformanceAnalyzer()
     report = analyzer.generate_report(days_back=args.period)
     print(report)
+    # Display next steps and recommendations
+    display_next_steps('evaluate')
 
 
 def recent_command(args):
@@ -169,6 +172,9 @@ def stats_command(args):
         print("⏳ No recommendations old enough for evaluation yet")
 
     print()
+    
+    # Display next steps and recommendations
+    display_next_steps('stats')
 
 
 def main():
