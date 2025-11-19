@@ -1,1 +1,0 @@
-scripts/bin/trading_bot.sh

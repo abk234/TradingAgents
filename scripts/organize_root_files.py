@@ -52,7 +52,6 @@ DOCUMENTATION_FILES = [
     "QUICK_START_GUIDE.md",
     "SCREENER_TABLE_UPDATE.md",
     "USAGE_GUIDE.md",
-    "chainlit.md",
     "CLAUDE.md",
 ]
 

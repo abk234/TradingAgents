@@ -118,7 +118,7 @@ class TradingAgent:
             }
 
             # Add current message
-            from langchain_core.messages import HumanMessage
+            from langchain_core.messages import HumanMessage, ToolMessage
             inputs["messages"].append(HumanMessage(content=message))
 
             if self.debug:
@@ -128,6 +128,11 @@ class TradingAgent:
             previous_content = ""
             chunks_processed = 0
             last_yield_time = None
+            
+            # Track tool calls and results for fallback response generation
+            tool_calls_made = []
+            tool_results = []
+            final_state_messages = []
 
             # Stream response with better chunk handling
             async for chunk in self.agent.astream(inputs):
@@ -142,6 +147,7 @@ class TradingAgent:
                     # Check for messages in chunk
                     if "messages" in chunk and len(chunk["messages"]) > 0:
                         last_message = chunk["messages"][-1]
+                        final_state_messages = chunk["messages"]  # Keep track of all messages
                         
                         # Handle AIMessage with content
                         if hasattr(last_message, 'content') and last_message.content:
@@ -163,11 +169,21 @@ class TradingAgent:
                                 
                                 previous_content = current_content
                         
-                        # Handle tool calls - yield indicator
+                        # Handle tool calls - yield indicator and track
                         elif hasattr(last_message, 'tool_calls') and last_message.tool_calls:
                             tool_names = [tc.get('name', 'tool') if isinstance(tc, dict) else getattr(tc, 'name', 'tool') for tc in last_message.tool_calls]
+                            tool_calls_made.extend(tool_names)
                             yield f"\n\n🔧 Using tools: {', '.join(tool_names)}...\n"
                             last_yield_time = chunks_processed
+                        
+                        # Track tool results - check message type name
+                        elif hasattr(last_message, '__class__') and 'Tool' in last_message.__class__.__name__:
+                            tool_name = getattr(last_message, 'name', 'unknown_tool')
+                            tool_content = str(getattr(last_message, 'content', ''))[:500]
+                            tool_results.append({
+                                'name': tool_name,
+                                'content': tool_content
+                            })
                 
                 # If we haven't yielded anything in a while, yield a progress indicator
                 if last_yield_time and (chunks_processed - last_yield_time) > 50:
@@ -175,11 +191,64 @@ class TradingAgent:
                     last_yield_time = chunks_processed
 
             if self.debug:
-                logger.info(f"Streaming completed. Processed {chunks_processed} chunks, yielded content: {bool(previous_content)}")
+                logger.info(f"Streaming completed. Processed {chunks_processed} chunks, yielded content: {bool(previous_content)}, tools used: {len(tool_calls_made)}")
 
-            # If no content was yielded, the agent might have used tools without final response
-            if not previous_content:
-                logger.warning("No content yielded from astream - agent may have only made tool calls")
+            # If no content was yielded but tools were used, generate a summary response
+            if not previous_content and tool_calls_made:
+                logger.warning(f"No content yielded from astream - tools were used: {tool_calls_made}")
+                
+                # Extract tool results from final state messages if we didn't capture them during streaming
+                if not tool_results and final_state_messages:
+                    for msg in final_state_messages:
+                        if hasattr(msg, '__class__') and 'Tool' in msg.__class__.__name__:
+                            tool_name = getattr(msg, 'name', 'unknown_tool')
+                            tool_content = str(getattr(msg, 'content', ''))[:500]
+                            tool_results.append({
+                                'name': tool_name,
+                                'content': tool_content
+                            })
+                
+                # Try to generate a summary response based on tool results
+                try:
+                    # Build a prompt to summarize the tool results
+                    summary_prompt = f"""Based on the following tool results, provide a helpful summary response to the user's query: "{message}"
+
+Tools used: {', '.join(set(tool_calls_made))}
+
+Tool results:
+"""
+                    for i, result in enumerate(tool_results[:5], 1):  # Limit to first 5 results
+                        summary_prompt += f"\n{i}. {result['name']}: {result['content'][:400]}...\n"
+                    
+                    summary_prompt += "\n\nProvide a clear, helpful response summarizing the findings and answering the user's question. Be specific and actionable."
+                    
+                    # Generate summary using LLM
+                    from langchain_core.messages import SystemMessage
+                    summary_messages = [
+                        SystemMessage(content=TRADING_EXPERT_PROMPT),
+                        HumanMessage(content=summary_prompt)
+                    ]
+                    
+                    summary_response = await self.llm.ainvoke(summary_messages)
+                    summary_text = summary_response.content if hasattr(summary_response, 'content') else str(summary_response)
+                    
+                    if summary_text and summary_text.strip():
+                        yield f"\n\n{summary_text}"
+                    else:
+                        # Fallback if LLM doesn't generate content
+                        yield f"\n\n✅ I've completed the analysis using {', '.join(set(tool_calls_made))}. "
+                        yield "Here's what I found:\n\n"
+                        for result in tool_results[:3]:
+                            yield f"**{result['name']}**: {result['content'][:200]}...\n\n"
+                        yield "\nWould you like me to provide more details on any specific aspect?"
+                except Exception as e:
+                    logger.error(f"Error generating summary response: {e}", exc_info=True)
+                    yield f"\n\n✅ I've completed the analysis using {', '.join(set(tool_calls_made))}. "
+                    yield "The tools have finished processing. Would you like me to provide more specific information?"
+            
+            # If no content and no tools were used, show the original warning
+            elif not previous_content:
+                logger.warning("No content yielded from astream - no tools were used either")
                 yield "\n\n⚠️ Processing complete, but no text response was generated. The agent may have used tools. Try asking a more specific question."
 
         except Exception as e:

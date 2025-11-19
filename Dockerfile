@@ -21,8 +21,8 @@ COPY . .
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONPATH=/app
 
-# Expose port for Chainlit
-EXPOSE 8000
+# Expose port for API
+EXPOSE 8005
 
 # Default command
-CMD ["chainlit", "run", "tradingagents/bot/chainlit_app.py", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "tradingagents.api.main:app", "--host", "0.0.0.0", "--port", "8005"]

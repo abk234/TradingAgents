@@ -47,7 +47,8 @@ jinja2>=3.0.0
 
 # Web & API
 redis>=5.0.0
-chainlit>=1.0.0
+fastapi>=0.100.0
+uvicorn>=0.20.0
 plotly>=5.18.0
 
 # Monitoring & Observability

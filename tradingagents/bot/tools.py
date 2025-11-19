@@ -83,23 +83,23 @@ def run_screener(sector_analysis: bool = True, top_n: int = 10) -> str:
 
         # Run scan using ONLY database data (no price updates, no API calls)
         # This is fast because it uses pre-scanned data from database
-        # Add timeout protection
-        import signal
+        # Use threading-based timeout instead of signal (signal only works in main thread)
+        import concurrent.futures
         
-        def timeout_handler(signum, frame):
-            raise TimeoutError("Screener scan took too long")
-        
-        # Set 30 second timeout (should be fast with database-only)
-        signal.signal(signal.SIGALRM, timeout_handler)
-        signal.alarm(30)
-        
-        try:
-            results = screener.scan_all(
+        def run_scan():
+            return screener.scan_all(
                 update_prices=False,  # Don't update prices (use database data)
                 store_results=True
             )
-        finally:
-            signal.alarm(0)  # Cancel timeout
+        
+        # Run with 30 second timeout using ThreadPoolExecutor
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+            future = executor.submit(run_scan)
+            try:
+                results = future.result(timeout=30)  # 30 second timeout
+            except concurrent.futures.TimeoutError:
+                logger.warning("Screener scan timed out after 30 seconds")
+                raise TimeoutError("Screener scan took too long")
 
         if not results:
             return "No screening results available. The database may need to be updated."

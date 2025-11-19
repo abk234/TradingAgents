@@ -12,34 +12,33 @@ NC='\033[0m'
 
 echo -e "${YELLOW}Cleaning up any existing processes...${NC}"
 
-# Kill any processes on port 8000
-lsof -ti:8000 | xargs kill -9 2>/dev/null
+# Kill any processes on port 8005
+lsof -ti:8005 | xargs kill -9 2>/dev/null
 
-# Kill any chainlit or tradingagents processes
-pkill -f "chainlit run" 2>/dev/null
-pkill -f "tradingagents.bot" 2>/dev/null
+# Kill any uvicorn processes
+pkill -f "uvicorn" 2>/dev/null
 
 sleep 2
 
 # Check if port is free
-if lsof -ti:8000 > /dev/null 2>&1; then
-    echo -e "${RED}⚠️  Port 8000 still in use. Trying to free it...${NC}"
-    lsof -ti:8000 | xargs kill -9 2>/dev/null
+if lsof -ti:8005 > /dev/null 2>&1; then
+    echo -e "${RED}⚠️  Port 8005 still in use. Trying to free it...${NC}"
+    lsof -ti:8005 | xargs kill -9 2>/dev/null
     sleep 2
 fi
 
 # Verify port is free
-if lsof -ti:8000 > /dev/null 2>&1; then
-    echo -e "${RED}❌ Could not free port 8000. Please manually kill the process.${NC}"
-    echo "Run: lsof -ti:8000 | xargs kill -9"
+if lsof -ti:8005 > /dev/null 2>&1; then
+    echo -e "${RED}❌ Could not free port 8005. Please manually kill the process.${NC}"
+    echo "Run: lsof -ti:8005 | xargs kill -9"
     exit 1
 fi
 
-echo -e "${GREEN}✅ Port 8000 is free${NC}"
+echo -e "${GREEN}✅ Port 8005 is free${NC}"
 echo ""
-echo -e "${YELLOW}Starting Eddie...${NC}"
+echo -e "${YELLOW}Starting Eddie API...${NC}"
 echo ""
 
 # Start the application
-./trading_bot.sh
+python -m tradingagents.api.main
 
