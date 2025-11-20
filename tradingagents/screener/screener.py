@@ -2,6 +2,84 @@
 Daily Screener Module
 
 Main screening logic that coordinates data fetching, analysis, and scoring.
+
+RECOMMENDATION CRITERIA
+=======================
+
+This module generates trading recommendations based on technical analysis signals.
+The recommendations follow a clear hierarchy based on signal strength and quality.
+
+STRONG BUY Signals:
+------------------
+A STRONG BUY recommendation requires multiple confirming bullish signals:
+  1. RSI < 30 (oversold) + MACD bullish crossover + volume spike
+  2. RSI < 30 (oversold) + MACD bullish crossover
+  3. RSI < 30 (oversold) + Bollinger Band lower touch
+  4. RSI < 20 (extremely oversold) - exceptional opportunity
+
+  IMPORTANT: STRONG BUY signals are DOWNGRADED if conflicting signals present:
+  - If BB_UPPER_TOUCH present → downgrade to BUY (at resistance)
+  - If RSI > 70 → downgrade to WAIT (overbought)
+
+BUY Signals:
+-----------
+BUY recommendations indicate favorable entry opportunities:
+  1. RSI < 30 (oversold) alone
+  2. MACD bullish crossover + RSI < 50
+  3. MACD bullish crossover + volume spike
+  4. RSI < 40 (approaching oversold)
+
+  IMPORTANT: BUY signals are DOWNGRADED if conflicting signals present:
+  - If BB_UPPER_TOUCH + RSI oversold → WAIT (contradictory signals)
+
+WAIT Signals:
+------------
+WAIT recommendations suggest patience before entering:
+  1. MACD bullish but RSI > 70 (wait for pullback)
+  2. BB_UPPER_TOUCH + RSI > 50 (at resistance, wait for confirmation)
+  3. MACD bearish but RSI < 30 (might bounce, wait for confirmation)
+  4. Entry price > 5% above current price (wait for pullback)
+
+SELL Signals:
+------------
+  1. RSI > 70 (overbought)
+  2. MACD bearish crossover + RSI > 50
+
+STRONG SELL Signals:
+-------------------
+  1. RSI > 70 (overbought) + MACD bearish crossover
+  2. RSI > 70 (overbought) + BB_UPPER_TOUCH
+
+NEUTRAL/HOLD:
+------------
+  - MACD bullish with RSI 30-50
+  - No strong signals in either direction
+
+Entry Price Logic:
+-----------------
+Entry prices are calculated using support/resistance levels, moving averages,
+Bollinger Bands, VWAP, pivot points, and volatility (ATR).
+
+  - If current price > entry range + 5% → timing = WAIT_FOR_PULLBACK
+  - If current price > entry range + 2-5% → timing = ACCUMULATE
+  - If current price within entry range → timing = BUY_NOW or ACCUMULATE
+  - If current price < entry range → timing = BUY_NOW (below support)
+
+Entry Status Indicators:
+------------------------
+  - ✅ OK: Current price within recommended entry range
+  - ~ OK: Current price slightly above entry (within 2% tolerance)
+  - ⏸️ HIGH: Current price 2-5% above entry range
+  - 🛑 WAIT: Current price >5% above entry range (wait for pullback)
+  - ⚠️ BELOW: Current price below entry range (potential issue)
+
+Ranking Logic:
+-------------
+Results are ranked by:
+  1. Priority Score (primary) - composite technical/fundamental score
+  2. Recommendation Strength (secondary) - STRONG BUY > BUY > NEUTRAL > WAIT > SELL
+
+This ensures the "Priority" column matches the actual ranking displayed.
 """
 
 from typing import List, Dict, Any, Optional, Tuple
@@ -530,29 +608,31 @@ class DailyScreener:
         vp_position = technical_signals.get('vp_profile_position')
         if vp_position:
             if vp_position == 'BELOW_VALUE_AREA':
+                # Check RSI before giving BUY signal
+                if rsi and rsi > 70:
+                    return "WAIT (Below VAL, RSI >70)"
                 return "BUY (Below VAL)"
             elif vp_position == 'ABOVE_VALUE_AREA':
-                return "SELL (Above VAH)"
+                # Above VAH = overbought, not a good entry point
+                # For existing positions: take profits; For new entries: wait
+                return "WAIT - Overextended (Above VAH)"
 
-        # Check for Phase 2 RSI Divergence
+        # Check for Phase 2 RSI Divergence (CRITICAL - check early)
         bullish_div = technical_signals.get('rsi_bullish_divergence', False)
         bearish_div = technical_signals.get('rsi_bearish_divergence', False)
         div_strength = technical_signals.get('rsi_divergence_strength', 0)
 
-        if bullish_div and div_strength > 0.7:
-            return "REVERSAL (Bullish Div)"
-        elif bearish_div and div_strength > 0.7:
-            return "REVERSAL (Bearish Div)"
-
         # Check for Phase 2 BB Squeeze
         bb_squeeze = technical_signals.get('bb_squeeze_detected', False)
-        if bb_squeeze:
-            return "BREAKOUT IMMINENT"
-
+        squeeze_strength = technical_signals.get('bb_squeeze_strength', 0)
+        
         # Fall back to Phase 1-2 basic signals
         macd_bullish = technical_signals.get('macd_bullish_crossover', False)
         macd_bearish = technical_signals.get('macd_bearish_crossover', False)
         volume_ratio = technical_signals.get('volume_ratio', 1.0)
+        
+        # Check VWAP overextension (CRITICAL for downgrading)
+        vwap_dist = technical_signals.get('vwap_distance_pct', 0)
 
         # Check for MACD in signal list
         if 'MACD_BULLISH_CROSS' in signals:
@@ -566,13 +646,51 @@ class DailyScreener:
         volume_spike = 'VOLUME_SPIKE' in signals or volume_ratio > 1.5
         bb_lower = 'BB_LOWER_TOUCH' in signals or technical_signals.get('near_bb_lower', False)
         bb_upper = 'BB_UPPER_TOUCH' in signals or technical_signals.get('near_bb_upper', False)
+        
+        # === CONFLICTING SIGNALS CHECK (CRITICAL) ===
+        # Bearish divergence with bullish MACD = conflicting signals (e.g., NUE)
+        # VWAP overextension (>15%) = overextended (e.g., NUE)
+        conflicting_signals = False
+        if bearish_div and div_strength > 0.5 and macd_bullish:
+            conflicting_signals = True
+        if vwap_dist > 15.0:  # Very overextended (like NUE +15.88%)
+            conflicting_signals = True
+        
+        # Strong bearish divergence overrides bullish signals
+        if bearish_div and div_strength > 0.7:
+            return "REVERSAL (Bearish Div)"
+        elif bullish_div and div_strength > 0.7:
+            return "REVERSAL (Bullish Div)"
+        
+        # Moderate bearish divergence downgrades bullish recommendations
+        if bearish_div and div_strength > 0.5:
+            # If we have bullish signals but bearish divergence, downgrade to WAIT/HOLD
+            if macd_bullish or rsi_oversold:
+                return "HOLD/WAIT (Conflicting Signals)"
+        
+        # BB Squeeze - breakout direction unknown
+        if bb_squeeze and squeeze_strength > 0.7:
+            # If MACD bearish, wait for direction
+            if macd_bearish:
+                return "HOLD - Wait for Breakout Direction"
+            # If MACD bullish, still wait for confirmation
+            elif macd_bullish:
+                return "BREAKOUT SETUP - Watch Direction"
+            else:
+                # No MACD signal - direction completely unknown
+                return "WATCH - Breakout Pending"
 
         # STRONG BUY: RSI oversold + MACD bullish + volume spike
+        # Check for conflicting signals (BB_UPPER_TOUCH should downgrade)
         if rsi_oversold and macd_bullish and volume_spike:
+            if bb_upper:  # Conflicting signal - at resistance
+                return "BUY"  # Downgrade from STRONG BUY
             return "STRONG BUY"
 
         # STRONG BUY: RSI oversold + MACD bullish
         if rsi_oversold and macd_bullish:
+            if bb_upper:  # Conflicting signal
+                return "BUY"  # Downgrade from STRONG BUY
             return "STRONG BUY"
 
         # STRONG BUY: RSI oversold + BB lower touch
@@ -582,16 +700,32 @@ class DailyScreener:
         # BUY: RSI oversold alone (stronger signal if extremely oversold)
         if rsi_oversold:
             if rsi and rsi < 20:
-                return "STRONG BUY"  # Extremely oversold
+                # Extremely oversold - check for conflicting signals
+                if bb_upper:  # Very rare but possible
+                    return "BUY"  # Downgrade due to resistance
+                return "STRONG BUY"
+            # Regular oversold - check for conflicting signals
+            if bb_upper:  # RSI oversold but at upper band - contradictory
+                return "WAIT"  # Wait for signal clarity
             return "BUY"
 
         # BUY: MACD bullish + RSI neutral/low
+        # BUT: Check for conflicting signals first
         if macd_bullish and rsi and rsi < 50:
+            if conflicting_signals:
+                return "HOLD/WAIT (Conflicting Signals)"
             return "BUY"
 
         # BUY: MACD bullish + volume spike
         if macd_bullish and volume_spike:
+            if conflicting_signals:
+                return "HOLD/WAIT (Conflicting Signals)"
             return "BUY"
+
+        # WAIT: BB upper touch with neutral/high RSI (prevent false positives)
+        # This prevents stocks at resistance from getting BUY signals
+        if bb_upper and rsi and rsi > 50:
+            return "WAIT"
 
         # STRONG SELL: RSI overbought + MACD bearish
         if rsi_overbought and macd_bearish:

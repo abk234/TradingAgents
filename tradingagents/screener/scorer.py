@@ -218,11 +218,19 @@ class PriorityScorer:
             fundamental_score * self.weights['fundamental']
         )
 
+        # Normalize score to 0-100 range for better user interpretation
+        # Current scoring typically produces 30-60 range
+        # Map 30->0, 60->100 using linear scaling: (score - min) / (max - min) * 100
+        MIN_EXPECTED = 30
+        MAX_EXPECTED = 60
+        normalized_score = ((total_score - MIN_EXPECTED) / (MAX_EXPECTED - MIN_EXPECTED)) * 100
+        normalized_score = max(0, min(100, normalized_score))  # Clamp to 0-100
+
         # Identify triggered alerts
         alerts = self.identify_alerts(signals)
 
         result = {
-            'priority_score': int(total_score),
+            'priority_score': int(normalized_score),
             'technical_score': technical_score,
             'volume_score': volume_score,
             'momentum_score': momentum_score,
@@ -235,34 +243,68 @@ class PriorityScorer:
     def identify_alerts(self, signals: Dict[str, Any]) -> List[str]:
         """
         Identify specific trading alerts.
+        
+        CRITICAL SIGNALS are prioritized first (divergence, squeeze, etc.)
+        Then standard signals (MACD, RSI, etc.)
 
         Args:
             signals: Technical signals
 
         Returns:
-            List of alert strings
+            List of alert strings (prioritized by importance)
         """
         alerts = []
-
-        if signals.get('rsi_oversold'):
-            alerts.append('RSI_OVERSOLD')
-
-        if signals.get('rsi_overbought'):
-            alerts.append('RSI_OVERBOUGHT')
-
-        if signals.get('macd_bullish_crossover'):
-            alerts.append('MACD_BULLISH_CROSS')
-
+        
+        # === CRITICAL SIGNALS (Highest Priority) ===
+        # These should appear first as they're most important
+        
+        # RSI Divergence (CRITICAL - can indicate reversals)
+        rsi_bullish_div = signals.get('rsi_bullish_divergence', False)
+        rsi_bearish_div = signals.get('rsi_bearish_divergence', False)
+        div_strength = signals.get('rsi_divergence_strength', 0)
+        
+        if rsi_bearish_div and div_strength > 0.5:
+            # Bearish divergence is CRITICAL warning (e.g., NUE)
+            alerts.append('⚠️ BEARISH_RSI_DIVERGENCE')
+        elif rsi_bullish_div and div_strength > 0.5:
+            # Bullish divergence is strong reversal signal
+            alerts.append('BULLISH_RSI_DIVERGENCE')
+        
+        # Bollinger Band Squeeze (CRITICAL - breakout imminent)
+        bb_squeeze = signals.get('bb_squeeze_detected', False)
+        squeeze_strength = signals.get('bb_squeeze_strength', 0)
+        if bb_squeeze and squeeze_strength > 0.7:
+            alerts.append('BB_SQUEEZE')
+        
+        # === STANDARD SIGNALS (Medium Priority) ===
+        
+        # MACD signals (important momentum indicators)
         if signals.get('macd_bearish_crossover'):
             alerts.append('MACD_BEARISH_CROSS')
-
+        elif signals.get('macd_bullish_crossover'):
+            alerts.append('MACD_BULLISH_CROSS')
+        
+        # RSI extremes
+        if signals.get('rsi_oversold'):
+            alerts.append('RSI_OVERSOLD')
+        
+        if signals.get('rsi_overbought'):
+            alerts.append('RSI_OVERBOUGHT')
+        
+        # Volume signals
         if signals.get('volume_spike'):
             alerts.append('VOLUME_SPIKE')
 
-        if signals.get('near_bb_lower'):
-            alerts.append('BB_LOWER_TOUCH')
+        # Bollinger Band alerts - validate that both can't be true simultaneously
+        bb_lower = signals.get('near_bb_lower', False)
+        bb_upper = signals.get('near_bb_upper', False)
 
-        if signals.get('near_bb_upper'):
+        if bb_lower and bb_upper:
+            # Impossible condition - log warning and skip both
+            logger.warning(f"Invalid signal combination: BB_LOWER_TOUCH and BB_UPPER_TOUCH both true")
+        elif bb_lower:
+            alerts.append('BB_LOWER_TOUCH')
+        elif bb_upper:
             alerts.append('BB_UPPER_TOUCH')
 
         # Support/resistance alerts

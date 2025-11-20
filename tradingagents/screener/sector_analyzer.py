@@ -90,11 +90,12 @@ class SectorAnalyzer:
                             )
                         ) as buy_signals,
                         COUNT(*) FILTER (
-                            WHERE sr.recommendation IS NOT NULL 
+                            WHERE sr.recommendation IS NOT NULL
                             AND (
                                 sr.recommendation = 'WAIT'
                                 OR sr.recommendation = 'NEUTRAL'
-                                OR sr.recommendation LIKE '%%BREAKOUT IMMINENT%%'
+                                OR sr.recommendation LIKE '%%WATCH%%Breakout%%'
+                                OR sr.recommendation LIKE '%%BREAKOUT%%WATCH%%'
                             )
                         ) as wait_signals,
                         COUNT(*) FILTER (

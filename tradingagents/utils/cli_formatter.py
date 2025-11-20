@@ -4,6 +4,7 @@ Beautiful, colorful terminal output for TradingAgents
 """
 
 from typing import List, Dict, Any, Optional
+import re
 from rich.console import Console
 from rich.table import Table
 from rich.panel import Panel
@@ -247,6 +248,9 @@ def _generate_recommendation(rsi: Optional[float], signals: List[str], technical
     vp_poc = technical_signals.get('vp_poc')
     if vp_position and vp_poc:
         if vp_position == 'BELOW_VALUE_AREA':
+            # Check RSI before giving BUY signal
+            if rsi and rsi > 70:
+                return "[yellow]⏳ WAIT (Below VAL, RSI >70)[/yellow]"
             return "[bold green]💎 BUY (Below VAL)[/bold green]"
         elif vp_position == 'ABOVE_VALUE_AREA':
             return "[bold red]SELL (Above VAH)[/bold red]"
@@ -287,11 +291,16 @@ def _generate_recommendation(rsi: Optional[float], signals: List[str], technical
     bb_upper = 'BB_UPPER_TOUCH' in signals or technical_signals.get('near_bb_upper', False)
 
     # STRONG BUY: RSI oversold + MACD bullish + volume spike
+    # Check for conflicting signals (BB_UPPER_TOUCH should downgrade)
     if rsi_oversold and macd_bullish and volume_spike:
+        if bb_upper:  # Conflicting signal - at resistance
+            return "[green]BUY[/green]"  # Downgrade from STRONG BUY
         return "[bold bright_green]STRONG BUY[/bold bright_green]"
 
     # STRONG BUY: RSI oversold + MACD bullish
     if rsi_oversold and macd_bullish:
+        if bb_upper:  # Conflicting signal
+            return "[green]BUY[/green]"  # Downgrade from STRONG BUY
         return "[bold green]STRONG BUY[/bold green]"
 
     # STRONG BUY: RSI oversold + BB lower touch
@@ -301,7 +310,13 @@ def _generate_recommendation(rsi: Optional[float], signals: List[str], technical
     # BUY: RSI oversold alone (stronger signal if extremely oversold)
     if rsi_oversold:
         if rsi and rsi < 20:
-            return "[bold green]STRONG BUY[/bold green]"  # Extremely oversold
+            # Extremely oversold - check for conflicting signals
+            if bb_upper:  # Very rare but possible
+                return "[green]BUY[/green]"  # Downgrade due to resistance
+            return "[bold green]STRONG BUY[/bold green]"
+        # Regular oversold - check for conflicting signals
+        if bb_upper:  # RSI oversold but at upper band - contradictory
+            return "[yellow]WAIT[/yellow]"  # Wait for signal clarity
         return "[green]BUY[/green]"
 
     # BUY: MACD bullish + RSI neutral/low
@@ -311,6 +326,11 @@ def _generate_recommendation(rsi: Optional[float], signals: List[str], technical
     # BUY: MACD bullish + volume spike
     if macd_bullish and volume_spike:
         return "[green]BUY[/green]"
+
+    # WAIT: BB upper touch with neutral/high RSI (prevent false positives)
+    # This prevents stocks at resistance from getting BUY signals
+    if bb_upper and rsi and rsi > 50:
+        return "[yellow]WAIT[/yellow]"
 
     # STRONG SELL: RSI overbought + MACD bearish
     if rsi_overbought and macd_bearish:
@@ -355,121 +375,76 @@ def _calculate_profit_target_price(
     profit_timeline: Optional[str] = None
 ) -> str:
     """
-    Calculate forecasted profit target price based on entry price, timeline, and expected returns.
-    
+    Calculate T1 (first technical resistance) profit target price.
+
+    Uses technical levels in priority order:
+    1. VAH (Value Area High) - institutional resistance
+    2. BB Upper (Bollinger Band Upper) - volatility resistance
+    3. R1 (Pivot Resistance 1) - floor trader resistance
+    4. Fallback: entry_price * 1.05 (minimum 5% target)
+
     Args:
         entry_price: Recommended entry price (use midpoint if range)
         current_price: Current stock price
         rsi: RSI indicator value
         signals: List of technical signals
         technical_signals: Technical analysis signals dict
-        priority_score: Priority/confidence score
-        dividend_yield: Annual dividend yield percentage
-        profit_timeline: Profit timeline string (e.g., "3-6 months")
-    
+        priority_score: Priority/confidence score (unused in T1 method)
+        dividend_yield: Annual dividend yield percentage (unused in T1 method)
+        profit_timeline: Profit timeline string (unused in T1 method)
+
     Returns formatted target price string.
     """
     if entry_price <= 0 or current_price <= 0:
         return "[dim]N/A[/dim]"
-    
+
     # Parse entry price if it's a range (e.g., "$100.00-$105.00")
     if isinstance(entry_price, str):
         # Extract numbers from string
-        import re
         prices = re.findall(r'\d+\.?\d*', entry_price)
         if prices:
             entry_price = float(prices[0])  # Use first price
         else:
             entry_price = current_price
-    
+
     # Use midpoint of entry range if we have a range
     entry_base = entry_price
-    
-    # Calculate expected return percentage based on priority score and signals
-    confidence = priority_score or 50.0
-    
-    # Base expected return on confidence level
-    if confidence >= 80:
-        base_return_pct = 20.0  # 20% for very high confidence
-    elif confidence >= 70:
-        base_return_pct = 15.0  # 15% for high confidence
-    elif confidence >= 60:
-        base_return_pct = 12.0  # 12% for moderate-high confidence
-    elif confidence >= 50:
-        base_return_pct = 10.0  # 10% for moderate confidence
-    else:
-        base_return_pct = 8.0   # 8% for lower confidence
-    
-    # Adjust based on RSI
-    if rsi is not None:
-        if rsi < 30:  # Oversold - higher upside potential
-            base_return_pct += 5.0
-        elif rsi > 70:  # Overbought - lower upside potential
-            base_return_pct -= 3.0
-    
-    # Adjust based on strong buy signals
-    strong_buy_signals = ['MACD_BULLISH_CROSS', 'GOLDEN_CROSS', 'RSI_OVERSOLD', 'BREAKOUT_UP']
-    has_strong_signal = any(sig in signals for sig in strong_buy_signals) if signals else False
-    if has_strong_signal:
-        base_return_pct += 3.0
-    
-    # Adjust based on profit timeline (shorter = more aggressive)
-    if profit_timeline:
-        if '1-3' in profit_timeline or '2-4' in profit_timeline:
-            # Short timeline - more aggressive target
-            base_return_pct += 2.0
-        elif '9-18' in profit_timeline or '18' in profit_timeline:
-            # Long timeline - more conservative
-            base_return_pct -= 2.0
-    
-    # Check for resistance levels in technical signals
-    resistance_level = None
+
+    # Extract technical levels from technical_signals
+    target_price = None
+    target_source = None
+
     if technical_signals and isinstance(technical_signals, dict):
-        bb_upper = technical_signals.get('bb_upper')
-        ma_200 = technical_signals.get('ma_200') or technical_signals.get('ma200')
-        
-        # Use resistance level if available
-        if bb_upper:
-            resistance_level = float(bb_upper)
-        elif ma_200:
-            resistance_level = float(ma_200)
-    
-    # Calculate target price
-    target_price = entry_base * (1 + base_return_pct / 100)
-    
-    # Add dividend contribution (prorated based on timeline)
-    dividend_contribution = 0.0
-    if dividend_yield and dividend_yield > 0:
-        # Estimate timeline in months
-        timeline_months = 6  # Default to 6 months
-        if profit_timeline:
-            if '1-3' in profit_timeline:
-                timeline_months = 2
-            elif '3-6' in profit_timeline:
-                timeline_months = 4.5
-            elif '6-9' in profit_timeline:
-                timeline_months = 7.5
-            elif '6-12' in profit_timeline:
-                timeline_months = 9
-            elif '9-18' in profit_timeline:
-                timeline_months = 13.5
-        
-        # Prorate dividend yield
-        dividend_contribution = (dividend_yield / 100) * (timeline_months / 12)
-        target_price = target_price * (1 + dividend_contribution)
-    
-    # Cap target price at resistance level if it's reasonable
-    if resistance_level and resistance_level > entry_base:
-        # If target exceeds resistance significantly, cap it
-        if target_price > resistance_level * 1.1:
-            target_price = resistance_level * 1.05  # 5% above resistance
-        elif target_price < resistance_level * 0.95:
-            # If target is below resistance, use resistance as minimum
-            target_price = max(target_price, resistance_level * 0.98)
-    
-    # Ensure target is above entry price
-    target_price = max(target_price, entry_base * 1.05)  # At least 5% gain
-    
+        # Priority 1: VAH (Value Area High) - institutional resistance
+        vp_vah = technical_signals.get('vp_vah')
+        if vp_vah and float(vp_vah) > current_price:
+            target_price = float(vp_vah)
+            target_source = "VAH"
+
+        # Priority 2: BB Upper (Bollinger Band Upper) - volatility resistance
+        if not target_price:
+            bb_upper = technical_signals.get('bb_upper')
+            if bb_upper and float(bb_upper) > current_price:
+                target_price = float(bb_upper)
+                target_source = "BB Upper"
+
+        # Priority 3: R1 (Pivot Resistance 1) - floor trader resistance
+        if not target_price:
+            pivot_r1 = technical_signals.get('pivot_r1')
+            if pivot_r1 and float(pivot_r1) > current_price:
+                target_price = float(pivot_r1)
+                target_source = "R1"
+
+    # Fallback: If no technical resistance found, use minimum 5% gain
+    if not target_price:
+        target_price = entry_base * 1.05
+        target_source = "Min 5%"
+
+    # Ensure target is above entry price (safety check)
+    if target_price < entry_base:
+        target_price = entry_base * 1.05
+        target_source = "Min 5%"
+
     # Format and return
     return f"[green]${target_price:.2f}[/green]"
 
@@ -482,50 +457,66 @@ def _calculate_profit_timeline(
     dividend_yield: Optional[float] = None
 ) -> str:
     """
-    Calculate expected profit timeline based on technical indicators and confidence.
-    
-    Uses RSI, signals, priority score, and historical patterns to estimate
-    when profits might be realized.
-    
-    Returns formatted timeline string (e.g., "3-6 months", "6-12 months").
+    Calculate expected profit timeline based on multi-timeframe alignment and technical signals.
+
+    Aligns with detailed report timeline calculation using:
+    1. Multi-timeframe (MTF) alignment for trend-based timelines
+    2. BB Squeeze detection for breakout setups (wait for direction)
+    3. Divergence detection for reversal timelines
+    4. Signal quality score for swing trade opportunities
+
+    Returns formatted timeline string (e.g., "2-4 weeks", "5-15 days").
     """
-    # Base timeline on priority score and RSI
+    # Priority 1: Check for divergence signals - critical risk/opportunity indicator
+    if signals:
+        if 'BEARISH_RSI_DIVERGENCE' in signals or 'BEARISH_MACD_DIVERGENCE' in signals:
+            # Bearish divergence - reversal pending, wait for confirmation
+            return "[yellow]⚠️ Wait (divergence)[/yellow]"
+
+        if 'BULLISH_RSI_DIVERGENCE' in signals or 'BULLISH_MACD_DIVERGENCE' in signals:
+            # Bullish divergence - reversal setup
+            return "[green]1-3 weeks (reversal)[/green]"
+
+    # Priority 2: Check for BB Squeeze - wait for breakout direction
+    if signals and 'BB_SQUEEZE' in signals:
+        bb_squeeze = technical_signals.get('bb_squeeze_detected', False) if technical_signals else False
+        squeeze_strength = technical_signals.get('bb_squeeze_strength', 0) if technical_signals else 0
+
+        if bb_squeeze and squeeze_strength > 0.7:
+            # High strength squeeze - breakout imminent, but direction unknown
+            return "[yellow]⏸️ Wait (breakout pending)[/yellow]"
+        elif bb_squeeze:
+            # Moderate squeeze
+            return "[yellow]1-2 weeks (squeeze setup)[/yellow]"
+
+    # Priority 3: Check for multi-timeframe alignment (most accurate timing indicator)
+    if technical_signals and isinstance(technical_signals, dict):
+        mtf_alignment = technical_signals.get('mtf_alignment', '')
+
+        if 'PERFECT' in mtf_alignment or 'STRONG' in mtf_alignment:
+            # Strong trend alignment across all timeframes
+            return "[green]2-4 weeks[/green]"
+
+        elif 'SHORT_TERM' in mtf_alignment:
+            # Only short-term momentum, not sustainable
+            return "[yellow]5-15 days[/yellow]"
+
+        elif mtf_alignment == 'RANGE_BOUND':
+            # Range trading - continuous until breakout
+            return "[dim]Continuous (range)[/dim]"
+
+    # Priority 4: Use priority score as proxy for signal quality
     confidence = priority_score or 50.0
-    
-    # Strong buy signals accelerate timeline
-    strong_buy_signals = ['MACD_BULLISH_CROSS', 'GOLDEN_CROSS', 'RSI_OVERSOLD', 'BREAKOUT_UP']
-    has_strong_signal = any(sig in signals for sig in strong_buy_signals) if signals else False
-    
-    # RSI-based adjustments
-    if rsi is not None:
-        if rsi < 30:  # Oversold - quick recovery expected
-            if confidence >= 70:
-                return "[green]1-3 months[/green]"
-            elif confidence >= 60:
-                return "[green]3-6 months[/green]"
-            else:
-                return "[yellow]6-9 months[/yellow]"
-        elif rsi > 70:  # Overbought - may take longer
-            if has_strong_signal:
-                return "[yellow]6-12 months[/yellow]"
-            else:
-                return "[dim]9-18 months[/dim]"
-    
-    # Confidence-based timeline
-    if confidence >= 80:
-        if has_strong_signal:
-            return "[green]2-4 months[/green]"
-        else:
-            return "[green]3-6 months[/green]"
-    elif confidence >= 70:
-        if has_strong_signal:
-            return "[green]3-6 months[/green]"
-        else:
-            return "[yellow]6-9 months[/yellow]"
-    elif confidence >= 60:
-        return "[yellow]6-12 months[/yellow]"
+
+    if confidence >= 70:
+        # High-quality setup with good signal score
+        return "[green]1-3 weeks[/green]"
+    elif confidence >= 50:
+        # Moderate setup
+        return "[yellow]5-10 days[/yellow]"
     else:
-        return "[dim]9-18 months[/dim]"
+        # Lower quality setup
+        return "[dim]5-10 days[/dim]"
 
 
 def _calculate_entry_price(
@@ -686,9 +677,15 @@ def print_screener_results(results: List[Dict[str, Any]], limit: Optional[int] =
     # Use terminal width with padding
     from rich.console import Console as RichConsole
     import shutil
-    terminal_width = shutil.get_terminal_size().columns
+    try:
+        terminal_width = shutil.get_terminal_size().columns
+    except (OSError, AttributeError):
+        # Fallback if terminal size cannot be determined
+        terminal_width = 200
+    
     # Use full width but ensure minimum readability
-    console_width = max(terminal_width - 4, 160)  # Leave some margin
+    # With 17 columns and increased widths, we need at least 230 characters for comfortable display
+    console_width = max(terminal_width - 4, 230)  # Leave some margin, min 230 for readability
     wide_console = RichConsole(width=console_width, force_terminal=True)
 
     table = Table(
@@ -697,29 +694,32 @@ def print_screener_results(results: List[Dict[str, Any]], limit: Optional[int] =
         show_header=True,
         header_style="bold cyan",
         expand=True,  # Expand to use available width
-        show_lines=False,  # Remove lines for cleaner look
-        padding=(0, 1)  # Minimal padding
+        show_lines=True,  # Show lines for better readability
+        padding=(1, 2),  # Increased vertical (1) and horizontal (2) padding for readability
+        row_styles=["", "dim"]  # Alternate row styles for better scanning
     )
 
-    # Add columns with width constraints to prevent overlap
-    table.add_column("Rank", justify="center", style="dim", width=5, no_wrap=True)
-    table.add_column("Symbol", justify="left", style="bold", width=6, no_wrap=True)
-    table.add_column("Name", justify="left", width=18, overflow="ellipsis")
-    table.add_column("Sector", justify="left", width=12, overflow="ellipsis")
-    table.add_column("Priority", justify="center", width=8, no_wrap=True)
-    table.add_column("RSI", justify="center", style="dim", width=5, no_wrap=True)
-    table.add_column("Signals", justify="left", width=20, overflow="ellipsis")
-    table.add_column("Rec", justify="center", style="bold", width=12, overflow="ellipsis")  # Shortened header
-    table.add_column("Div%", justify="center", style="dim", width=6, no_wrap=True)  # Shortened header
-    table.add_column("Entry", justify="center", style="green", width=12, no_wrap=True)  # Shortened header
-    table.add_column("Target", justify="center", style="bright_green", width=10, no_wrap=True)  # Shortened header
-    table.add_column("Gain%", justify="center", style="bright_green", width=7, no_wrap=True)  # Shortened header
-    table.add_column("Pos%", justify="center", style="cyan", width=5, no_wrap=True)  # Shortened header
-    table.add_column("Timeline", justify="center", style="cyan", width=10, no_wrap=True)  # Shortened header
-    table.add_column("Price", justify="right", width=10, no_wrap=True)
-    table.add_column("Change", justify="right", width=8, no_wrap=True)
+    # Add columns with width constraints - allow text wrapping instead of truncation
+    # Text columns use overflow="fold" to wrap to multiple lines, increasing vertical spacing
+    table.add_column("Rank", justify="center", style="dim", width=6, no_wrap=True)
+    table.add_column("Symbol", justify="left", style="bold", width=8, no_wrap=True)
+    table.add_column("Name", justify="left", width=28, overflow="fold")  # Wrap instead of truncate
+    table.add_column("Sector", justify="left", width=20, overflow="fold")  # Wrap instead of truncate
+    table.add_column("Priority", justify="center", width=12, no_wrap=True)
+    table.add_column("RSI", justify="center", style="dim", width=8, no_wrap=True)
+    table.add_column("Signals", justify="left", width=32, overflow="fold")  # Wrap instead of truncate
+    table.add_column("Rec", justify="center", style="bold", width=22, overflow="fold")  # Wrap instead of truncate
+    table.add_column("Entry OK", justify="center", width=13, no_wrap=True)
+    table.add_column("Div%", justify="center", style="dim", width=9, no_wrap=True)
+    table.add_column("Entry", justify="center", style="green", width=14, no_wrap=True)
+    table.add_column("Target", justify="center", style="bright_green", width=12, no_wrap=True)
+    table.add_column("Gain%", justify="center", style="bright_green", width=8, no_wrap=True)
+    table.add_column("Pos%", justify="center", style="cyan", width=9, no_wrap=True)
+    table.add_column("Timeline", justify="center", style="cyan", width=14, overflow="fold")  # Wrap instead of truncate
+    table.add_column("Price", justify="right", width=12, no_wrap=True)
+    table.add_column("Change", justify="right", width=10, no_wrap=True)
 
-    # Calculate recommendations for all results and sort by recommendation strength
+    # Calculate recommendations for all results and sort by priority score
     results_with_recommendations = []
     for result in results:
         technical_signals = result.get('technical_signals')
@@ -729,13 +729,13 @@ def print_screener_results(results: List[Dict[str, Any]], limit: Optional[int] =
                 technical_signals = json.loads(technical_signals)
             except:
                 technical_signals = {}
-        
+
         rsi = technical_signals.get('rsi') if isinstance(technical_signals, dict) else None
         signals = result.get('triggered_alerts', result.get('signals', []))
         signal_list = signals if isinstance(signals, list) else []
-        
+
         recommendation = _generate_recommendation(rsi, signal_list, technical_signals)
-        
+
         # Calculate recommendation score for sorting (higher = better)
         rec_score = 0
         rec_upper = recommendation.upper()
@@ -751,17 +751,55 @@ def print_screener_results(results: List[Dict[str, Any]], limit: Optional[int] =
             rec_score = 10
         elif 'STRONG SELL' in rec_upper:
             rec_score = 0
-        
-        # Add priority score to recommendation score for better sorting
+
         priority_score = result.get('priority_score', 0) or 0
-        combined_score = rec_score + (priority_score * 0.1)  # Weight priority score
         
+        # Pre-calculate gain percentage for sorting (if entry/target prices available)
+        entry_price_min = result.get('entry_price_min')
+        entry_price_max = result.get('entry_price_max')
+        current_price = result.get('current_price') or result.get('price', 0)
+        gain_pct_for_sort = 0.0
+        
+        if entry_price_min and entry_price_max and current_price:
+            entry_mid = (float(entry_price_min) + float(entry_price_max)) / 2
+            # Estimate target as 10% gain (conservative estimate for sorting)
+            estimated_target = entry_mid * 1.10
+            if estimated_target > entry_mid:
+                gain_pct_for_sort = ((estimated_target - entry_mid) / entry_mid) * 100
+        
+        # Check entry status for sorting priority
+        entry_ok_for_sort = 0  # 0 = N/A, 1 = not OK, 2 = OK
+        if entry_price_min and entry_price_max and current_price:
+            entry_min_float = float(entry_price_min)
+            entry_max_float = float(entry_price_max)
+            if entry_min_float <= current_price <= entry_max_float:
+                entry_ok_for_sort = 2  # Entry OK - prioritize
+            elif current_price < entry_min_float:
+                entry_ok_for_sort = 1  # Below entry
+            # else: above entry, keep as 0
+
         result['_recommendation'] = recommendation
-        result['_rec_score'] = combined_score
+        result['_rec_score'] = rec_score
+        result['_priority_score'] = priority_score
+        result['_gain_pct'] = gain_pct_for_sort
+        result['_entry_ok'] = entry_ok_for_sort
         results_with_recommendations.append(result)
-    
-    # Sort by recommendation strength (BUY first), then by priority score
-    results_with_recommendations.sort(key=lambda x: x['_rec_score'], reverse=True)
+
+    # Enhanced sorting: 
+    # 1. Priority score (primary) - highest confidence opportunities first
+    # 2. Entry OK status (secondary) - prioritize stocks ready to buy now
+    # 3. Recommendation strength (tertiary) - BUY > NEUTRAL > WAIT > SELL
+    # 4. Potential gain % (quaternary) - higher potential returns first
+    # This ensures actionable opportunities appear at the top
+    results_with_recommendations.sort(
+        key=lambda x: (
+            x['_priority_score'],      # Primary: Highest priority first
+            x['_entry_ok'],            # Secondary: Entry OK stocks first
+            x['_rec_score'],           # Tertiary: Stronger recommendations first
+            x['_gain_pct']             # Quaternary: Higher potential gains first
+        ),
+        reverse=True
+    )
     
     # Filter for BUY recommendations if requested
     if show_buy_only:
@@ -778,12 +816,11 @@ def print_screener_results(results: List[Dict[str, Any]], limit: Optional[int] =
         rank = "🥇" if idx == 1 else "🥈" if idx == 2 else "🥉" if idx == 3 else str(idx)
 
         symbol = result.get('symbol', 'N/A')
-        name = result.get('name', 'N/A')[:18]  # Truncate long names to fit column
+        name = result.get('name', 'N/A')  # No truncation - Rich will wrap if needed
         sector = format_sector(result.get('sector', 'Unknown'))
         # Remove emoji from sector for cleaner display if needed
         sector_clean = sector.replace('💻', '').replace('🏥', '').replace('🏭', '').replace('🏦', '').replace('💡', '').replace('💰', '').replace('⛏️', '').replace('🚗', '').replace('🏠', '').strip()
-        if len(sector_clean) > 12:
-            sector_clean = sector_clean[:10] + '..'
+        # No truncation - Rich will wrap if needed
         sector = sector_clean
         priority = format_confidence(result.get('priority_score', 0))
 
@@ -816,18 +853,18 @@ def print_screener_results(results: List[Dict[str, Any]], limit: Optional[int] =
         signals = result.get('triggered_alerts', result.get('signals', []))
         signal_list = signals if isinstance(signals, list) else []
         if signal_list:
-            # Show first 2 signals (more compact)
-            signal_str = ", ".join(signal_list[:2])
-            if len(signal_list) > 2:
-                signal_str += f" +{len(signal_list)-2}"
-            # Truncate if too long
-            if len(signal_str) > 20:
-                signal_str = signal_str[:17] + "..."
+            # Prioritize critical signals (divergence, squeeze) - they should already be first
+            # Show first 3 signals for better visibility
+            signal_str = ", ".join(signal_list[:3])
+            if len(signal_list) > 3:
+                signal_str += f" +{len(signal_list)-3}"
+            # No truncation - Rich will wrap if needed
         else:
             signal_str = "[dim]-[/dim]"
 
         # Use pre-calculated recommendation if available, otherwise generate
         recommendation = result.get('_recommendation') or _generate_recommendation(rsi_value, signal_list, technical_signals)
+        # No truncation - Rich will wrap if needed
 
         # Get current price first (needed for dividend yield calculation)
         current_price = result.get('current_price') or result.get('price', 0)
@@ -945,12 +982,18 @@ def print_screener_results(results: List[Dict[str, Any]], limit: Optional[int] =
             # Use stored entry prices from EntryPriceCalculator
             entry_min_float = float(entry_price_min)
             entry_max_float = float(entry_price_max)
-            # Show range if there's a meaningful range (>1% difference)
-            if abs(entry_max_float - entry_min_float) / entry_min_float > 0.01:
-                # Compact format: $101.64-$109.00 -> $101-109
-                entry_price_str = f"[green]${entry_min_float:.0f}[/green]-[green]${entry_max_float:.0f}[/green]"
+
+            # Round to integers for display
+            entry_min_rounded = round(entry_min_float)
+            entry_max_rounded = round(entry_max_float)
+
+            # Show range only if there's a meaningful difference after rounding
+            if entry_min_rounded != entry_max_rounded:
+                # Compact format: $101.64-$109.00 -> $101-$109
+                entry_price_str = f"[green]${entry_min_rounded}[/green]-[green]${entry_max_rounded}[/green]"
             else:
-                entry_price_str = f"[green]${entry_min_float:.0f}[/green]"
+                # Same rounded value, show single price
+                entry_price_str = f"[green]${entry_min_rounded}[/green]"
         else:
             # Fallback to calculating entry price
             entry_price_str = _calculate_entry_price(
@@ -962,7 +1005,38 @@ def print_screener_results(results: List[Dict[str, Any]], limit: Optional[int] =
                 enterprise_to_ebitda=float(enterprise_to_ebitda) if enterprise_to_ebitda else None,
                 market_cap=float(market_cap) if market_cap else None
             )
-        
+
+        # Calculate entry status - check if current price is within entry range
+        entry_status = "[dim]N/A[/dim]"
+        if entry_price_min and entry_price_max and current_price:
+            entry_min_float = float(entry_price_min)
+            entry_max_float = float(entry_price_max)
+
+            if current_price < entry_min_float:
+                # Below entry range - too cheap, might be a problem
+                price_below_pct = ((entry_min_float - current_price) / entry_min_float) * 100
+                if price_below_pct > 5.0:
+                    entry_status = "[red]⬇️ LOW[/red]"
+                else:
+                    entry_status = "[yellow]⚠️ BELOW[/yellow]"
+            elif entry_min_float <= current_price <= entry_max_float:
+                # Within entry range - but check if recommendation conflicts
+                # If recommendation is WAIT/SELL/OVEREXTENDED, show caution even if in range
+                if recommendation and any(word in recommendation.upper() for word in ['WAIT', 'SELL', 'OVEREXTENDED', 'OVERBOUGHT']):
+                    entry_status = "[yellow]⚠️ CAUTION[/yellow]"
+                else:
+                    # Good entry point
+                    entry_status = "[green]✅ OK[/green]"
+            elif current_price > entry_max_float:
+                # Above entry range - wait for pullback
+                price_above_pct = ((current_price - entry_max_float) / entry_max_float) * 100
+                if price_above_pct > 5.0:
+                    entry_status = "[red]🛑 WAIT[/red]"
+                elif price_above_pct > 2.0:
+                    entry_status = "[yellow]⏸️ HIGH[/yellow]"
+                else:
+                    entry_status = "[yellow]~ OK[/yellow]"  # Within tolerance
+
         # Calculate profit timeline
         priority_score = result.get('priority_score', 0)
         profit_timeline_str = _calculate_profit_timeline(
@@ -974,7 +1048,6 @@ def print_screener_results(results: List[Dict[str, Any]], limit: Optional[int] =
         )
         
         # Extract numeric entry price for profit target calculation
-        import re
         entry_price_numeric = current_price  # Default to current price
         
         # Prefer stored entry prices (more accurate)
@@ -1004,7 +1077,6 @@ def print_screener_results(results: List[Dict[str, Any]], limit: Optional[int] =
         )
         
         # Make profit target more compact (remove decimals for large numbers)
-        import re
         profit_target_clean = re.sub(r'\[.*?\]', '', profit_target_str)
         if profit_target_clean != "N/A":
             target_num = float(re.findall(r'\d+\.?\d*', profit_target_clean)[0])
@@ -1057,9 +1129,19 @@ def print_screener_results(results: List[Dict[str, Any]], limit: Optional[int] =
                 confidence = int(priority_score)
                 # dividend_yield is already a percentage (e.g., 2.5 for 2.5%), pass directly
                 div_yield_decimal = Decimal(str(dividend_yield)) if dividend_yield else None
+
+                # Extract volatility (ATR%) from technical signals for position sizing
+                volatility_decimal = None
+                if isinstance(technical_signals, dict):
+                    atr_pct = technical_signals.get('atr_pct')
+                    if atr_pct:
+                        # Annualize ATR% (multiply by sqrt(252 trading days))
+                        volatility_decimal = Decimal(str(float(atr_pct) * 15.87))  # sqrt(252) ≈ 15.87
+
                 position_result = sizer.calculate_position_size(
                     confidence=confidence,
                     current_price=Decimal(str(entry_price_numeric)),
+                    volatility=volatility_decimal,
                     target_price=Decimal(str(target_price_numeric)) if target_price_numeric else None,
                     annual_dividend_yield=div_yield_decimal
                 )
@@ -1120,13 +1202,10 @@ def print_screener_results(results: List[Dict[str, Any]], limit: Optional[int] =
         change_pct = result.get('change_pct', 0)
         change = format_percentage(change_pct)
         
-        # Strip Rich markup from profit_timeline for compact display
-        timeline_clean = re.sub(r'\[.*?\]', '', profit_timeline_str)
-        if len(timeline_clean) > 10:
-            timeline_clean = timeline_clean[:8] + '..'
-        profit_timeline_str = timeline_clean
+        # Keep Rich markup in profit_timeline - Rich will wrap if needed
+        # No truncation needed since we're using overflow="fold"
 
-        table.add_row(rank, symbol, name, sector, priority, rsi_str, signal_str, recommendation, div_yield_str, entry_price_str, profit_target_str, profit_pct_str, position_size_str, profit_timeline_str, price, change)
+        table.add_row(rank, symbol, name, sector, priority, rsi_str, signal_str, recommendation, entry_status, div_yield_str, entry_price_str, profit_target_str, profit_pct_str, position_size_str, profit_timeline_str, price, change)
 
     wide_console.print(table)
 

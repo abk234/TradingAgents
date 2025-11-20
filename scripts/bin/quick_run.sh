@@ -51,9 +51,10 @@ show_usage() {
     echo "  top               - Show top 5 opportunities"
     echo "                     Use --refresh to run fresh screener scan"
     echo "  stats             - Quick performance statistics"
-    echo "  indicators [TICK] - Show all indicators (or for specific ticker)"
-    echo "                     Use --refresh to recalculate indicators"
-    echo "                     Use --refresh-data to fetch fresh data first"
+    echo "  indicators [TICK...] - Show all indicators (or for specific ticker(s))"
+    echo "                         Can specify multiple tickers: indicators AAPL MSFT GOOGL"
+    echo "                         Use --refresh to recalculate indicators"
+    echo "                         Use --refresh-data to fetch fresh data first"
     echo "  indexes           - Show market indexes and regime analysis"
     echo "                     Use --refresh to force refresh index data"
     echo ""
@@ -241,38 +242,55 @@ case "$COMMAND" in
         ;;
 
     "indicators")
-        if [ -n "$2" ]; then
-            TICKER="$2"
-            REFRESH_FLAG=""
-            REFRESH_DATA_FLAG=""
-            
-            # Check for refresh flags (remaining arguments after ticker)
-            shift 2  # Remove 'indicators' and ticker from $@
-            for arg in "$@"; do
-                case "$arg" in
-                    --refresh)
-                        REFRESH_FLAG="--refresh"
-                        ;;
-                    --refresh-data)
-                        REFRESH_DATA_FLAG="--refresh-data"
-                        ;;
-                esac
-            done
-            
-            echo -e "${CYAN}Technical Indicators for $TICKER:${NC}\n"
-            if [ -n "$REFRESH_DATA_FLAG" ]; then
+        REFRESH_FLAG=""
+        REFRESH_DATA_FLAG=""
+        TICKERS=()
+        
+        # Parse arguments - collect tickers and flags
+        shift  # Remove 'indicators' command
+        for arg in "$@"; do
+            case "$arg" in
+                --refresh)
+                    REFRESH_FLAG="--refresh"
+                    ;;
+                --refresh-data)
+                    REFRESH_DATA_FLAG="--refresh-data"
+                    ;;
+                *)
+                    # Assume it's a ticker symbol
+                    TICKERS+=("$arg")
+                    ;;
+            esac
+        done
+        
+        # Build command arguments
+        CMD_ARGS=()
+        if [ ${#TICKERS[@]} -gt 0 ]; then
+            # Add all tickers
+            CMD_ARGS+=("${TICKERS[@]}")
+        fi
+        
+        if [ -n "$REFRESH_DATA_FLAG" ]; then
+            CMD_ARGS+=("--refresh-data")
+            if [ ${#TICKERS[@]} -gt 0 ]; then
+                echo -e "${CYAN}Technical Indicators for ${TICKERS[*]}:${NC}\n"
                 echo -e "${YELLOW}Note: Refreshing price data and recalculating indicators...${NC}\n"
-                $VENV_PATH/bin/python -m tradingagents.screener.show_indicators "$TICKER" --refresh-data
-            elif [ -n "$REFRESH_FLAG" ]; then
+            fi
+        elif [ -n "$REFRESH_FLAG" ]; then
+            CMD_ARGS+=("--refresh")
+            if [ ${#TICKERS[@]} -gt 0 ]; then
+                echo -e "${CYAN}Technical Indicators for ${TICKERS[*]}:${NC}\n"
                 echo -e "${YELLOW}Note: Recalculating indicators from existing data...${NC}\n"
-                $VENV_PATH/bin/python -m tradingagents.screener.show_indicators "$TICKER" --refresh
-            else
-                $VENV_PATH/bin/python -m tradingagents.screener.show_indicators "$TICKER"
             fi
         else
-            echo -e "${CYAN}Technical Indicators Reference Guide:${NC}\n"
-            $VENV_PATH/bin/python -m tradingagents.screener.show_indicators
+            if [ ${#TICKERS[@]} -gt 0 ]; then
+                echo -e "${CYAN}Technical Indicators for ${TICKERS[*]}:${NC}\n"
+            else
+                echo -e "${CYAN}Technical Indicators Reference Guide:${NC}\n"
+            fi
         fi
+        
+        $VENV_PATH/bin/python -m tradingagents.screener.show_indicators "${CMD_ARGS[@]}"
         ;;
 
     "indexes")

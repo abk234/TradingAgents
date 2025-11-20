@@ -306,3 +306,4 @@ if __name__ == "__main__":
     
     moved, skipped, errors = organize_files(dry_run=dry_run, create_symlinks=not no_symlinks)
 
+

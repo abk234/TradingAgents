@@ -491,82 +491,227 @@ class PatternRecognition:
         """
         Calculate overall signal score from -10 (strong sell) to +10 (strong buy).
 
-        Scoring system:
-        +1 for each bullish indicator
-        -1 for each bearish indicator
-        0 for neutral
+        Weighted scoring system with proper indicator hierarchy:
+        - Multi-timeframe analysis (highest weight - 2.0x)
+        - Order flow & institutional activity (2.0x)
+        - Volume Profile position (1.5x)
+        - RSI + VWAP + Bollinger Bands (1.5x each)
+        - Pivot zones (1.0x)
+        - Volume & MACD (0.5x confirmation)
         """
-        score = 0
+        score = 0.0  # Use float for weighted calculations
 
-        # RSI scoring
+        # === RSI scoring (Weight: 1.5x) ===
+        # FIXED: RSI 60-70 is bullish momentum, NOT bearish!
         rsi = signals.get('rsi', 50)
         if rsi < 30:
-            score += 2  # Strong buy
+            score += 2.0 * 1.5  # Oversold - strong buy
         elif rsi < 40:
-            score += 1  # Buy
-        elif rsi > 70:
-            score -= 2  # Strong sell
-        elif rsi > 60:
-            score -= 1  # Sell
+            score += 1.5 * 1.5  # Approaching oversold - buy
+        elif 40 <= rsi < 50:
+            score += 0.5 * 1.5  # Slight bearish momentum
+        elif 50 <= rsi < 60:
+            score += 0.5 * 1.5  # Slight bullish momentum
+        elif 60 <= rsi < 70:
+            score += 1.5 * 1.5  # Strong bullish momentum (NOT bearish!)
+        elif 70 <= rsi < 80:
+            score += 1.0 * 1.5  # Approaching overbought - still bullish but caution
+        else:  # rsi >= 80
+            score -= 1.0 * 1.5  # Extremely overbought - pullback likely
 
-        # VWAP scoring
+        # === VWAP scoring (Weight: 1.5x) ===
+        # FIXED: Properly weight all bullish VWAP positions
         vwap_dist = signals.get('vwap_distance_pct', 0)
-        if vwap_dist < -2.0:
-            score += 2
-        elif vwap_dist < -0.5:
-            score += 1
+        if vwap_dist > 8.0:
+            # Overextended bullish - still bullish but cautious
+            score += 1.5 * 1.5
         elif vwap_dist > 3.0:
-            score -= 2
+            score += 2.0 * 1.5  # Strong bullish
         elif vwap_dist > 1.0:
-            score -= 1
+            score += 1.5 * 1.5  # Bullish
+        elif vwap_dist > -1.0:
+            score += 0.5 * 1.5  # Slightly bullish
+        elif vwap_dist > -3.0:
+            score -= 1.0 * 1.5  # Bearish (below benchmark)
+        else:  # vwap_dist <= -3.0
+            score -= 2.0 * 1.5  # Strong bearish (far below)
 
-        # Pivot zone scoring
+        # === Bollinger Band Position (Weight: 1.5x) ===
+        # NEW: Score BB position properly
+        bb_position = signals.get('bb_position_pct')
+        if bb_position is not None:
+            if bb_position < 20:
+                score += 2.0 * 1.5  # Near lower band - oversold
+            elif bb_position < 40:
+                score += 0.5 * 1.5  # Below middle - bearish zone
+            elif 40 <= bb_position < 60:
+                score += 0.0  # Neutral zone
+            elif 60 <= bb_position < 80:
+                score += 1.5 * 1.5  # Above middle - bullish zone
+            elif bb_position >= 80:
+                score += 1.0 * 1.5  # Near upper band - overbought but still bullish
+
+        # === Volume Profile (Weight: 1.5x) ===
+        # NEW: Score volume profile position
+        vp_position = signals.get('vp_profile_position', '')
+        if vp_position == 'BELOW_VALUE_AREA':
+            score += 2.0 * 1.5  # Below fair value - buy opportunity
+        elif vp_position == 'WITHIN_VALUE_AREA':
+            # Check distance to POC for refinement
+            dist_to_poc = signals.get('vp_distance_to_poc_pct', 0)
+            if dist_to_poc < -1.5:
+                score += 0.5 * 1.5  # Lower value area - cautious buy
+            elif dist_to_poc > 1.5:
+                score += 0.5 * 1.5  # Upper value area - cautious (near resistance)
+            else:
+                score += 0.0  # At POC - neutral
+        elif vp_position == 'ABOVE_VALUE_AREA':
+            score -= 1.0 * 1.5  # Above fair value - pullback likely
+        elif vp_position == 'AT_POC':
+            score += 0.0  # At point of control - neutral
+
+        # === Order Flow & Institutional Activity (Weight: 2.0x - HIGHEST) ===
+        # NEW: Score institutional buying/selling pressure
+        of_signal = signals.get('of_signal', '')
+        of_buying_pct = signals.get('of_buying_pct', 50)
+        of_selling_pct = signals.get('of_selling_pct', 50)
+
+        if of_signal in ['BULLISH_ACCUMULATION', 'STRONG_BUYING']:
+            score += 3.0 * 2.0  # Institutional accumulation - VERY bullish
+        elif of_signal == 'BULLISH':
+            score += 2.0 * 2.0  # Moderate buying pressure
+        elif of_buying_pct > 65:
+            score += 1.5 * 2.0  # Strong buying pressure
+        elif of_buying_pct > 55:
+            score += 1.0 * 2.0  # Moderate buying pressure
+        elif of_selling_pct > 65:
+            score -= 1.5 * 2.0  # Strong selling pressure
+        elif of_selling_pct > 55:
+            score -= 1.0 * 2.0  # Moderate selling pressure
+
+        if of_signal in ['BEARISH_DISTRIBUTION', 'STRONG_SELLING']:
+            score -= 3.0 * 2.0  # Institutional distribution - VERY bearish
+
+        # === Multi-Timeframe Analysis (Weight: 2.0x - HIGHEST) ===
+        # NEW: Score multi-timeframe alignment - most important for trend confirmation
+        mtf_signal = signals.get('mtf_signal', '')
+        mtf_confidence = signals.get('mtf_confidence', 0)
+
+        if mtf_signal == 'STRONG_BUY':
+            score += 3.0 * 2.0 * mtf_confidence  # Perfect alignment
+        elif mtf_signal == 'BUY':
+            score += 2.0 * 2.0 * mtf_confidence  # Bullish alignment
+        elif mtf_signal == 'BUY_THE_DIP':
+            score += 2.5 * 2.0 * mtf_confidence  # Pullback in uptrend - excellent
+        elif mtf_signal == 'CAUTIOUS_BUY':
+            score += 1.5 * 2.0 * mtf_confidence  # Mixed but bullish bias
+        elif mtf_signal == 'STRONG_SELL':
+            score -= 3.0 * 2.0 * mtf_confidence  # Perfect bearish alignment
+        elif mtf_signal == 'SELL':
+            score -= 2.0 * 2.0 * mtf_confidence  # Bearish alignment
+        elif mtf_signal == 'SELL_THE_RALLY':
+            score -= 2.5 * 2.0 * mtf_confidence  # Bounce in downtrend
+        elif mtf_signal == 'CAUTIOUS_SELL':
+            score -= 1.5 * 2.0 * mtf_confidence  # Mixed but bearish bias
+        elif mtf_signal == 'RANGE_TRADE':
+            score += 0.5 * 2.0 * mtf_confidence  # Slight positive for range trading opportunity
+        elif mtf_signal == 'NEUTRAL':
+            score += 0.0  # No clear trend
+
+        # === Pivot zone scoring (Weight: 1.0x) ===
         pivot_zone = signals.get('pivot_zone', '')
         if pivot_zone in ['below_s2', 's1_to_s2']:
-            score += 2
+            score += 2.0  # At support - buy zone
         elif pivot_zone == 'pp_to_s1':
-            score += 1
+            score += 1.0  # Below pivot - accumulation
         elif pivot_zone == 'pp_to_r1':
-            score += 0  # Neutral
+            score += 0.5  # Above pivot - bullish territory
         elif pivot_zone == 'r1_to_r2':
-            score -= 1
+            score -= 0.5  # At resistance - caution
         elif pivot_zone == 'above_r2':
-            score -= 2
+            score -= 1.5  # Above resistance - extended
 
-        # MACD scoring
+        # === MACD scoring (Weight: 0.5x - confirmation only) ===
         if signals.get('macd_bullish_crossover'):
-            score += 1
+            score += 1.0 * 0.5
         if signals.get('macd_bearish_crossover'):
-            score -= 1
+            score -= 1.0 * 0.5
 
-        # Volume scoring (confirmation)
+        # === Volume scoring (Weight: 0.5x - confirmation only) ===
         volume_ratio = signals.get('volume_ratio', 1.0)
         if volume_ratio > 1.5:
             # High volume confirms the direction
             if score > 0:
-                score += 1  # Confirm bullish
+                score += 1.0 * 0.5  # Confirm bullish
             elif score < 0:
-                score -= 1  # Confirm bearish
+                score -= 1.0 * 0.5  # Confirm bearish
+        elif volume_ratio < 0.7:
+            # Low volume weakens signals
+            score *= 0.9  # Reduce conviction by 10%
 
-        # Divergence scoring
+        # === Divergence scoring (Weight: 1.5x) ===
         if signals.get('rsi_bullish_divergence'):
             divergence_strength = signals.get('rsi_divergence_strength', 0)
             if divergence_strength > 0.7:
-                score += 2
+                score += 2.0 * 1.5
             elif divergence_strength > 0.5:
-                score += 1
+                score += 1.5 * 1.5
         if signals.get('rsi_bearish_divergence'):
             divergence_strength = signals.get('rsi_divergence_strength', 0)
             if divergence_strength > 0.7:
-                score -= 2
+                score -= 2.0 * 1.5
             elif divergence_strength > 0.5:
-                score -= 1
+                score -= 1.5 * 1.5
 
-        # BB Squeeze (neutral but important)
-        # Doesn't affect score but signals prepare
+        # === BB Squeeze (adds uncertainty, reduces conviction) ===
+        if signals.get('bb_squeeze_detected'):
+            squeeze_strength = signals.get('bb_squeeze_strength', 0)
+            # Squeeze indicates pending breakout but uncertain direction
+            # Slightly reduce conviction until direction confirmed
+            if abs(score) < 5:  # Only affect moderate signals
+                score *= (1.0 - squeeze_strength * 0.2)
 
-        # Clamp to -10 to +10
-        return max(-10, min(10, score))
+        # === RESISTANCE & OVEREXTENSION PENALTIES ===
+        # Prevent extreme 10/10 scores when near resistance or overextended
+
+        # Penalty for being near resistance (VAH or upper resistance zones)
+        vp_dist_to_vah = signals.get('vp_distance_to_vah_pct', -999)
+        if 0 < vp_dist_to_vah < 2:  # Within 2% of VAH resistance
+            score -= 1.0  # Reduce bullish conviction near resistance
+
+        # Penalty for VWAP overextension (>8% above VWAP)
+        if vwap_dist > 8.0:
+            score -= 0.5  # Reduce for pullback risk
+
+        # Penalty for RSI very near overbought (65-69)
+        if 65 <= rsi < 70:
+            score -= 0.5  # Slight caution as approaching overbought
+
+        # Penalty for price in upper Bollinger Band zone (>75%)
+        if bb_position is not None and bb_position > 75:
+            score -= 0.5  # Near upper band - pullback risk
+
+        # === SCORE CALIBRATION ===
+        # Prevent unrealistic extremes - save 10/10 for truly perfect setups
+        # Perfect setup requires: all indicators aligned + no cautions + strong volume
+        if score > 8.5:
+            # To achieve 10/10, need confirmation from pattern recognition
+            pattern_score = 0
+            if signals.get('rsi_bullish_divergence'):
+                pattern_score += 1
+            if signals.get('macd_bullish_crossover'):
+                pattern_score += 1
+            if volume_ratio > 1.5:
+                pattern_score += 1
+            if signals.get('institutional_accumulation'):
+                pattern_score += 1
+
+            # Only allow 10/10 if multiple strong confirmations
+            if pattern_score < 2:
+                score = min(8.5, score)  # Cap at 8.5 (rounds to 9)
+
+        # Clamp to -10 to +10 and round to integer
+        return int(max(-10, min(10, round(score))))
 
     @staticmethod
     def _score_to_signal(score: int) -> str:

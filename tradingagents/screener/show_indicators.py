@@ -309,8 +309,19 @@ class IndicatorDisplay:
                 print(f"  {self.formatter.YELLOW}○ NEUTRAL{self.formatter.NC} - Price at highest volume")
                 print(f"  Expect consolidation or tight range")
             else:
-                print(f"  {self.formatter.YELLOW}○ FAIR VALUE{self.formatter.NC} - Price within normal range")
-                print(f"  Watch for breakout from value area")
+                # Within value area - distinguish between upper/middle/lower
+                if distance_to_poc > 1.5:
+                    print(f"  {self.formatter.YELLOW}○ UPPER VALUE AREA{self.formatter.NC} - Price in upper fair value range")
+                    print(f"  Near VAH (${vah:.2f}) - approaching resistance")
+                    print(f"  Cautiously bullish - watch for rejection at VAH")
+                elif distance_to_poc < -1.5:
+                    print(f"  {self.formatter.YELLOW}○ LOWER VALUE AREA{self.formatter.NC} - Price in lower fair value range")
+                    print(f"  Near VAL (${val:.2f}) - approaching support")
+                    print(f"  Cautiously bullish - good support nearby")
+                else:
+                    print(f"  {self.formatter.YELLOW}○ FAIR VALUE{self.formatter.NC} - Price within normal range")
+                    print(f"  Near POC (${poc:.2f}) - balanced market")
+                    print(f"  Watch for breakout from value area")
             print()
 
         # === ORDER FLOW (Phase 3) ===
@@ -393,6 +404,18 @@ class IndicatorDisplay:
             elif 'BOUNCE_IN_DOWNTREND' in mtf_alignment:
                 align_color = self.formatter.RED
                 align_icon = "❌"
+            elif 'SHORT_TERM_BULLISH' in mtf_alignment:
+                align_color = self.formatter.GREEN
+                align_icon = "📈"
+            elif 'SHORT_TERM_BEARISH' in mtf_alignment:
+                align_color = self.formatter.RED
+                align_icon = "📉"
+            elif 'MIXED_DAILY_BULLISH' in mtf_alignment or 'BULLISH' in mtf_alignment:
+                align_color = self.formatter.GREEN
+                align_icon = "📊"
+            elif 'MIXED_DAILY_BEARISH' in mtf_alignment or 'BEARISH' in mtf_alignment:
+                align_color = self.formatter.RED
+                align_icon = "📊"
             else:
                 align_color = self.formatter.YELLOW
                 align_icon = "➡️"
@@ -454,12 +477,103 @@ class IndicatorDisplay:
 
         # Overall signal score
         signal_score = pattern_analysis.get('overall_score', PatternRecognition._calculate_signal_score(signals))
-        summary = self._get_trading_summary(signal_score, signals)
+        summary = self._get_trading_summary(signal_score, signals, current_price)
 
         print(f"{self.formatter.WHITE}Signal Score:{self.formatter.NC} {summary['score_color']}{signal_score}/10{self.formatter.NC}")
         print(f"{self.formatter.WHITE}Overall Signal:{self.formatter.NC} {summary['signal']}")
         print(f"{self.formatter.WHITE}Confidence:{self.formatter.NC} {summary['confidence']}")
         print(f"{self.formatter.WHITE}Recommendation:{self.formatter.NC} {summary['recommendation']}\n")
+        
+        # === PRICE TARGETS & RISK/REWARD ===
+        print(f"{self.formatter.BOLD}{self.formatter.BLUE}═══ PRICE TARGETS & RISK/REWARD ═══{self.formatter.NC}\n")
+        
+        # Get entry price range from entry calculator
+        from tradingagents.screener.entry_price_calculator import EntryPriceCalculator
+        entry_calc = EntryPriceCalculator()
+        entry_data = entry_calc.calculate_entry_price(
+            current_price=current_price,
+            technical_signals=signals,
+            quote={'price': current_price}
+        )
+        
+        entry_min = entry_data.get('entry_price_min')
+        entry_max = entry_data.get('entry_price_max')
+        
+        if entry_min and entry_max:
+            entry_min_float = float(entry_min)
+            entry_max_float = float(entry_max)
+            entry_mid = (entry_min_float + entry_max_float) / 2
+            
+            print(f"{self.formatter.WHITE}Entry Zone:{self.formatter.NC} ${entry_min_float:.2f}-${entry_max_float:.2f}")
+            print(f"{self.formatter.WHITE}Current Price:{self.formatter.NC} ${current_price:.2f}", end="")
+            
+            # Show if price is in entry range
+            if entry_min_float <= current_price <= entry_max_float:
+                print(f" {self.formatter.GREEN}(IN RANGE ✓){self.formatter.NC}")
+            elif current_price < entry_min_float:
+                pct_below = ((entry_min_float - current_price) / entry_min_float) * 100
+                print(f" {self.formatter.YELLOW}({pct_below:.1f}% below entry){self.formatter.NC}")
+            else:
+                pct_above = ((current_price - entry_max_float) / entry_max_float) * 100
+                print(f" {self.formatter.YELLOW}({pct_above:.1f}% above entry){self.formatter.NC}")
+            print()
+            
+            # Show risk/reward from summary if available
+            if summary.get('risk_reward'):
+                rr_info = summary['risk_reward']
+                if rr_info.get('stop_loss'):
+                    print(f"{self.formatter.WHITE}Stop Loss:{self.formatter.NC} ${rr_info['stop_loss']:.2f} ({rr_info.get('stop_pct', 0):.1f}% risk)")
+                if rr_info.get('targets'):
+                    print(f"{self.formatter.WHITE}Targets:{self.formatter.NC}")
+                    for i, target in enumerate(rr_info['targets'], 1):
+                        gain_from_entry = ((target['price'] - entry_mid) / entry_mid) * 100
+                        gain_from_current = ((target['price'] - current_price) / current_price) * 100
+                        rr_ratio = target.get('rr_ratio', 'N/A')
+                        print(f"  Target {i}: ${target['price']:.2f} ({target.get('level', 'N/A')}) - {gain_from_current:.1f}% from current, {gain_from_entry:.1f}% from entry - R/R {rr_ratio}")
+                if rr_info.get('note'):
+                    print(f"  {self.formatter.YELLOW}{rr_info['note']}{self.formatter.NC}")
+                print()
+            else:
+                # Calculate basic targets if not in summary
+                vp_vah = signals.get('vp_vah')
+                pivot_r1 = signals.get('pivot_r1')
+                pivot_r2 = signals.get('pivot_r2')
+                
+                if vp_vah or pivot_r1 or pivot_r2:
+                    print(f"{self.formatter.WHITE}Potential Targets:{self.formatter.NC}")
+                    if vp_vah and vp_vah > current_price:
+                        gain = ((vp_vah - current_price) / current_price) * 100
+                        print(f"  Target 1: ${vp_vah:.2f} (VAH) - {gain:.1f}% gain")
+                    if pivot_r1 and pivot_r1 > current_price:
+                        gain = ((pivot_r1 - current_price) / current_price) * 100
+                        print(f"  Target 2: ${pivot_r1:.2f} (R1) - {gain:.1f}% gain")
+                    if pivot_r2 and pivot_r2 > current_price:
+                        gain = ((pivot_r2 - current_price) / current_price) * 100
+                        print(f"  Target 3: ${pivot_r2:.2f} (R2) - {gain:.1f}% gain")
+                    print()
+
+        # Add Risk/Reward and trade management for strong signals
+        if signal_score >= 4 and summary.get('risk_reward'):
+            rr_info = summary['risk_reward']
+            print(f"{self.formatter.BOLD}Risk/Reward Analysis:{self.formatter.NC}")
+            if rr_info.get('stop_loss'):
+                print(f"  Stop Loss: ${rr_info['stop_loss']:.2f} ({rr_info.get('stop_pct', 0):.1f}% risk)")
+            if rr_info.get('targets'):
+                for i, target in enumerate(rr_info['targets'], 1):
+                    rr_ratio = target.get('rr_ratio', 'N/A')
+                    print(f"  Target {i}: ${target['price']:.2f} ({target['gain_pct']:.1f}% gain) - R/R {rr_ratio}")
+            if rr_info.get('note'):
+                print(f"  {self.formatter.YELLOW}{rr_info['note']}{self.formatter.NC}")
+            print()
+
+        # Add time horizon and exit strategy for strong signals
+        if signal_score >= 4 and summary.get('time_horizon'):
+            print(f"{self.formatter.BOLD}Expected Timeline:{self.formatter.NC} {summary['time_horizon']}")
+            if summary.get('exit_strategy'):
+                print(f"{self.formatter.BOLD}Exit Strategy:{self.formatter.NC}")
+                for exit_rule in summary['exit_strategy']:
+                    print(f"  • {exit_rule}")
+            print()
 
         # Key takeaways
         print(f"{self.formatter.BOLD}Key Takeaways:{self.formatter.NC}")
@@ -494,11 +608,12 @@ class IndicatorDisplay:
 
         # VWAP Guide
         print(f"{self.formatter.BOLD}VWAP (Volume Weighted Average Price):{self.formatter.NC}")
-        print("  Price < VWAP - 2%: Strong buy zone")
-        print("  Price < VWAP - 1%: Buy zone")
-        print("  Price within ±1%:  Fair value")
-        print("  Price > VWAP + 1%: Sell zone")
-        print("  Price > VWAP + 2%: Strong sell zone\n")
+        print("  Price < VWAP - 3%: Strong buy - far below benchmark")
+        print("  Price < VWAP - 1%: Buy - sellers in control")
+        print("  Price within ±1%:  Fair value - balanced")
+        print("  Price > VWAP + 1%: Bullish - buyers in control")
+        print("  Price > VWAP + 3%: Strong bullish - strong uptrend")
+        print("  Price > VWAP + 8%: Overextended bullish - watch for pullback\n")
 
         # Bollinger Bands Guide
         print(f"{self.formatter.BOLD}Bollinger Bands:{self.formatter.NC}")
@@ -607,36 +722,46 @@ class IndicatorDisplay:
         }
 
     def _interpret_vwap(self, distance_pct):
-        """Interpret VWAP distance."""
-        if distance_pct < -2:
+        """Interpret VWAP distance.
+
+        VWAP is institutional traders' benchmark. Price above VWAP = bullish (buyers in control).
+        Price below VWAP = bearish (sellers in control). Large deviations can indicate overextension.
+        """
+        if distance_pct < -3:
             return {
                 'signal': 'STRONG BUY',
-                'interpretation': 'Well below institutional benchmark - excellent entry',
+                'interpretation': 'Far below institutional benchmark - excellent entry opportunity',
                 'color': self.formatter.GREEN
             }
         elif distance_pct < -1:
             return {
                 'signal': 'BUY',
-                'interpretation': 'Below VWAP - good entry zone',
+                'interpretation': 'Below VWAP - sellers in control, good entry zone',
                 'color': self.formatter.GREEN
             }
         elif distance_pct < 1:
             return {
                 'signal': 'FAIR VALUE',
-                'interpretation': 'Trading near institutional benchmark',
+                'interpretation': 'Trading at institutional benchmark - balanced',
                 'color': self.formatter.YELLOW
             }
-        elif distance_pct < 2:
+        elif distance_pct < 3:
             return {
-                'signal': 'SELL',
-                'interpretation': 'Above VWAP - consider profit taking',
-                'color': self.formatter.RED
+                'signal': 'BULLISH',
+                'interpretation': 'Above VWAP - buyers in control, positive momentum',
+                'color': self.formatter.GREEN
+            }
+        elif distance_pct < 8:
+            return {
+                'signal': 'STRONG BULLISH',
+                'interpretation': 'Well above VWAP - strong uptrend, buyers dominating',
+                'color': self.formatter.GREEN
             }
         else:
             return {
-                'signal': 'STRONG SELL',
-                'interpretation': 'Well above institutional benchmark - overextended',
-                'color': self.formatter.RED
+                'signal': 'OVEREXTENDED BULLISH',
+                'interpretation': 'Very far above VWAP - bullish but watch for profit-taking pullback',
+                'color': self.formatter.YELLOW
             }
 
     def _interpret_bb(self, position):
@@ -817,12 +942,27 @@ class IndicatorDisplay:
                 print(f"    • {cond}")
         print()
 
-    def _get_trading_summary(self, score, signals):
-        """Generate trading summary."""
+    def _get_trading_summary(self, score, signals, current_price=0):
+        """Generate trading summary with context-aware recommendations."""
         if score >= 7:
             signal = f"{self.formatter.GREEN}STRONG BUY{self.formatter.NC}"
             confidence = f"{self.formatter.GREEN}HIGH{self.formatter.NC}"
-            recommendation = "Consider entering position with tight stops"
+
+            # Enhanced recommendation with context
+            pivot_s1 = signals.get('pivot_s1')
+            bb_middle = signals.get('bb_middle')
+            vp_vah = signals.get('vp_vah')
+
+            # Check if above optimal entry
+            if pivot_s1 and current_price > pivot_s1 * 1.02:
+                recommendation = f"Consider small position now OR wait for pullback to ${pivot_s1:.2f} for optimal entry"
+            else:
+                recommendation = "Consider entering position with tight stops"
+
+            # Add resistance context if near VAH
+            if vp_vah and current_price > vp_vah * 0.98:
+                recommendation += f" | Watch resistance at ${vp_vah:.2f}"
+
             score_color = self.formatter.GREEN
         elif score >= 4:
             signal = f"{self.formatter.GREEN}BUY{self.formatter.NC}"
@@ -830,10 +970,36 @@ class IndicatorDisplay:
             recommendation = "Good entry zone, confirm with volume"
             score_color = self.formatter.GREEN
         elif score >= 1:
-            signal = f"{self.formatter.YELLOW}HOLD/WAIT{self.formatter.NC}"
-            confidence = f"{self.formatter.YELLOW}MEDIUM{self.formatter.NC}"
-            recommendation = "Wait for clearer signals or pullback"
-            score_color = self.formatter.YELLOW
+            # Check if this is a range-bound opportunity
+            mtf_alignment = signals.get('mtf_alignment', '')
+            vp_position = signals.get('vp_profile_position', '')
+
+            if mtf_alignment == 'RANGE_BOUND' and vp_position == 'AT_POC':
+                signal = f"{self.formatter.YELLOW}RANGE TRADING{self.formatter.NC}"
+                confidence = f"{self.formatter.YELLOW}MEDIUM{self.formatter.NC}"
+
+                # Calculate range levels
+                vp_vah = signals.get('vp_vah')
+                vp_val = signals.get('vp_val')
+                pivot_r1 = signals.get('pivot_r1')
+                pivot_s1 = signals.get('pivot_s1')
+
+                # Use VAH/VAL or R1/S1 for range
+                resistance = vp_vah or pivot_r1
+                support = vp_val or pivot_s1
+
+                if resistance and support and current_price > 0:
+                    range_pct = ((resistance - support) / support) * 100
+                    recommendation = f"Range trading opportunity: Sell ${resistance:.2f}, Buy ${support:.2f} (~{range_pct:.1f}% range)"
+                else:
+                    recommendation = "Range trading opportunity: Sell resistance, buy support"
+
+                score_color = self.formatter.YELLOW
+            else:
+                signal = f"{self.formatter.YELLOW}HOLD/WAIT{self.formatter.NC}"
+                confidence = f"{self.formatter.YELLOW}MEDIUM{self.formatter.NC}"
+                recommendation = "Wait for clearer signals or pullback"
+                score_color = self.formatter.YELLOW
         elif score >= -3:
             signal = f"{self.formatter.YELLOW}NEUTRAL{self.formatter.NC}"
             confidence = f"{self.formatter.YELLOW}LOW{self.formatter.NC}"
@@ -850,38 +1016,241 @@ class IndicatorDisplay:
             recommendation = "Exit or avoid position"
             score_color = self.formatter.RED
 
-        # Generate takeaways
+        # Generate takeaways based on score and signals
         takeaways = []
 
-        rsi = signals.get('rsi')
-        if rsi and rsi < 30:
-            takeaways.append("RSI oversold - potential bounce")
-        elif rsi and rsi > 70:
-            takeaways.append("RSI overbought - pullback likely")
+        # For bullish setups (score >= 4)
+        if score >= 7:
+            # Strong buy - focus on execution details
+            vp_dist_to_vah = signals.get('vp_distance_to_vah_pct', -999)
+            if 0 < vp_dist_to_vah < 2:
+                takeaways.append(f"Watch for resistance at VAH (${signals.get('vp_vah', 0):.2f})")
 
-        vwap = signals.get('vwap')
-        if vwap:
-            vwap_dist = ((signals.get('current_price', vwap) - vwap) / vwap) * 100
-            if vwap_dist < -1:
-                takeaways.append("Trading below VWAP - institutional buy zone")
-            elif vwap_dist > 1:
-                takeaways.append("Trading above VWAP - consider profit taking")
+            vwap_dist = signals.get('vwap_distance_pct', 0)
+            if vwap_dist > 8:
+                takeaways.append("VWAP extended - watch for pullback opportunity")
 
-        if signals.get('bb_squeeze_detected'):
-            takeaways.append("BB squeeze - major move coming soon")
+            rsi = signals.get('rsi', 50)
+            if rsi > 65:
+                takeaways.append(f"RSI {rsi:.1f} approaching overbought - use tight stops")
 
-        if signals.get('rsi_bullish_divergence'):
-            takeaways.append("Bullish RSI divergence - reversal signal")
+            mtf_signal = signals.get('mtf_signal', '')
+            if 'SHORT_TERM' in signals.get('mtf_alignment', ''):
+                takeaways.append("Keep trades short-term - no long-term trend confirmation")
 
+            # Add entry context if available
+            pivot_s1 = signals.get('pivot_s1')
+            bb_middle = signals.get('bb_middle')
+            if pivot_s1 or bb_middle:
+                optimal_entry = min(x for x in [pivot_s1, bb_middle] if x is not None)
+                if current_price and current_price > optimal_entry * 1.02:
+                    takeaways.append(f"Consider waiting for pullback to ${optimal_entry:.2f} for better entry")
+
+        elif score >= 4:
+            # Moderate buy - emphasize confirmations
+            if signals.get('of_buying_pct', 50) > 65:
+                takeaways.append("Strong buying pressure - follow institutional flow")
+            if signals.get('volume_ratio', 1.0) > 1.3:
+                takeaways.append("Above-average volume confirms move")
+            if signals.get('rsi_bullish_divergence'):
+                takeaways.append("Bullish divergence - potential reversal setup")
+            if signals.get('bb_squeeze_detected'):
+                takeaways.append("BB squeeze - breakout imminent, watch direction")
+
+        elif score >= 1:
+            # Weak buy/hold OR range trading opportunity
+            mtf_alignment = signals.get('mtf_alignment', '')
+            vp_position = signals.get('vp_profile_position', '')
+
+            if mtf_alignment == 'RANGE_BOUND' and vp_position == 'AT_POC':
+                # Range trading specific takeaways
+                vp_vah = signals.get('vp_vah')
+                vp_val = signals.get('vp_val')
+
+                if vp_vah and vp_val:
+                    range_size = ((vp_vah - vp_val) / vp_val) * 100
+                    takeaways.append(f"Range-bound: Trade between ${vp_val:.2f}-${vp_vah:.2f} ({range_size:.1f}% range)")
+
+                takeaways.append("Sell near VAH resistance, buy near VAL support")
+                takeaways.append("Use 2-3% stops outside range boundaries")
+
+                atr_pct = signals.get('atr_pct', 0)
+                if atr_pct > 3.0:
+                    takeaways.append(f"Higher volatility ({atr_pct:.1f}%) - use wider stops or smaller positions")
+            else:
+                # Regular weak signals
+                takeaways.append("Mixed signals - wait for clearer confirmation")
+                if signals.get('volume_ratio', 1.0) < 1.0:
+                    takeaways.append("Below-average volume - weak conviction")
+                if signals.get('mtf_signal') in ['NEUTRAL', 'RANGE_TRADE']:
+                    takeaways.append("No clear trend - consider range trading only")
+
+        elif score >= -3:
+            # Neutral/weak sell
+            takeaways.append("No clear directional bias - stay on sidelines")
+
+        else:
+            # Strong sell
+            if signals.get('rsi', 50) > 70:
+                takeaways.append("RSI overbought - take profits or exit")
+            if signals.get('of_selling_pct', 50) > 65:
+                takeaways.append("Strong selling pressure - avoid new longs")
+
+        # Always include at least one takeaway
         if not takeaways:
-            takeaways.append("Monitor for clearer signals before acting")
+            takeaways.append("Monitor price action for clearer signals")
+
+        # === RISK/REWARD ANALYSIS (for scores >= 4) ===
+        risk_reward = None
+        time_horizon = None
+        exit_strategy = None
+
+        if score >= 4 and current_price > 0:
+            # Calculate stop loss
+            pivot_s1 = signals.get('pivot_s1')
+            bb_middle = signals.get('bb_middle')
+            fib_382 = signals.get('fib_382')
+
+            # Use most conservative stop (lowest support level)
+            stop_candidates = [x for x in [pivot_s1, bb_middle, fib_382] if x is not None]
+            if stop_candidates:
+                stop_loss = min(stop_candidates)
+                # Place stop slightly below support
+                stop_loss = stop_loss * 0.995  # 0.5% below support
+                stop_pct = ((stop_loss - current_price) / current_price) * 100
+
+                # Calculate targets
+                targets = []
+                vp_vah = signals.get('vp_vah')
+                bb_upper = signals.get('bb_upper')
+                pivot_r1 = signals.get('pivot_r1')
+                pivot_r2 = signals.get('pivot_r2')
+
+                risk = abs(current_price - stop_loss)
+
+                # Target 1: VAH or R1 (whichever is closer)
+                if vp_vah and vp_vah > current_price:
+                    reward1 = vp_vah - current_price
+                    rr_ratio1 = f"1:{reward1/risk:.1f}" if risk > 0 else "N/A"
+                    targets.append({
+                        'price': vp_vah,
+                        'gain_pct': ((vp_vah - current_price) / current_price) * 100,
+                        'rr_ratio': rr_ratio1,
+                        'level': 'VAH'
+                    })
+
+                # Target 2: BB Upper or R1
+                if bb_upper and bb_upper > current_price:
+                    reward2 = bb_upper - current_price
+                    rr_ratio2 = f"1:{reward2/risk:.1f}" if risk > 0 else "N/A"
+                    targets.append({
+                        'price': bb_upper,
+                        'gain_pct': ((bb_upper - current_price) / current_price) * 100,
+                        'rr_ratio': rr_ratio2,
+                        'level': 'BB Upper'
+                    })
+                elif pivot_r1 and pivot_r1 > current_price:
+                    reward2 = pivot_r1 - current_price
+                    rr_ratio2 = f"1:{reward2/risk:.1f}" if risk > 0 else "N/A"
+                    targets.append({
+                        'price': pivot_r1,
+                        'gain_pct': ((pivot_r1 - current_price) / current_price) * 100,
+                        'rr_ratio': rr_ratio2,
+                        'level': 'R1'
+                    })
+
+                # Target 3: R2 or extended target
+                if pivot_r2 and pivot_r2 > current_price:
+                    reward3 = pivot_r2 - current_price
+                    rr_ratio3 = f"1:{reward3/risk:.1f}" if risk > 0 else "N/A"
+                    targets.append({
+                        'price': pivot_r2,
+                        'gain_pct': ((pivot_r2 - current_price) / current_price) * 100,
+                        'rr_ratio': rr_ratio3,
+                        'level': 'R2'
+                    })
+
+                # Sort targets by price
+                targets = sorted(targets, key=lambda x: x['price'])[:3]  # Max 3 targets
+
+                # Add note if R/R is poor
+                note = None
+                if targets and risk > 0:
+                    first_rr = targets[0].get('rr_ratio', '1:0')
+                    if '1:' in first_rr:
+                        ratio_val = float(first_rr.split(':')[1])
+                        if ratio_val < 1.5:
+                            optimal_entry = min(stop_candidates) if stop_candidates else current_price
+                            note = f"⚠️ R/R is modest - consider waiting for ${optimal_entry:.2f} entry for better ratio"
+
+                risk_reward = {
+                    'stop_loss': stop_loss,
+                    'stop_pct': stop_pct,
+                    'targets': targets,
+                    'note': note
+                }
+
+            # === TIME HORIZON ===
+            mtf_alignment = signals.get('mtf_alignment', '')
+            if 'PERFECT' in mtf_alignment or 'STRONG' in mtf_alignment:
+                time_horizon = "2-4 weeks (strong trend alignment)"
+            elif 'SHORT_TERM' in mtf_alignment:
+                time_horizon = "5-15 trading days (short-term momentum only)"
+            elif mtf_alignment == 'RANGE_BOUND':
+                time_horizon = "Continuous (range trading until breakout)"
+            elif score >= 7:
+                time_horizon = "1-3 weeks (swing trade opportunity)"
+            else:
+                time_horizon = "5-10 trading days (moderate setup)"
+
+            # === EXIT STRATEGY ===
+            # Check if range trading
+            vp_position = signals.get('vp_profile_position', '')
+
+            if mtf_alignment == 'RANGE_BOUND' and vp_position == 'AT_POC':
+                # Range trading specific exit strategy
+                vp_vah = signals.get('vp_vah')
+                vp_val = signals.get('vp_val')
+
+                if vp_vah and vp_val:
+                    exit_strategy = []
+                    exit_strategy.append(f"Sell 100% near ${vp_vah:.2f} (VAH resistance)")
+                    exit_strategy.append(f"Buy back near ${vp_val:.2f} (VAL support)")
+                    exit_strategy.append("Stop loss: 2-3% outside range (breakout invalidates range)")
+                    exit_strategy.append("Repeat until range breakout confirmed")
+                    exit_strategy.append("Exit strategy if breakout: Follow new trend with appropriate stops")
+
+            elif targets and len(targets) >= 2:
+                exit_strategy = []
+                if len(targets) >= 3:
+                    exit_strategy.append(f"Take 50% profit at ${targets[0]['price']:.2f} ({targets[0]['level']})")
+                    exit_strategy.append(f"Take 30% profit at ${targets[1]['price']:.2f} ({targets[1]['level']})")
+                    exit_strategy.append(f"Take 20% profit at ${targets[2]['price']:.2f} ({targets[2]['level']}) or trail stop")
+                elif len(targets) == 2:
+                    exit_strategy.append(f"Take 60% profit at ${targets[0]['price']:.2f} ({targets[0]['level']})")
+                    exit_strategy.append(f"Take 40% profit at ${targets[1]['price']:.2f} ({targets[1]['level']}) or trail stop")
+                else:
+                    exit_strategy.append(f"Take 70% profit at target, trail stop on remaining 30%")
+
+                # Add stop management
+                if 'SHORT_TERM' in mtf_alignment:
+                    exit_strategy.append("Move stop to breakeven after 1% gain (short-term trade)")
+                else:
+                    exit_strategy.append("Move stop to breakeven after first target hit")
+
+                # Add time-based exit
+                if 'SHORT_TERM' in mtf_alignment:
+                    exit_strategy.append("Exit completely if no progress within 10 trading days")
 
         return {
             'signal': signal,
             'confidence': confidence,
             'recommendation': recommendation,
             'takeaways': takeaways,
-            'score_color': score_color
+            'score_color': score_color,
+            'risk_reward': risk_reward,
+            'time_horizon': time_horizon,
+            'exit_strategy': exit_strategy
         }
 
     def _refresh_price_data(self, ticker: str):
@@ -973,7 +1342,7 @@ def main():
     import argparse
 
     parser = argparse.ArgumentParser(description='Show technical indicators')
-    parser.add_argument('ticker', nargs='?', help='Ticker symbol (optional)')
+    parser.add_argument('tickers', nargs='*', help='Ticker symbol(s) (optional, can specify multiple)')
     parser.add_argument(
         '--refresh',
         action='store_true',
@@ -988,11 +1357,26 @@ def main():
     args = parser.parse_args()
 
     display = IndicatorDisplay()
-    display.show_all_indicators(
-        args.ticker,
-        refresh=args.refresh or args.refresh_data,
-        refresh_data=args.refresh_data
-    )
+    
+    # If no tickers provided, show guide
+    if not args.tickers:
+        display.show_all_indicators(
+            None,
+            refresh=args.refresh or args.refresh_data,
+            refresh_data=args.refresh_data
+        )
+    else:
+        # Process multiple tickers
+        for i, ticker in enumerate(args.tickers):
+            if i > 0:
+                # Add separator between tickers
+                print(f"\n{'='*80}\n")
+            
+            display.show_all_indicators(
+                ticker,
+                refresh=args.refresh or args.refresh_data,
+                refresh_data=args.refresh_data
+            )
 
 
 if __name__ == '__main__':

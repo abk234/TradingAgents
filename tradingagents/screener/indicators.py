@@ -668,6 +668,26 @@ class TechnicalIndicators:
         buying_pct = (buying_pressure / total_pressure) * 100
         selling_pct = (selling_pressure / total_pressure) * 100
 
+        # === VALIDATION: Check if order flow matches price action ===
+        # If price changed significantly, order flow MUST align with price direction
+        # This prevents false signals in ranging/consolidating stocks
+        price_change_10d = ((recent_data['close'].iloc[-1] - recent_data['close'].iloc[0]) /
+                           recent_data['close'].iloc[0]) * 100
+
+        # If strong selling (>70%) but price stable/up, likely ranging - rebalance to 50/50
+        if selling_pct > 70 and price_change_10d > -2:
+            # Price didn't fall despite heavy selling = balanced market or accumulation
+            buying_pct = 50.0
+            selling_pct = 50.0
+            logger.debug(f"Order flow rebalanced: {selling_pct:.1f}% selling but price only changed {price_change_10d:+.1f}%")
+
+        # If strong buying (>70%) but price stable/down, likely ranging - rebalance to 50/50
+        elif buying_pct > 70 and price_change_10d < 2:
+            # Price didn't rise despite heavy buying = balanced market or distribution
+            buying_pct = 50.0
+            selling_pct = 50.0
+            logger.debug(f"Order flow rebalanced: {buying_pct:.1f}% buying but price only changed {price_change_10d:+.1f}%")
+
         # Detect accumulation/distribution patterns
         # Accumulation: Price stable/down slightly but volume increasing
         price_change = ((recent_data['close'].iloc[-1] - recent_data['close'].iloc[0]) /
@@ -884,10 +904,36 @@ class TechnicalIndicators:
             alignment = 'MIXED_CONSOLIDATION_BEARISH_BIAS'
             signal = 'AVOID_LONGS'
             confidence = 0.60
+        elif daily_trend == 'UPTREND' and weekly_trend == 'NEUTRAL' and monthly_trend == 'NEUTRAL':
+            # Daily uptrend with neutral higher timeframes - short-term bullish opportunity
+            alignment = 'SHORT_TERM_BULLISH'
+            signal = 'BUY'
+            confidence = 0.65
+        elif daily_trend == 'DOWNTREND' and weekly_trend == 'NEUTRAL' and monthly_trend == 'NEUTRAL':
+            # Daily downtrend with neutral higher timeframes - short-term bearish
+            alignment = 'SHORT_TERM_BEARISH'
+            signal = 'SELL'
+            confidence = 0.65
+        elif daily_trend == 'UPTREND':
+            # Daily bullish with mixed higher timeframes
+            alignment = 'MIXED_DAILY_BULLISH'
+            signal = 'CAUTIOUS_BUY'
+            confidence = 0.55
+        elif daily_trend == 'DOWNTREND':
+            # Daily bearish with mixed higher timeframes
+            alignment = 'MIXED_DAILY_BEARISH'
+            signal = 'CAUTIOUS_SELL'
+            confidence = 0.55
         else:
-            alignment = 'NO_CLEAR_TREND'
-            signal = 'NEUTRAL'
-            confidence = 0.50
+            # Check if all timeframes are neutral (range-bound opportunity)
+            if daily_trend == 'NEUTRAL' and weekly_trend == 'NEUTRAL' and monthly_trend == 'NEUTRAL':
+                alignment = 'RANGE_BOUND'
+                signal = 'RANGE_TRADE'
+                confidence = 0.60  # Higher confidence for range trading
+            else:
+                alignment = 'NO_CLEAR_TREND'
+                signal = 'NEUTRAL'
+                confidence = 0.50
 
         # Calculate composite score
         daily_score = timeframe_analysis.get('daily', {}).get('score', 0)
@@ -949,8 +995,23 @@ class TechnicalIndicators:
         elif alignment == 'MIXED_CONSOLIDATION_BEARISH_BIAS':
             return "Monthly bearish but consolidating - Avoid longs, wait for clarity"
 
+        elif alignment == 'SHORT_TERM_BULLISH':
+            return "Daily uptrend with neutral higher timeframes - Favor long entries with tight stops (short-term trades only)"
+
+        elif alignment == 'SHORT_TERM_BEARISH':
+            return "Daily downtrend with neutral higher timeframes - Favor short entries or take profits (short-term trades)"
+
+        elif alignment == 'MIXED_DAILY_BULLISH':
+            return "Daily bullish but higher timeframes mixed - Cautiously favor longs on pullbacks with tight stops"
+
+        elif alignment == 'MIXED_DAILY_BEARISH':
+            return "Daily bearish but higher timeframes mixed - Cautiously favor shorts on rallies with tight stops"
+
+        elif alignment == 'RANGE_BOUND':
+            return "All timeframes neutral - Range-bound stock. Consider trading the range: sell resistance, buy support"
+
         else:
-            return "No clear trend - Stay on sidelines or trade ranges only"
+            return "No clear trend across timeframes - Stay on sidelines until alignment improves"
 
     @staticmethod
     def detect_support_resistance(
@@ -1075,6 +1136,13 @@ class TechnicalIndicators:
 
         # MACD signals
         if pd.notna(latest['macd']) and pd.notna(latest['macd_signal']):
+            # Store MACD values for detailed reporting
+            signals['macd'] = float(latest['macd'])
+            signals['macd_signal'] = float(latest['macd_signal'])
+            if pd.notna(latest['macd_histogram']):
+                signals['macd_histogram'] = float(latest['macd_histogram'])
+            
+            # Store crossover signals
             signals['macd_bullish_crossover'] = (
                 prev['macd'] < prev['macd_signal'] and
                 latest['macd'] > latest['macd_signal']
@@ -1086,6 +1154,13 @@ class TechnicalIndicators:
 
         # Moving average signals
         if pd.notna(latest['ma_20']) and pd.notna(latest['ma_50']):
+            # Store MA values for detailed reporting
+            signals['ma_20'] = float(latest['ma_20'])
+            signals['ma_50'] = float(latest['ma_50'])
+            if pd.notna(latest['ma_200']):
+                signals['ma_200'] = float(latest['ma_200'])
+            
+            # Store position signals
             signals['price_above_ma20'] = latest['close'] > latest['ma_20']
             signals['price_below_ma20'] = latest['close'] <= latest['ma_20']
             signals['price_above_ma50'] = latest['close'] > latest['ma_50']
@@ -1102,11 +1177,35 @@ class TechnicalIndicators:
 
         # Bollinger Bands
         if pd.notna(latest['bb_lower']) and pd.notna(latest['bb_upper']):
-            signals['near_bb_lower'] = latest['close'] < latest['bb_lower'] * 1.02
-            signals['near_bb_upper'] = latest['close'] > latest['bb_upper'] * 0.98
+            # Calculate proximity to bands
+            near_lower = latest['close'] < latest['bb_lower'] * 1.02
+            near_upper = latest['close'] > latest['bb_upper'] * 0.98
+
+            # Mutual exclusion: price can't be near both bands simultaneously
+            # If somehow both are true (data error), determine which is closer
+            if near_lower and near_upper:
+                dist_to_lower = abs(latest['close'] - latest['bb_lower'])
+                dist_to_upper = abs(latest['close'] - latest['bb_upper'])
+                if dist_to_lower < dist_to_upper:
+                    signals['near_bb_lower'] = True
+                    signals['near_bb_upper'] = False
+                else:
+                    signals['near_bb_lower'] = False
+                    signals['near_bb_upper'] = True
+            else:
+                signals['near_bb_lower'] = near_lower
+                signals['near_bb_upper'] = near_upper
+
             signals['bb_upper'] = latest['bb_upper']
             signals['bb_middle'] = latest['bb_middle']
             signals['bb_lower'] = latest['bb_lower']
+
+            # Calculate BB position (0-100%, where 0 = lower band, 100 = upper band)
+            bb_range = latest['bb_upper'] - latest['bb_lower']
+            if bb_range > 0:
+                signals['bb_position_pct'] = ((latest['close'] - latest['bb_lower']) / bb_range) * 100
+            else:
+                signals['bb_position_pct'] = 50  # Default to middle if bands collapsed
 
         # VWAP signals
         if pd.notna(latest['vwap']):

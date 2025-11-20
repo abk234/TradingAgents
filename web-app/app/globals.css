@@ -104,3 +104,72 @@
 ::-webkit-scrollbar-thumb:hover {
   background: #475569;
 }
+
+/* Markdown Table Styles for Better Readability */
+.prose table {
+  @apply w-full border-collapse my-4;
+  display: block;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+.prose thead {
+  @apply bg-secondary/70 border-b-2 border-border sticky top-0;
+}
+
+.prose thead tr {
+  @apply border-b border-border;
+}
+
+.prose th {
+  @apply px-4 py-3 text-left font-semibold text-foreground;
+  white-space: nowrap;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  background-color: hsl(var(--secondary) / 0.7);
+}
+
+.prose td {
+  @apply px-4 py-2.5 border-b border-border/50 text-foreground;
+  white-space: nowrap;
+  font-size: 0.875rem;
+  line-height: 1.4;
+}
+
+.prose tbody tr {
+  @apply hover:bg-secondary/40 transition-colors;
+}
+
+.prose tbody tr:nth-child(even) {
+  @apply bg-secondary/20;
+}
+
+/* Improve table readability with better spacing */
+.prose table {
+  @apply rounded-lg overflow-hidden;
+  min-width: 100%;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+}
+
+/* Make sure tables don't break layout */
+.prose {
+  @apply overflow-x-auto;
+}
+
+.prose > * {
+  @apply max-w-full;
+}
+
+/* Better contrast for table text */
+.prose table code {
+  @apply bg-secondary/50 px-1 py-0.5 rounded text-xs;
+  font-size: 0.8em;
+}
+
+/* Ensure numbers and important data stand out - use font-mono for numeric columns */
+.prose td {
+  font-variant-numeric: tabular-nums;
+}

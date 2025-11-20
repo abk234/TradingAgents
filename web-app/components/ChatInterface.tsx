@@ -252,7 +252,7 @@ export function ChatInterface() {
                             <Bot className="w-6 h-6 text-primary" />
                         </div>
                         <div>
-                            <h1c className="text-xl font-bold">Eddie AI</h1c>
+                            <h1 className="text-xl font-bold">Eddie AI</h1>
                             <p className="text-xs text-muted-foreground">Trading Intelligence Agent - Powered by Avinash V - v0.1</p>
                         </div>
                     </div>
@@ -303,7 +303,16 @@ export function ChatInterface() {
                                         : "bg-secondary/50 border border-border"
                                 )}>
                                     <div className="prose prose-invert prose-sm max-w-none">
-                                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                        <ReactMarkdown 
+                                            remarkPlugins={[remarkGfm]}
+                                            components={{
+                                                table: ({node, ...props}) => (
+                                                    <div className="overflow-x-auto my-4 rounded-lg border border-border/50 shadow-lg">
+                                                        <table className="min-w-full" {...props} />
+                                                    </div>
+                                                ),
+                                            }}
+                                        >
                                             {msg.content}
                                         </ReactMarkdown>
                                     </div>

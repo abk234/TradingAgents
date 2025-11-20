@@ -481,6 +481,33 @@ class EntryPriceCalculator:
             entry_min = max(entry_min, bb_lower * 1.01)
             entry_max = min(entry_max, bb_middle)
 
+        # === VALIDATE ENTRY PRICE VS CURRENT PRICE ===
+        # If current price is above recommended entry range, adjust logic
+        if current_price > entry_max:
+            # Current price is above entry range - need to wait for pullback
+            # OR adjust entry range to include current price
+
+            # Check how far above we are
+            price_above_pct = ((current_price - entry_max) / entry_max) * 100
+
+            if price_above_pct > 5.0:
+                # More than 5% above entry - strong WAIT signal
+                timing = 'WAIT_FOR_PULLBACK'
+                # Keep entry range as-is (target for pullback)
+                reasoning_parts.append(f"Price {price_above_pct:.1f}% above entry range - WAIT for pullback")
+
+            elif price_above_pct > 2.0:
+                # 2-5% above - cautious, can buy on small dips
+                timing = 'ACCUMULATE'
+                # Adjust entry max to include current price
+                entry_max = current_price * 1.01
+                reasoning_parts.append(f"Price {price_above_pct:.1f}% above target - buy on dips only")
+
+            else:
+                # Less than 2% above - within tolerance, adjust range
+                entry_max = current_price * 1.02
+                reasoning_parts.append(f"Price within tolerance of entry range")
+
         # Build reasoning string
         reasoning = "; ".join(reasoning_parts) if reasoning_parts else "Standard technical analysis"
 
