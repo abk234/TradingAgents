@@ -99,33 +99,78 @@ Open `http://localhost:3000` and check the Traces view!
 
 ---
 
-## 🔮 Future: Prometheus + Grafana
+## 🔮 Phase 2: Prometheus + Grafana (NOW COMPLETE)
 
-**Status:** Planned for Phase 2 (after 2-4 weeks of Langfuse usage)
+**Status:** ✅ FULLY IMPLEMENTED
 
-**What it adds:**
-- System metrics (CPU, memory, disk)
-- Application metrics (analysis counts, error rates)
-- Database metrics (query performance)
-- Advanced alerting
-- Unified dashboards
+### What it adds:
+- ✅ System metrics (CPU, memory, disk, network)
+- ✅ Application metrics (chat requests, processing time, success/failure rates)
+- ✅ Database metrics (query performance, connections, cache hit ratio)
+- ✅ Redis metrics (cache performance, memory usage)
+- ✅ Advanced alerting (18+ pre-configured alerts)
+- ✅ Unified Grafana dashboards
+- ✅ Log aggregation with Loki
+- ✅ LLM cost and token tracking
+- ✅ Business metrics (trading signals, user satisfaction)
 
-**See:** `PROMETHEUS_GRAFANA_FUTURE_PLAN.md` for complete plan
+### Components Installed:
+1. **Prometheus** (`:9090`) - Metrics collection
+2. **Grafana** (`:3000`) - Visualization dashboards
+3. **Loki** (`:3100`) - Log aggregation
+4. **AlertManager** (`:9093`) - Alert routing
+5. **Node Exporter** (`:9100`) - System metrics
+6. **PostgreSQL Exporter** (`:9187`) - Database metrics
+7. **Redis Exporter** (`:9121`) - Cache metrics
+8. **cAdvisor** (`:8080`) - Container metrics
+9. **Promtail** - Log shipping
+
+### Quick Start:
+```bash
+# Start monitoring stack
+./scripts/start-monitoring.sh
+
+# Access Grafana
+open http://localhost:3000  # admin/admin
+```
+
+**Full documentation:** `MONITORING.md` (400+ lines)
 
 ---
 
 ## 📁 Files Created/Modified
 
-### New Files
+### Phase 1 (Langfuse)
 - `docker-compose.langfuse-v2.yml` - Docker Compose configuration (Langfuse v2)
 - `tradingagents/monitoring/langfuse_integration.py` - Langfuse integration module
 - `docs/LANGFUSE_SETUP_GUIDE.md` - Setup guide
-- `docs/PROMETHEUS_GRAFANA_FUTURE_PLAN.md` - Future plan
+- Modified: `requirements.txt`, `tradingagents/graph/trading_graph.py`, `tradingagents/graph/propagation.py`
 
-### Modified Files
-- `requirements.txt` - Added langfuse
-- `tradingagents/graph/trading_graph.py` - Added Langfuse support
-- `tradingagents/graph/propagation.py` - Added callback support
+### Phase 2 (Prometheus + Grafana) - NEW
+**Configuration Files:**
+- `docker-compose.monitoring.yml` - Complete monitoring stack (9 services)
+- `monitoring/prometheus/prometheus.yml` - Scrape configuration
+- `monitoring/prometheus/alerts.yml` - 18+ alert rules
+- `monitoring/grafana/provisioning/datasources/datasources.yml` - Auto-configured datasources
+- `monitoring/grafana/provisioning/dashboards/dashboards.yml` - Dashboard provisioning
+- `monitoring/grafana/dashboards/trading-agents-overview.json` - Main dashboard
+- `monitoring/loki/loki-config.yml` - Log aggregation config
+- `monitoring/promtail/promtail-config.yml` - Log shipping config
+- `monitoring/alertmanager/alertmanager.yml` - Alert routing
+
+**Python Code:**
+- `tradingagents/monitoring/metrics.py` - Custom metrics class (258 lines)
+- Modified: `pyproject.toml` (added prometheus dependencies)
+- Modified: `tradingagents/api/main.py` (added instrumentation)
+
+**Scripts:**
+- `scripts/start-monitoring.sh` - One-command startup
+- `scripts/stop-monitoring.sh` - Clean shutdown
+
+**Documentation:**
+- `docs/MONITORING.md` - Complete guide (400+ lines)
+- `docs/MONITORING_QUICK_START.md` - Quick reference
+- `monitoring/README.md` - Configuration reference
 
 ---
 

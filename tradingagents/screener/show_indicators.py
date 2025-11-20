@@ -58,10 +58,295 @@ class IndicatorDisplay:
         else:
             self._show_indicator_guide()
 
+    def _show_comparison_table(self, tickers: list, refresh: bool = False, refresh_data: bool = False):
+        """Show comparison table for multiple tickers."""
+        from tradingagents.screener.pattern_recognition import PatternRecognition
+        
+        # Collect data for all tickers
+        ticker_data = []
+        
+        # Show refresh progress if refreshing
+        if refresh_data or refresh:
+            print(f"{self.formatter.YELLOW}Processing {len(tickers)} tickers...{self.formatter.NC}")
+        
+        for i, ticker in enumerate(tickers, 1):
+            # Handle refresh flags
+            if refresh_data:
+                print(f"  [{i}/{len(tickers)}] Refreshing {ticker}...", end=' ', flush=True)
+                if self._refresh_price_data(ticker):
+                    print(f"{self.formatter.GREEN}✓{self.formatter.NC}")
+                else:
+                    print(f"{self.formatter.RED}✗{self.formatter.NC}")
+            
+            if refresh or refresh_data:
+                print(f"  [{i}/{len(tickers)}] Calculating indicators for {ticker}...", end=' ', flush=True)
+                if self._recalculate_indicators(ticker):
+                    print(f"{self.formatter.GREEN}✓{self.formatter.NC}")
+                else:
+                    print(f"{self.formatter.RED}✗{self.formatter.NC}")
+            
+            # Get latest scan data
+            query = """
+                SELECT
+                    t.symbol,
+                    t.sector,
+                    ds.price as current_price,
+                    ds.priority_score,
+                    ds.technical_signals,
+                    ds.scan_date
+                FROM daily_scans ds
+                JOIN tickers t ON ds.ticker_id = t.ticker_id
+                WHERE t.symbol = %s
+                ORDER BY ds.scan_date DESC
+                LIMIT 1
+            """
+            
+            result = self.db.execute_dict_query(query, (ticker.upper(),))
+            
+            if not result:
+                ticker_data.append({
+                    'ticker': ticker,
+                    'error': 'No data found'
+                })
+                continue
+            
+            data = result[0]
+            signals = data.get('technical_signals', {})
+            current_price = float(data.get('current_price', 0)) if data.get('current_price') else 0.0
+            
+            # Calculate signal score
+            pattern_analysis = PatternRecognition.analyze_patterns(signals)
+            signal_score = pattern_analysis.get('overall_score', PatternRecognition._calculate_signal_score(signals))
+            
+            # Extract key metrics
+            ticker_data.append({
+                'ticker': ticker.upper(),
+                'sector': data.get('sector', 'N/A'),
+                'price': current_price,
+                'priority_score': data.get('priority_score', 0),
+                'signal_score': signal_score,
+                'rsi': signals.get('rsi'),
+                'macd_hist': signals.get('macd_histogram'),
+                'ma_trend': self._get_ma_trend(signals),
+                'vwap_dist': signals.get('vwap_distance_pct', 0),
+                'bb_position': self._get_bb_position(signals, current_price),
+                'volume_ratio': signals.get('volume_ratio'),
+                'atr_pct': signals.get('atr_pct'),
+                'mtf_signal': signals.get('mtf_signal', 'NEUTRAL'),
+                'signals': signals,
+                'scan_date': data.get('scan_date')
+            })
+        
+        # Print comparison table header
+        print(f"\n{self.formatter.CYAN}{self.formatter.BOLD}{'='*120}{self.formatter.NC}")
+        print(f"{self.formatter.CYAN}{self.formatter.BOLD}  TECHNICAL INDICATORS COMPARISON - {len(tickers)} TICKERS{self.formatter.NC}")
+        print(f"{self.formatter.CYAN}{self.formatter.BOLD}{'='*120}{self.formatter.NC}\n")
+        
+        # Print table header
+        header = f"{'Ticker':<8} {'Sector':<15} {'Price':<10} {'Score':<7} {'RSI':<7} {'MACD':<8} {'MA Trend':<12} {'VWAP':<8} {'BB':<10} {'Vol':<6} {'ATR%':<7} {'MTF':<12}"
+        print(f"{self.formatter.BOLD}{header}{self.formatter.NC}")
+        print(f"{'-'*120}")
+        
+        # Print each ticker's row
+        for data in ticker_data:
+            if 'error' in data:
+                print(f"{data['ticker']:<8} {self.formatter.RED}{data['error']:<112}{self.formatter.NC}")
+                continue
+            
+            # Format values
+            price_str = f"${data['price']:.2f}" if data['price'] > 0 else "N/A"
+            
+            # Signal score with color
+            score = data['signal_score']
+            if score >= 7:
+                score_color = self.formatter.GREEN
+                score_str = f"{score:.1f}"
+            elif score >= 4:
+                score_color = self.formatter.GREEN
+                score_str = f"{score:.1f}"
+            elif score >= 1:
+                score_color = self.formatter.YELLOW
+                score_str = f"{score:.1f}"
+            else:
+                score_color = self.formatter.RED
+                score_str = f"{score:.1f}"
+            
+            # RSI with color
+            rsi = data['rsi']
+            if rsi:
+                if rsi < 30:
+                    rsi_color = self.formatter.GREEN
+                elif rsi < 50:
+                    rsi_color = self.formatter.YELLOW
+                elif rsi < 70:
+                    rsi_color = self.formatter.YELLOW
+                else:
+                    rsi_color = self.formatter.RED
+                rsi_str = f"{rsi:.1f}"
+            else:
+                rsi_color = ""
+                rsi_str = "N/A"
+            
+            # MACD histogram
+            macd_hist = data['macd_hist']
+            if macd_hist is not None:
+                macd_color = self.formatter.GREEN if macd_hist > 0 else self.formatter.RED
+                macd_str = f"{macd_hist:+.3f}"
+            else:
+                macd_color = ""
+                macd_str = "N/A"
+            
+            # MA Trend
+            ma_trend = data['ma_trend']
+            if 'UPTREND' in ma_trend:
+                ma_color = self.formatter.GREEN
+            elif 'DOWNTREND' in ma_trend:
+                ma_color = self.formatter.RED
+            else:
+                ma_color = self.formatter.YELLOW
+            
+            # VWAP distance
+            vwap_dist = data['vwap_dist']
+            if vwap_dist:
+                if vwap_dist < -1:
+                    vwap_color = self.formatter.GREEN
+                elif vwap_dist < 1:
+                    vwap_color = self.formatter.YELLOW
+                else:
+                    vwap_color = self.formatter.GREEN
+                vwap_str = f"{vwap_dist:+.1f}%"
+            else:
+                vwap_color = ""
+                vwap_str = "N/A"
+            
+            # BB Position
+            bb_pos = data['bb_position']
+            if 'Lower' in bb_pos:
+                bb_color = self.formatter.GREEN
+            elif 'Upper' in bb_pos:
+                bb_color = self.formatter.RED
+            else:
+                bb_color = self.formatter.YELLOW
+            
+            # Volume ratio
+            vol_ratio = data['volume_ratio']
+            if vol_ratio:
+                if vol_ratio > 1.5:
+                    vol_color = self.formatter.GREEN
+                elif vol_ratio < 0.8:
+                    vol_color = self.formatter.RED
+                else:
+                    vol_color = self.formatter.YELLOW
+                vol_str = f"{vol_ratio:.2f}x"
+            else:
+                vol_color = ""
+                vol_str = "N/A"
+            
+            # ATR %
+            atr_pct = data['atr_pct']
+            if atr_pct:
+                if atr_pct < 1:
+                    atr_color = self.formatter.GREEN
+                elif atr_pct < 3:
+                    atr_color = self.formatter.YELLOW
+                else:
+                    atr_color = self.formatter.RED
+                atr_str = f"{atr_pct:.2f}%"
+            else:
+                atr_color = ""
+                atr_str = "N/A"
+            
+            # MTF Signal
+            mtf = data['mtf_signal']
+            if 'BULLISH' in mtf or 'BUY' in mtf:
+                mtf_color = self.formatter.GREEN
+            elif 'BEARISH' in mtf or 'SELL' in mtf:
+                mtf_color = self.formatter.RED
+            else:
+                mtf_color = self.formatter.YELLOW
+            
+            # Print row
+            row = (f"{data['ticker']:<8} "
+                   f"{data['sector']:<15} "
+                   f"{price_str:<10} "
+                   f"{score_color}{score_str:<7}{self.formatter.NC} "
+                   f"{rsi_color}{rsi_str:<7}{self.formatter.NC} "
+                   f"{macd_color}{macd_str:<8}{self.formatter.NC} "
+                   f"{ma_color}{ma_trend:<12}{self.formatter.NC} "
+                   f"{vwap_color}{vwap_str:<8}{self.formatter.NC} "
+                   f"{bb_color}{bb_pos:<10}{self.formatter.NC} "
+                   f"{vol_color}{vol_str:<6}{self.formatter.NC} "
+                   f"{atr_color}{atr_str:<7}{self.formatter.NC} "
+                   f"{mtf_color}{mtf:<12}{self.formatter.NC}")
+            print(row)
+        
+        print(f"{'-'*120}\n")
+        
+        # Print summary with top picks
+        print(f"{self.formatter.BOLD}{self.formatter.BLUE}Summary:{self.formatter.NC}\n")
+        
+        # Sort by signal score
+        valid_data = [d for d in ticker_data if 'error' not in d]
+        if valid_data:
+            sorted_data = sorted(valid_data, key=lambda x: x['signal_score'], reverse=True)
+            
+            print(f"{self.formatter.GREEN}Top Picks (by Signal Score):{self.formatter.NC}")
+            for i, data in enumerate(sorted_data[:3], 1):
+                score = data['signal_score']
+                if score >= 7:
+                    icon = "🚀"
+                elif score >= 4:
+                    icon = "✅"
+                else:
+                    icon = "⚠️"
+                print(f"  {i}. {icon} {data['ticker']:<8} Score: {score:.1f}/10  Price: ${data['price']:.2f}  {data['mtf_signal']}")
+            
+            print()
+        
+        # Store ticker_data for potential detailed view
+        return ticker_data
+    
+    def _get_ma_trend(self, signals):
+        """Get MA trend description."""
+        ma_20 = signals.get('ma_20')
+        ma_50 = signals.get('ma_50')
+        ma_200 = signals.get('ma_200')
+        
+        if ma_20 and ma_50 and ma_200:
+            if ma_20 > ma_50 > ma_200:
+                return "UPTREND"
+            elif ma_20 < ma_50 < ma_200:
+                return "DOWNTREND"
+            else:
+                return "MIXED"
+        return "N/A"
+    
+    def _get_bb_position(self, signals, current_price):
+        """Get Bollinger Band position description."""
+        bb_upper = signals.get('bb_upper')
+        bb_middle = signals.get('bb_middle')
+        bb_lower = signals.get('bb_lower')
+        
+        if bb_upper and bb_middle and bb_lower and current_price > 0:
+            bb_position = ((current_price - bb_lower) / (bb_upper - bb_lower)) * 100
+            if bb_position < 20:
+                return "Lower"
+            elif bb_position < 40:
+                return "Below Mid"
+            elif bb_position < 60:
+                return "Middle"
+            elif bb_position < 80:
+                return "Above Mid"
+            else:
+                return "Upper"
+        return "N/A"
+
     def _show_ticker_indicators(self, ticker: str):
         """Show indicator values for a specific ticker."""
 
-        print(f"\n{self.formatter.CYAN}{self.formatter.BOLD}Technical Indicators for {ticker}{self.formatter.NC}\n")
+        print(f"\n{self.formatter.CYAN}{self.formatter.BOLD}{'='*80}{self.formatter.NC}")
+        print(f"{self.formatter.CYAN}{self.formatter.BOLD}Technical Indicators for {ticker}{self.formatter.NC}")
+        print(f"{self.formatter.CYAN}{self.formatter.BOLD}{'='*80}{self.formatter.NC}\n")
 
         # Get latest scan data
         query = """
@@ -96,6 +381,199 @@ class IndicatorDisplay:
         print(f"{self.formatter.GREEN}Sector:{self.formatter.NC} {data.get('sector', 'N/A')}")
         print(f"{self.formatter.GREEN}Current Price:{self.formatter.NC} ${current_price:.2f}")
         print(f"{self.formatter.GREEN}Priority Score:{self.formatter.NC} {data.get('priority_score', 0):.1f}/100\n")
+
+        # Calculate signal score and summary early for executive summary
+        from tradingagents.screener.pattern_recognition import PatternRecognition
+        # Store pattern_analysis for later use
+        pattern_analysis = PatternRecognition.analyze_patterns(signals)
+        signal_score = pattern_analysis.get('overall_score', PatternRecognition._calculate_signal_score(signals))
+        summary = self._get_trading_summary(signal_score, signals, current_price)
+        # Store in instance for later access
+        self._pattern_analysis = pattern_analysis
+
+        # === EXECUTIVE SUMMARY ===
+        print(f"{self.formatter.BOLD}{self.formatter.CYAN}{'═'*80}{self.formatter.NC}")
+        print(f"{self.formatter.BOLD}{self.formatter.CYAN}📊 EXECUTIVE SUMMARY{self.formatter.NC}")
+        print(f"{self.formatter.BOLD}{self.formatter.CYAN}{'═'*80}{self.formatter.NC}\n")
+        
+        # Overall Signal
+        print(f"{self.formatter.BOLD}Overall Signal:{self.formatter.NC} {summary['signal']}")
+        print(f"{self.formatter.BOLD}Signal Score:{self.formatter.NC} {summary['score_color']}{signal_score:.1f}/10{self.formatter.NC}")
+        print(f"{self.formatter.BOLD}Confidence:{self.formatter.NC} {summary['confidence']}")
+        print(f"{self.formatter.BOLD}Recommendation:{self.formatter.NC} {summary['recommendation']}\n")
+        
+        # Key Highlights
+        print(f"{self.formatter.BOLD}{self.formatter.YELLOW}🔑 KEY HIGHLIGHTS:{self.formatter.NC}\n")
+        highlights = []
+        
+        # RSI highlight
+        rsi = signals.get('rsi')
+        if rsi:
+            if rsi < 30:
+                highlights.append(f"{self.formatter.GREEN}✓ RSI {rsi:.1f} - OVERSOLD (Strong Buy Signal){self.formatter.NC}")
+            elif rsi > 70:
+                highlights.append(f"{self.formatter.RED}⚠ RSI {rsi:.1f} - OVERBOUGHT (Sell Signal){self.formatter.NC}")
+            elif rsi < 40:
+                highlights.append(f"{self.formatter.GREEN}✓ RSI {rsi:.1f} - Approaching Oversold (Buy Zone){self.formatter.NC}")
+        
+        # MACD highlight
+        macd_hist = signals.get('macd_histogram')
+        macd = signals.get('macd')
+        macd_signal = signals.get('macd_signal')
+        if macd and macd_signal:
+            if macd > macd_signal and macd_hist and macd_hist > 0:
+                highlights.append(f"{self.formatter.GREEN}✓ MACD Bullish Crossover (Momentum Building){self.formatter.NC}")
+            elif macd < macd_signal and macd_hist and macd_hist < 0:
+                highlights.append(f"{self.formatter.RED}⚠ MACD Bearish Crossover (Momentum Declining){self.formatter.NC}")
+        
+        # VWAP highlight
+        vwap_dist = signals.get('vwap_distance_pct', 0)
+        if vwap_dist:
+            if vwap_dist < -3:
+                highlights.append(f"{self.formatter.GREEN}✓ Price {abs(vwap_dist):.1f}% Below VWAP (Strong Buy Opportunity){self.formatter.NC}")
+            elif vwap_dist > 8:
+                highlights.append(f"{self.formatter.YELLOW}⚠ Price {vwap_dist:.1f}% Above VWAP (Overextended - Watch for Pullback){self.formatter.NC}")
+        
+        # Bollinger Band Squeeze
+        if signals.get('bb_squeeze_detected'):
+            squeeze_strength = signals.get('bb_squeeze_strength', 0)
+            highlights.append(f"{self.formatter.CYAN}💥 Bollinger Band Squeeze Detected ({squeeze_strength:.0%} strength) - Breakout Imminent{self.formatter.NC}")
+        
+        # Volume Profile position
+        vp_position = signals.get('vp_profile_position', '')
+        if 'BELOW_VALUE_AREA' in vp_position:
+            highlights.append(f"{self.formatter.GREEN}✓ Price Below Value Area (Institutional Buy Zone){self.formatter.NC}")
+        elif 'ABOVE_VALUE_AREA' in vp_position:
+            highlights.append(f"{self.formatter.RED}⚠ Price Above Value Area (Institutional Sell Zone){self.formatter.NC}")
+        
+        # Multi-timeframe alignment
+        mtf_alignment = signals.get('mtf_alignment', '')
+        if 'PERFECT_BULLISH' in mtf_alignment or 'STRONG_BULLISH' in mtf_alignment:
+            highlights.append(f"{self.formatter.GREEN}✓ Perfect Multi-Timeframe Bullish Alignment{self.formatter.NC}")
+        elif 'PERFECT_BEARISH' in mtf_alignment or 'STRONG_BEARISH' in mtf_alignment:
+            highlights.append(f"{self.formatter.RED}⚠ Perfect Multi-Timeframe Bearish Alignment{self.formatter.NC}")
+        elif 'RANGE_BOUND' in mtf_alignment:
+            highlights.append(f"{self.formatter.YELLOW}○ Range-Bound Market (Trade Range, Not Trend){self.formatter.NC}")
+        
+        # Order Flow
+        of_buying = signals.get('of_buying_pct', 0)
+        if of_buying > 65:
+            highlights.append(f"{self.formatter.GREEN}✓ Strong Buying Pressure ({of_buying:.0f}% buying){self.formatter.NC}")
+        elif of_buying < 35:
+            highlights.append(f"{self.formatter.RED}⚠ Strong Selling Pressure ({100-of_buying:.0f}% selling){self.formatter.NC}")
+        
+        # Volume confirmation
+        vol_ratio = signals.get('volume_ratio')
+        if vol_ratio and vol_ratio > 2.0:
+            highlights.append(f"{self.formatter.GREEN}✓ Unusually High Volume ({vol_ratio:.1f}x avg) - Strong Confirmation{self.formatter.NC}")
+        elif vol_ratio and vol_ratio < 0.8:
+            highlights.append(f"{self.formatter.YELLOW}⚠ Low Volume ({vol_ratio:.1f}x avg) - Weak Confirmation{self.formatter.NC}")
+        
+        # Display top 5 highlights
+        for i, highlight in enumerate(highlights[:5], 1):
+            print(f"  {i}. {highlight}")
+        
+        if len(highlights) > 5:
+            print(f"  ... and {len(highlights) - 5} more signals (see details below)\n")
+        else:
+            print()
+        
+        # Next Steps
+        print(f"{self.formatter.BOLD}{self.formatter.BLUE}📋 NEXT STEPS:{self.formatter.NC}\n")
+        
+        # Entry/Exit guidance
+        entry_min = None
+        entry_max = None
+        from tradingagents.screener.entry_price_calculator import EntryPriceCalculator
+        try:
+            entry_calc = EntryPriceCalculator()
+            entry_data = entry_calc.calculate_entry_price(
+                current_price=current_price,
+                technical_signals=signals,
+                quote={'price': current_price}
+            )
+            entry_min = entry_data.get('entry_price_min')
+            entry_max = entry_data.get('entry_price_max')
+        except:
+            pass
+        
+        if signal_score >= 7:
+            print(f"  {self.formatter.GREEN}1. ENTRY STRATEGY:{self.formatter.NC}")
+            if entry_min and entry_max:
+                if entry_min <= current_price <= entry_max:
+                    print(f"     • Current price ${current_price:.2f} is IN optimal entry zone (${entry_min:.2f}-${entry_max:.2f})")
+                    print(f"     • Consider entering position now")
+                elif current_price < entry_min:
+                    pct_below = ((entry_min - current_price) / entry_min) * 100
+                    print(f"     • Current price ${current_price:.2f} is {pct_below:.1f}% below optimal entry zone")
+                    print(f"     • Wait for pullback to ${entry_min:.2f}-${entry_max:.2f} for better entry")
+                else:
+                    pct_above = ((current_price - entry_max) / entry_max) * 100
+                    print(f"     • Current price ${current_price:.2f} is {pct_above:.1f}% above optimal entry zone")
+                    print(f"     • Consider waiting for pullback to ${entry_min:.2f}-${entry_max:.2f}")
+            else:
+                print(f"     • Consider entering position at current price ${current_price:.2f}")
+            
+            if summary.get('risk_reward') and summary['risk_reward'].get('stop_loss'):
+                stop = summary['risk_reward']['stop_loss']
+                stop_pct = summary['risk_reward'].get('stop_pct', 0)
+                print(f"  {self.formatter.RED}2. RISK MANAGEMENT:{self.formatter.NC}")
+                print(f"     • Set stop loss at ${stop:.2f} ({abs(stop_pct):.1f}% risk)")
+                print(f"     • Position size based on risk tolerance")
+            
+            if summary.get('risk_reward') and summary['risk_reward'].get('targets'):
+                print(f"  {self.formatter.YELLOW}3. PROFIT TARGETS:{self.formatter.NC}")
+                for i, target in enumerate(summary['risk_reward']['targets'][:3], 1):
+                    gain_pct = target.get('gain_pct', 0)
+                    print(f"     • Target {i}: ${target['price']:.2f} ({target.get('level', 'N/A')}) - {gain_pct:+.1f}% gain")
+            
+            if summary.get('time_horizon'):
+                print(f"  {self.formatter.CYAN}4. TIMELINE:{self.formatter.NC}")
+                print(f"     • Expected move: {summary['time_horizon']}")
+        
+        elif signal_score >= 4:
+            print(f"  {self.formatter.YELLOW}1. WAIT FOR CONFIRMATION:{self.formatter.NC}")
+            print(f"     • Signal is moderately bullish but needs confirmation")
+            if vol_ratio and vol_ratio < 1.0:
+                print(f"     • Wait for volume to increase above 1.0x average")
+            if entry_min and current_price > entry_max:
+                print(f"     • Consider waiting for pullback to ${entry_min:.2f}-${entry_max:.2f}")
+            print(f"  {self.formatter.CYAN}2. MONITOR KEY LEVELS:{self.formatter.NC}")
+            pivot_s1 = signals.get('pivot_s1')
+            if pivot_s1:
+                print(f"     • Watch support at ${pivot_s1:.2f} (S1)")
+            vp_val = signals.get('vp_val')
+            if vp_val:
+                print(f"     • Watch support at ${vp_val:.2f} (VAL)")
+        
+        elif signal_score >= 1:
+            if 'RANGE_BOUND' in mtf_alignment:
+                print(f"  {self.formatter.YELLOW}1. RANGE TRADING STRATEGY:{self.formatter.NC}")
+                vp_vah = signals.get('vp_vah')
+                vp_val = signals.get('vp_val')
+                if vp_vah and vp_val:
+                    print(f"     • Sell near ${vp_vah:.2f} (VAH resistance)")
+                    print(f"     • Buy near ${vp_val:.2f} (VAL support)")
+                    print(f"     • Stop loss: 2-3% outside range boundaries")
+            else:
+                print(f"  {self.formatter.YELLOW}1. WAIT FOR CLEARER SIGNALS:{self.formatter.NC}")
+                print(f"     • Mixed signals - no clear directional bias")
+                print(f"     • Monitor for breakout or clearer trend confirmation")
+        
+        else:
+            print(f"  {self.formatter.RED}1. AVOID OR EXIT:{self.formatter.NC}")
+            print(f"     • Bearish signals dominate - not a good entry")
+            if signal_score < -3:
+                print(f"     • Consider exiting existing positions")
+        
+        # Key Takeaways
+        if summary.get('takeaways'):
+            print(f"\n  {self.formatter.BOLD}💡 KEY TAKEAWAYS:{self.formatter.NC}")
+            for takeaway in summary['takeaways'][:3]:
+                print(f"     • {takeaway}")
+        
+        print(f"\n{self.formatter.CYAN}{'─'*80}{self.formatter.NC}\n")
+        print(f"{self.formatter.YELLOW}📖 Detailed indicator breakdown below...{self.formatter.NC}\n")
 
         # === MOMENTUM INDICATORS ===
         print(f"{self.formatter.BOLD}{self.formatter.BLUE}═══ MOMENTUM INDICATORS ═══{self.formatter.NC}\n")
@@ -454,8 +932,11 @@ class IndicatorDisplay:
         # === PATTERN RECOGNITION ===
         print(f"{self.formatter.BOLD}{self.formatter.BLUE}═══ PATTERN RECOGNITION ═══{self.formatter.NC}\n")
 
-        # Run pattern detection
-        pattern_analysis = PatternRecognition.analyze_patterns(signals)
+        # Run pattern detection (reuse pattern_analysis if already calculated)
+        if hasattr(self, '_pattern_analysis'):
+            pattern_analysis = self._pattern_analysis
+        else:
+            pattern_analysis = PatternRecognition.analyze_patterns(signals)
         detected_patterns = pattern_analysis.get('all_patterns', [])
 
         if detected_patterns:
@@ -472,17 +953,16 @@ class IndicatorDisplay:
         else:
             print(f"{self.formatter.YELLOW}No high-probability patterns detected{self.formatter.NC}\n")
 
-        # === SUMMARY ===
-        print(f"{self.formatter.BOLD}{self.formatter.BLUE}═══ TRADING SUMMARY ═══{self.formatter.NC}\n")
+        # === FINAL SUMMARY & ACTION PLAN ===
+        print(f"\n{self.formatter.BOLD}{self.formatter.CYAN}{'═'*80}{self.formatter.NC}")
+        print(f"{self.formatter.BOLD}{self.formatter.CYAN}📋 FINAL SUMMARY & ACTION PLAN{self.formatter.NC}")
+        print(f"{self.formatter.BOLD}{self.formatter.CYAN}{'═'*80}{self.formatter.NC}\n")
 
-        # Overall signal score
-        signal_score = pattern_analysis.get('overall_score', PatternRecognition._calculate_signal_score(signals))
-        summary = self._get_trading_summary(signal_score, signals, current_price)
-
-        print(f"{self.formatter.WHITE}Signal Score:{self.formatter.NC} {summary['score_color']}{signal_score}/10{self.formatter.NC}")
-        print(f"{self.formatter.WHITE}Overall Signal:{self.formatter.NC} {summary['signal']}")
-        print(f"{self.formatter.WHITE}Confidence:{self.formatter.NC} {summary['confidence']}")
-        print(f"{self.formatter.WHITE}Recommendation:{self.formatter.NC} {summary['recommendation']}\n")
+        # Overall signal score (already calculated above)
+        print(f"{self.formatter.BOLD}Overall Assessment:{self.formatter.NC}")
+        print(f"  Signal Score: {summary['score_color']}{signal_score:.1f}/10{self.formatter.NC}")
+        print(f"  Signal: {summary['signal']}")
+        print(f"  Confidence: {summary['confidence']}\n")
         
         # === PRICE TARGETS & RISK/REWARD ===
         print(f"{self.formatter.BOLD}{self.formatter.BLUE}═══ PRICE TARGETS & RISK/REWARD ═══{self.formatter.NC}\n")
@@ -552,37 +1032,62 @@ class IndicatorDisplay:
                         print(f"  Target 3: ${pivot_r2:.2f} (R2) - {gain:.1f}% gain")
                     print()
 
-        # Add Risk/Reward and trade management for strong signals
-        if signal_score >= 4 and summary.get('risk_reward'):
-            rr_info = summary['risk_reward']
-            print(f"{self.formatter.BOLD}Risk/Reward Analysis:{self.formatter.NC}")
-            if rr_info.get('stop_loss'):
-                print(f"  Stop Loss: ${rr_info['stop_loss']:.2f} ({rr_info.get('stop_pct', 0):.1f}% risk)")
-            if rr_info.get('targets'):
-                for i, target in enumerate(rr_info['targets'], 1):
-                    rr_ratio = target.get('rr_ratio', 'N/A')
-                    print(f"  Target {i}: ${target['price']:.2f} ({target['gain_pct']:.1f}% gain) - R/R {rr_ratio}")
-            if rr_info.get('note'):
-                print(f"  {self.formatter.YELLOW}{rr_info['note']}{self.formatter.NC}")
-            print()
-
-        # Add time horizon and exit strategy for strong signals
-        if signal_score >= 4 and summary.get('time_horizon'):
-            print(f"{self.formatter.BOLD}Expected Timeline:{self.formatter.NC} {summary['time_horizon']}")
+        # Action Plan
+        print(f"{self.formatter.BOLD}{self.formatter.GREEN}✅ ACTION PLAN:{self.formatter.NC}\n")
+        
+        if signal_score >= 7:
+            print(f"  {self.formatter.GREEN}STRONG BUY SETUP{self.formatter.NC}")
+            if summary.get('risk_reward'):
+                rr_info = summary['risk_reward']
+                if rr_info.get('stop_loss'):
+                    print(f"     • Entry: ${current_price:.2f} (or wait for pullback to entry zone)")
+                    print(f"     • Stop Loss: ${rr_info['stop_loss']:.2f} ({abs(rr_info.get('stop_pct', 0)):.1f}% risk)")
+                if rr_info.get('targets'):
+                    print(f"     • Profit Targets:")
+                    for i, target in enumerate(rr_info['targets'][:3], 1):
+                        print(f"       Target {i}: ${target['price']:.2f} ({target.get('level', 'N/A')}) - {target.get('gain_pct', 0):+.1f}% gain")
+            if summary.get('time_horizon'):
+                print(f"     • Timeline: {summary['time_horizon']}")
             if summary.get('exit_strategy'):
-                print(f"{self.formatter.BOLD}Exit Strategy:{self.formatter.NC}")
-                for exit_rule in summary['exit_strategy']:
-                    print(f"  • {exit_rule}")
-            print()
-
-        # Key takeaways
-        print(f"{self.formatter.BOLD}Key Takeaways:{self.formatter.NC}")
-        for takeaway in summary['takeaways']:
-            print(f"  • {takeaway}")
+                print(f"     • Exit Strategy:")
+                for exit_rule in summary['exit_strategy'][:3]:
+                    print(f"       {exit_rule}")
+        elif signal_score >= 4:
+            print(f"  {self.formatter.YELLOW}MODERATE BUY SETUP{self.formatter.NC}")
+            print(f"     • Wait for confirmation before entering")
+            if summary.get('risk_reward'):
+                rr_info = summary['risk_reward']
+                if rr_info.get('stop_loss'):
+                    print(f"     • If entering, use stop loss: ${rr_info['stop_loss']:.2f}")
+        elif signal_score >= 1:
+            if 'RANGE_BOUND' in mtf_alignment:
+                print(f"  {self.formatter.YELLOW}RANGE TRADING OPPORTUNITY{self.formatter.NC}")
+                vp_vah = signals.get('vp_vah')
+                vp_val = signals.get('vp_val')
+                if vp_vah and vp_val:
+                    print(f"     • Sell near ${vp_vah:.2f} (VAH)")
+                    print(f"     • Buy near ${vp_val:.2f} (VAL)")
+            else:
+                print(f"  {self.formatter.YELLOW}WAIT FOR CLEARER SIGNALS{self.formatter.NC}")
+                print(f"     • Monitor for breakout or trend confirmation")
+        else:
+            print(f"  {self.formatter.RED}AVOID OR EXIT{self.formatter.NC}")
+            print(f"     • Bearish signals dominate - not a good entry point")
+        
         print()
+        
+        # Key Takeaways (if not already shown in executive summary)
+        if summary.get('takeaways') and len(summary['takeaways']) > 3:
+            print(f"{self.formatter.BOLD}💡 Additional Insights:{self.formatter.NC}")
+            for takeaway in summary['takeaways'][3:]:
+                print(f"  • {takeaway}")
+            print()
         
         # Display next steps and recommendations
         display_next_steps('indicators', context={'ticker': ticker})
+        
+        # Add footer separator
+        print(f"\n{self.formatter.CYAN}{'─'*80}{self.formatter.NC}\n")
 
     def _show_indicator_guide(self):
         """Show comprehensive indicator guide."""
@@ -1353,6 +1858,11 @@ def main():
         action='store_true',
         help='Fetch fresh price data first, then recalculate indicators (includes --refresh)'
     )
+    parser.add_argument(
+        '--detailed',
+        action='store_true',
+        help='Show detailed indicator breakdown for each ticker (default: comparison table for multiple tickers)'
+    )
 
     args = parser.parse_args()
 
@@ -1365,18 +1875,41 @@ def main():
             refresh=args.refresh or args.refresh_data,
             refresh_data=args.refresh_data
         )
+    elif len(args.tickers) == 1:
+        # Single ticker - always show detailed view
+        display.show_all_indicators(
+            args.tickers[0],
+            refresh=args.refresh or args.refresh_data,
+            refresh_data=args.refresh_data
+        )
     else:
-        # Process multiple tickers
-        for i, ticker in enumerate(args.tickers):
-            if i > 0:
-                # Add separator between tickers
-                print(f"\n{'='*80}\n")
+        # Multiple tickers - show comparison table first
+        ticker_data = display._show_comparison_table(
+            args.tickers,
+            refresh=args.refresh or args.refresh_data,
+            refresh_data=args.refresh_data
+        )
+        
+        # If --detailed flag is set, also show detailed views
+        if args.detailed:
+            print(f"\n{display.formatter.CYAN}{display.formatter.BOLD}{'='*120}{display.formatter.NC}")
+            print(f"{display.formatter.CYAN}{display.formatter.BOLD}  DETAILED INDICATOR BREAKDOWN{display.formatter.NC}")
+            print(f"{display.formatter.CYAN}{display.formatter.BOLD}{'='*120}{display.formatter.NC}\n")
             
-            display.show_all_indicators(
-                ticker,
-                refresh=args.refresh or args.refresh_data,
-                refresh_data=args.refresh_data
-            )
+            for i, ticker in enumerate(args.tickers):
+                if i > 0:
+                    # Add clear separator between tickers
+                    print(f"\n{display.formatter.YELLOW}{'─'*120}{display.formatter.NC}\n")
+                
+                display.show_all_indicators(
+                    ticker,
+                    refresh=False,  # Already refreshed above
+                    refresh_data=False
+                )
+        else:
+            # Show hint about detailed view
+            print(f"{display.formatter.YELLOW}Tip: Add --detailed flag to see full indicator breakdown for each ticker{display.formatter.NC}\n")
+            print(f"{display.formatter.CYAN}Example: ./quick_run.sh indicators {' '.join(args.tickers)} --detailed{display.formatter.NC}\n")
 
 
 if __name__ == '__main__':

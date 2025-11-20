@@ -672,8 +672,200 @@ def _calculate_entry_price(
             return f"[dim]${entry_min:.2f}[/dim]-[dim]${entry_max:.2f}[/dim]"
 
 
-def print_screener_results(results: List[Dict[str, Any]], limit: Optional[int] = None, show_buy_only: bool = False):
-    """Print screener results as a beautiful table"""
+def _calculate_opportunity_score(stock: Dict[str, Any]) -> float:
+    """
+    Calculate Opportunity Score - composite metric for best trading opportunities.
+    
+    Combines:
+    - Gain potential (40% weight)
+    - Entry status (25% weight)
+    - RSI oversold bonus (20% weight)
+    - Recommendation strength (15% weight)
+    
+    Returns score from 0-100 (higher = better opportunity)
+    """
+    score = 0.0
+    
+    # Extract gain percentage
+    entry_price_min = stock.get('entry_price_min')
+    entry_price_max = stock.get('entry_price_max')
+    current_price = stock.get('current_price') or stock.get('price', 0)
+    target_price = stock.get('_target_price') or stock.get('target_price') or stock.get('profit_target')
+    
+    gain_percent = 0.0
+    if entry_price_min and entry_price_max and current_price:
+        entry_mid = (float(entry_price_min) + float(entry_price_max)) / 2
+        if target_price:
+            gain_percent = ((float(target_price) - entry_mid) / entry_mid) * 100
+        else:
+            # Estimate 10% gain if no target
+            gain_percent = 10.0
+    
+    # Gain potential (weight: 40%)
+    score += min(gain_percent * 4, 40)  # Max 40 points for 10%+ gain
+    
+    # Entry status (weight: 25%)
+    entry_status = stock.get('_entry_status', 'UNKNOWN')
+    if entry_status == 'BELOW':
+        score += 25  # Best - below entry zone
+    elif entry_status == 'OK':
+        score += 20  # Good - in entry zone
+    elif entry_status == 'ABOVE':
+        score += 5   # Poor - above entry
+    else:
+        score += 10  # Unknown - neutral
+    
+    # RSI oversold bonus (weight: 20%)
+    technical_signals = stock.get('technical_signals', {})
+    if isinstance(technical_signals, str):
+        import json
+        try:
+            technical_signals = json.loads(technical_signals)
+        except:
+            technical_signals = {}
+    
+    rsi = technical_signals.get('rsi') if isinstance(technical_signals, dict) else None
+    if rsi:
+        rsi_value = float(rsi)
+        if rsi_value < 30:
+            score += 20  # Oversold - excellent entry
+        elif rsi_value < 40:
+            score += 15  # Approaching oversold
+        elif rsi_value < 50:
+            score += 10  # Neutral-bearish
+        elif rsi_value < 60:
+            score += 5   # Neutral-bullish
+        # Overbought (>70) gets 0 points
+    
+    # Recommendation bonus (weight: 15%)
+    recommendation = stock.get('_recommendation', '')
+    rec_upper = recommendation.upper()
+    if 'STRONG BUY' in rec_upper or 'BUY' in rec_upper and 'BELOW' in rec_upper:
+        score += 15
+    elif 'BUY' in rec_upper:
+        score += 12
+    elif 'NEUTRAL' in rec_upper:
+        score += 7
+    elif 'WAIT' in rec_upper:
+        score += 3
+    # SELL gets 0 points
+    
+    return min(score, 100)  # Cap at 100
+
+
+def _format_signal_icons(signals: List[str]) -> str:
+    """
+    Format signals with icons for better visual scanning.
+    
+    Returns abbreviated signal string with icons.
+    """
+    if not signals:
+        return "[dim]-[/dim]"
+    
+    icon_map = {
+        'RSI_OVERSOLD': '🟢RSI',
+        'RSI_OVERBOUGHT': '🔴RSI',
+        'MACD_BULLISH': '📈MACD',
+        'MACD_BEARISH': '📉MACD',
+        'BB_SQUEEZE': '🔥SQZ',
+        'BB_LOWER': '📉BB',
+        'BB_UPPER': '📈BB',
+        'DIVERGENCE': '⚠️DIV',
+        'VOLUME_SPIKE': '⚡VOL',
+        'MOMENTUM': '📊MOM',
+    }
+    
+    formatted_signals = []
+    for signal in signals[:3]:  # Show first 3 signals
+        # Try to match signal name
+        signal_upper = signal.upper()
+        icon = None
+        for key, icon_str in icon_map.items():
+            if key in signal_upper:
+                icon = icon_str
+                break
+        
+        if icon:
+            formatted_signals.append(icon)
+        else:
+            # Abbreviate long signal names
+            abbrev = signal[:8].replace('_', '')
+            formatted_signals.append(abbrev)
+    
+    result = ' '.join(formatted_signals)
+    if len(signals) > 3:
+        result += f" +{len(signals)-3}"
+    
+    return result
+
+
+def _format_gain_percent(gain_percent: float) -> str:
+    """
+    Format gain percentage with color coding and visual indicators.
+    
+    Returns formatted string with emoji indicators.
+    """
+    if gain_percent >= 7:
+        return f"🟢🟢 [bright_green]{gain_percent:.1f}%[/bright_green]"  # Excellent
+    elif gain_percent >= 5:
+        return f"🟢 [green]{gain_percent:.1f}%[/green]"  # Good
+    elif gain_percent >= 3:
+        return f"🟡 [yellow]{gain_percent:.1f}%[/yellow]"  # Moderate
+    elif gain_percent >= 1:
+        return f"🟠 [dim]{gain_percent:.1f}%[/dim]"  # Low
+    else:
+        return f"⚪ [dim]{gain_percent:.1f}%[/dim]"  # Minimal
+
+
+def _format_entry_with_status(entry_price_min: Optional[float], entry_price_max: Optional[float], 
+                              current_price: float, entry_status: str) -> str:
+    """
+    Format entry price with status icon in a single column.
+    
+    Returns formatted string like: "⬇️ $82.40" or "✅ $90.87"
+    """
+    if not entry_price_min or not entry_price_max:
+        return "[dim]N/A[/dim]"
+    
+    entry_min_float = float(entry_price_min)
+    entry_max_float = float(entry_price_max)
+    
+    # Determine status icon
+    if current_price < entry_min_float:
+        # Below entry (BEST - buy opportunity!)
+        icon = "⬇️"
+        color = "green"
+        price_str = f"${entry_min_float:.2f}"
+    elif entry_min_float <= current_price <= entry_max_float:
+        # In entry zone (GOOD)
+        icon = "✅"
+        color = "green"
+        price_str = f"${current_price:.2f}"
+    elif current_price > entry_max_float:
+        # Above entry (WAIT for pullback)
+        icon = "⬆️"
+        color = "yellow"
+        price_str = f"${entry_max_float:.2f}"
+    else:
+        icon = "⚠️"
+        color = "yellow"
+        price_str = f"${current_price:.2f}"
+    
+    return f"{icon} [{color}]{price_str}[/{color}]"
+
+
+def print_screener_results(results: List[Dict[str, Any]], limit: Optional[int] = None, show_buy_only: bool = False, 
+                          sort_by: str = "gain", show_full_detail: bool = False):
+    """
+    Print screener results as a beautiful table with improved layout.
+    
+    Args:
+        results: List of screener result dictionaries
+        limit: Maximum number of results to display
+        show_buy_only: If True, only show BUY recommendations
+        sort_by: Sort mode - "gain" (default), "opportunity", "rsi", "priority"
+        show_full_detail: If True, show both Quick Action and Full Detail tables
+    """
     # Use terminal width with padding
     from rich.console import Console as RichConsole
     import shutil
@@ -684,40 +876,42 @@ def print_screener_results(results: List[Dict[str, Any]], limit: Optional[int] =
         terminal_width = 200
     
     # Use full width but ensure minimum readability
-    # With 17 columns and increased widths, we need at least 230 characters for comfortable display
-    console_width = max(terminal_width - 4, 230)  # Leave some margin, min 230 for readability
+    # Condensed table needs less width - 10 columns instead of 17
+    console_width = max(terminal_width - 4, 180)  # Reduced from 230 since we have fewer columns
     wide_console = RichConsole(width=console_width, force_terminal=True)
 
+    # Determine table title based on sort mode
+    sort_title_map = {
+        "gain": "Sorted by Gain%",
+        "opportunity": "Sorted by Opportunity Score",
+        "rsi": "Sorted by RSI (Oversold first)",
+        "priority": "Sorted by Priority Score"
+    }
+    sort_title = sort_title_map.get(sort_by, "Sorted by Gain%")
+    
+    # Create condensed table (10 columns instead of 17)
     table = Table(
-        title="📊 Screener Results" + (" - BUY Recommendations" if show_buy_only else ""),
+        title=f"📊 Screener Results - {sort_title}" + (" - BUY Recommendations" if show_buy_only else ""),
         box=box.ROUNDED,
         show_header=True,
         header_style="bold cyan",
-        expand=True,  # Expand to use available width
-        show_lines=True,  # Show lines for better readability
-        padding=(1, 2),  # Increased vertical (1) and horizontal (2) padding for readability
-        row_styles=["", "dim"]  # Alternate row styles for better scanning
+        expand=True,
+        show_lines=True,
+        padding=(1, 1),  # Slightly reduced padding for more compact display
+        row_styles=["", "dim"]
     )
 
-    # Add columns with width constraints - allow text wrapping instead of truncation
-    # Text columns use overflow="fold" to wrap to multiple lines, increasing vertical spacing
+    # Condensed column layout (10 columns)
     table.add_column("Rank", justify="center", style="dim", width=6, no_wrap=True)
     table.add_column("Symbol", justify="left", style="bold", width=8, no_wrap=True)
-    table.add_column("Name", justify="left", width=28, overflow="fold")  # Wrap instead of truncate
-    table.add_column("Sector", justify="left", width=20, overflow="fold")  # Wrap instead of truncate
-    table.add_column("Priority", justify="center", width=12, no_wrap=True)
-    table.add_column("RSI", justify="center", style="dim", width=8, no_wrap=True)
-    table.add_column("Signals", justify="left", width=32, overflow="fold")  # Wrap instead of truncate
-    table.add_column("Rec", justify="center", style="bold", width=22, overflow="fold")  # Wrap instead of truncate
-    table.add_column("Entry OK", justify="center", width=13, no_wrap=True)
-    table.add_column("Div%", justify="center", style="dim", width=9, no_wrap=True)
-    table.add_column("Entry", justify="center", style="green", width=14, no_wrap=True)
-    table.add_column("Target", justify="center", style="bright_green", width=12, no_wrap=True)
-    table.add_column("Gain%", justify="center", style="bright_green", width=8, no_wrap=True)
-    table.add_column("Pos%", justify="center", style="cyan", width=9, no_wrap=True)
-    table.add_column("Timeline", justify="center", style="cyan", width=14, overflow="fold")  # Wrap instead of truncate
-    table.add_column("Price", justify="right", width=12, no_wrap=True)
-    table.add_column("Change", justify="right", width=10, no_wrap=True)
+    table.add_column("Name", justify="left", width=24, overflow="fold")
+    table.add_column("Sector", justify="left", width=16, overflow="fold")
+    table.add_column("RSI", justify="center", style="dim", width=7, no_wrap=True)
+    table.add_column("Signals", justify="left", width=20, overflow="fold")
+    table.add_column("Rec", justify="center", style="bold", width=20, overflow="fold")
+    table.add_column("Entry", justify="center", style="green", width=14, no_wrap=True)  # Merged Entry + Status
+    table.add_column("Target", justify="center", style="bright_green", width=11, no_wrap=True)
+    table.add_column("Gain%", justify="center", style="bright_green", width=10, no_wrap=True)  # Prominent position
 
     # Calculate recommendations for all results and sort by priority score
     results_with_recommendations = []
@@ -758,48 +952,81 @@ def print_screener_results(results: List[Dict[str, Any]], limit: Optional[int] =
         entry_price_min = result.get('entry_price_min')
         entry_price_max = result.get('entry_price_max')
         current_price = result.get('current_price') or result.get('price', 0)
-        gain_pct_for_sort = 0.0
         
+        # Try to extract target price from profit_target if available
+        target_price = result.get('target_price') or result.get('profit_target')
+        if not target_price:
+            # Try to calculate target price from technical signals
+            profit_target_str = result.get('profit_target_str')
+            if profit_target_str:
+                # re is already imported at module level
+                profit_target_clean = re.sub(r'\[.*?\]', '', str(profit_target_str))
+                if profit_target_clean != "N/A":
+                    target_prices = re.findall(r'\d+\.?\d*', profit_target_clean)
+                    if target_prices:
+                        target_price = float(target_prices[0])
+        
+        gain_pct_for_sort = 0.0
         if entry_price_min and entry_price_max and current_price:
             entry_mid = (float(entry_price_min) + float(entry_price_max)) / 2
-            # Estimate target as 10% gain (conservative estimate for sorting)
-            estimated_target = entry_mid * 1.10
-            if estimated_target > entry_mid:
-                gain_pct_for_sort = ((estimated_target - entry_mid) / entry_mid) * 100
+            if target_price:
+                gain_pct_for_sort = ((float(target_price) - entry_mid) / entry_mid) * 100
+            else:
+                # Estimate target as 10% gain (conservative estimate for sorting)
+                estimated_target = entry_mid * 1.10
+                if estimated_target > entry_mid:
+                    gain_pct_for_sort = ((estimated_target - entry_mid) / entry_mid) * 100
+        
+        # Store target_price for later use
+        result['_target_price'] = target_price
         
         # Check entry status for sorting priority
-        entry_ok_for_sort = 0  # 0 = N/A, 1 = not OK, 2 = OK
+        entry_status_for_sort = 'UNKNOWN'
         if entry_price_min and entry_price_max and current_price:
             entry_min_float = float(entry_price_min)
             entry_max_float = float(entry_price_max)
-            if entry_min_float <= current_price <= entry_max_float:
-                entry_ok_for_sort = 2  # Entry OK - prioritize
-            elif current_price < entry_min_float:
-                entry_ok_for_sort = 1  # Below entry
-            # else: above entry, keep as 0
+            if current_price < entry_min_float:
+                entry_status_for_sort = 'BELOW'  # Best - below entry zone
+            elif entry_min_float <= current_price <= entry_max_float:
+                entry_status_for_sort = 'OK'  # Good - in entry zone
+            else:
+                entry_status_for_sort = 'ABOVE'  # Poor - above entry
 
+        # Calculate opportunity score
         result['_recommendation'] = recommendation
         result['_rec_score'] = rec_score
         result['_priority_score'] = priority_score
         result['_gain_pct'] = gain_pct_for_sort
-        result['_entry_ok'] = entry_ok_for_sort
+        result['_entry_status'] = entry_status_for_sort
+        result['_opportunity_score'] = _calculate_opportunity_score(result)
         results_with_recommendations.append(result)
 
-    # Enhanced sorting: 
-    # 1. Priority score (primary) - highest confidence opportunities first
-    # 2. Entry OK status (secondary) - prioritize stocks ready to buy now
-    # 3. Recommendation strength (tertiary) - BUY > NEUTRAL > WAIT > SELL
-    # 4. Potential gain % (quaternary) - higher potential returns first
-    # This ensures actionable opportunities appear at the top
-    results_with_recommendations.sort(
-        key=lambda x: (
-            x['_priority_score'],      # Primary: Highest priority first
-            x['_entry_ok'],            # Secondary: Entry OK stocks first
-            x['_rec_score'],           # Tertiary: Stronger recommendations first
-            x['_gain_pct']             # Quaternary: Higher potential gains first
-        ),
-        reverse=True
-    )
+    # Improved sorting based on sort_by parameter
+    if sort_by == "gain":
+        # Sort by Gain% (default - most useful for traders)
+        results_with_recommendations.sort(key=lambda x: x['_gain_pct'], reverse=True)
+    elif sort_by == "opportunity":
+        # Sort by Opportunity Score (composite metric)
+        results_with_recommendations.sort(key=lambda x: x['_opportunity_score'], reverse=True)
+    elif sort_by == "rsi":
+        # Sort by RSI (oversold first - best buy opportunities)
+        def rsi_sort_key(x):
+            technical_signals = x.get('technical_signals', {})
+            if isinstance(technical_signals, str):
+                import json
+                try:
+                    technical_signals = json.loads(technical_signals)
+                except:
+                    technical_signals = {}
+            rsi = technical_signals.get('rsi') if isinstance(technical_signals, dict) else None
+            return float(rsi) if rsi else 999  # Put N/A RSI at end
+        results_with_recommendations.sort(key=rsi_sort_key, reverse=False)  # Lower RSI first
+    elif sort_by == "priority":
+        # Sort by Priority Score (original behavior)
+        results_with_recommendations.sort(key=lambda x: x['_priority_score'], reverse=True)
+    else:
+        # Default to gain
+        results_with_recommendations.sort(key=lambda x: x['_gain_pct'], reverse=True)
     
     # Filter for BUY recommendations if requested
     if show_buy_only:
@@ -849,18 +1076,10 @@ def print_screener_results(results: List[Dict[str, Any]], limit: Optional[int] =
                     else:
                         rsi_str = f"[yellow]{rsi_value:.1f}[/yellow]"
 
-        # Format signals - check both 'signals' and 'triggered_alerts'
+        # Format signals with icons - check both 'signals' and 'triggered_alerts'
         signals = result.get('triggered_alerts', result.get('signals', []))
         signal_list = signals if isinstance(signals, list) else []
-        if signal_list:
-            # Prioritize critical signals (divergence, squeeze) - they should already be first
-            # Show first 3 signals for better visibility
-            signal_str = ", ".join(signal_list[:3])
-            if len(signal_list) > 3:
-                signal_str += f" +{len(signal_list)-3}"
-            # No truncation - Rich will wrap if needed
-        else:
-            signal_str = "[dim]-[/dim]"
+        signal_str = _format_signal_icons(signal_list)
 
         # Use pre-calculated recommendation if available, otherwise generate
         recommendation = result.get('_recommendation') or _generate_recommendation(rsi_value, signal_list, technical_signals)
@@ -1006,36 +1225,14 @@ def print_screener_results(results: List[Dict[str, Any]], limit: Optional[int] =
                 market_cap=float(market_cap) if market_cap else None
             )
 
-        # Calculate entry status - check if current price is within entry range
-        entry_status = "[dim]N/A[/dim]"
-        if entry_price_min and entry_price_max and current_price:
-            entry_min_float = float(entry_price_min)
-            entry_max_float = float(entry_price_max)
-
-            if current_price < entry_min_float:
-                # Below entry range - too cheap, might be a problem
-                price_below_pct = ((entry_min_float - current_price) / entry_min_float) * 100
-                if price_below_pct > 5.0:
-                    entry_status = "[red]⬇️ LOW[/red]"
-                else:
-                    entry_status = "[yellow]⚠️ BELOW[/yellow]"
-            elif entry_min_float <= current_price <= entry_max_float:
-                # Within entry range - but check if recommendation conflicts
-                # If recommendation is WAIT/SELL/OVEREXTENDED, show caution even if in range
-                if recommendation and any(word in recommendation.upper() for word in ['WAIT', 'SELL', 'OVEREXTENDED', 'OVERBOUGHT']):
-                    entry_status = "[yellow]⚠️ CAUTION[/yellow]"
-                else:
-                    # Good entry point
-                    entry_status = "[green]✅ OK[/green]"
-            elif current_price > entry_max_float:
-                # Above entry range - wait for pullback
-                price_above_pct = ((current_price - entry_max_float) / entry_max_float) * 100
-                if price_above_pct > 5.0:
-                    entry_status = "[red]🛑 WAIT[/red]"
-                elif price_above_pct > 2.0:
-                    entry_status = "[yellow]⏸️ HIGH[/yellow]"
-                else:
-                    entry_status = "[yellow]~ OK[/yellow]"  # Within tolerance
+        # Format entry price with status icon (merged column)
+        entry_status_str = result.get('_entry_status', 'UNKNOWN')
+        entry_with_status = _format_entry_with_status(
+            float(entry_price_min) if entry_price_min else None,
+            float(entry_price_max) if entry_price_max else None,
+            float(current_price) if current_price else 0,
+            entry_status_str
+        )
 
         # Calculate profit timeline
         priority_score = result.get('priority_score', 0)
@@ -1093,22 +1290,18 @@ def print_screener_results(results: List[Dict[str, Any]], limit: Optional[int] =
             if target_prices:
                 target_price_numeric = float(target_prices[0])
         
-        # Calculate profit percentage (gain from entry to target)
+        # Calculate profit percentage (gain from entry to target) with improved formatting
         profit_pct_str = "[dim]N/A[/dim]"
         if entry_price_numeric > 0 and target_price_numeric:
             if target_price_numeric > entry_price_numeric:
                 profit_pct = ((target_price_numeric - entry_price_numeric) / entry_price_numeric) * 100
-                # Color code based on gain amount
-                if profit_pct >= 20:
-                    profit_pct_str = f"[bright_green]{profit_pct:.1f}%[/bright_green]"
-                elif profit_pct >= 15:
-                    profit_pct_str = f"[green]{profit_pct:.1f}%[/green]"
-                elif profit_pct >= 10:
-                    profit_pct_str = f"[yellow]{profit_pct:.1f}%[/yellow]"
-                else:
-                    profit_pct_str = f"[dim]{profit_pct:.1f}%[/dim]"
+                profit_pct_str = _format_gain_percent(profit_pct)
             else:
                 profit_pct_str = "[red]N/A[/red]"
+        elif entry_price_numeric > 0:
+            # Estimate gain if no target available
+            estimated_gain = 10.0  # Conservative estimate
+            profit_pct_str = _format_gain_percent(estimated_gain)
         
         # Calculate position size recommendation
         position_size_str = "[dim]N/A[/dim]"
@@ -1199,15 +1392,27 @@ def print_screener_results(results: List[Dict[str, Any]], limit: Optional[int] =
         else:
             price = f"${current_price:.2f}"
         
-        change_pct = result.get('change_pct', 0)
-        change = format_percentage(change_pct)
-        
-        # Keep Rich markup in profit_timeline - Rich will wrap if needed
-        # No truncation needed since we're using overflow="fold"
-
-        table.add_row(rank, symbol, name, sector, priority, rsi_str, signal_str, recommendation, entry_status, div_yield_str, entry_price_str, profit_target_str, profit_pct_str, position_size_str, profit_timeline_str, price, change)
+        # Use condensed table format (10 columns)
+        table.add_row(
+            rank, 
+            symbol, 
+            name, 
+            sector, 
+            rsi_str, 
+            signal_str, 
+            recommendation, 
+            entry_with_status,  # Merged Entry + Status
+            profit_target_str, 
+            profit_pct_str  # Gain% in prominent last position
+        )
 
     wide_console.print(table)
+    
+    # Add legend for entry status icons
+    console.print("\n[dim]💡 Legend:[/dim]")
+    console.print("[dim]  Entry Status: ⬇️ Below Entry (Best!) | ✅ In Entry Zone | ⬆️ Above Entry (Wait) | ⚠️ Caution[/dim]")
+    console.print("[dim]  Gain%: 🟢🟢 Excellent (7%+) | 🟢 Good (5-7%) | 🟡 Moderate (3-5%) | 🟠 Low (1-3%)[/dim]")
+    console.print("[dim]  Signals: 🟢RSI Oversold | 📈MACD Bullish | 🔥SQZ BB Squeeze | ⚠️DIV Divergence[/dim]")
 
     if limit and len(results) > limit:
         console.print(f"\n[dim]... and {len(results) - limit} more results[/dim]")

@@ -117,7 +117,8 @@ def cmd_run(args):
             print_header("Daily Screener Results", f"{len(results)} stocks analyzed")
             # Check if user wants BUY recommendations only
             show_buy_only = getattr(args, 'buy_only', False)
-            print_screener_results(results, limit=args.top, show_buy_only=show_buy_only)
+            sort_by = getattr(args, 'sort_by', 'gain')
+            print_screener_results(results, limit=args.top, show_buy_only=show_buy_only, sort_by=sort_by)
         else:
             # Use traditional text output
             print("\n")
@@ -384,6 +385,12 @@ def main():
         '--buy-only',
         action='store_true',
         help='Show only BUY and STRONG BUY recommendations'
+    )
+    run_parser.add_argument(
+        '--sort-by',
+        choices=['gain', 'opportunity', 'rsi', 'priority'],
+        default='gain',
+        help='Sort results by: gain (default, highest profit potential), opportunity (composite score), rsi (oversold first), or priority (original score)'
     )
     run_parser.set_defaults(func=cmd_run)
 

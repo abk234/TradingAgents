@@ -59,6 +59,26 @@ except ImportError:
     LANGFUSE_AVAILABLE = False
     get_langfuse_tracer = None
 
+# Middleware integration
+try:
+    from tradingagents.middleware import (
+        TradingMiddleware, 
+        TokenTrackingMiddleware, 
+        SummarizationMiddleware,
+        TodoListMiddleware,
+        FilesystemMiddleware,
+        SubAgentMiddleware
+    )
+    MIDDLEWARE_AVAILABLE = True
+except ImportError:
+    MIDDLEWARE_AVAILABLE = False
+    TradingMiddleware = None
+    TokenTrackingMiddleware = None
+    SummarizationMiddleware = None
+    TodoListMiddleware = None
+    FilesystemMiddleware = None
+    SubAgentMiddleware = None
+
 logger = logging.getLogger(__name__)
 
 
@@ -73,6 +93,12 @@ class TradingAgentsGraph:
         enable_rag: bool = True,
         db: Optional[DatabaseConnection] = None,
         enable_langfuse: bool = False,
+        middleware: Optional[List] = None,
+        enable_token_tracking: bool = True,
+        enable_summarization: bool = True,
+        enable_todo_lists: bool = True,
+        enable_filesystem: bool = True,
+        enable_subagents: bool = True,
     ):
         """Initialize the trading agents graph and components.
 
@@ -83,12 +109,89 @@ class TradingAgentsGraph:
             enable_rag: Whether to enable RAG-based historical context
             db: DatabaseConnection instance (optional, creates new if None)
             enable_langfuse: Whether to enable Langfuse tracing (default: False, set LANGFUSE_ENABLED=true to enable)
+            middleware: Optional list of middleware instances to use
+            enable_token_tracking: Whether to enable token tracking middleware (default: True)
+            enable_summarization: Whether to enable summarization middleware (default: True)
+            enable_todo_lists: Whether to enable todo list middleware (default: True)
+            enable_filesystem: Whether to enable filesystem middleware (default: True)
+            enable_subagents: Whether to enable sub-agent delegation middleware (default: True)
         """
         self.debug = debug
         self.config = config or DEFAULT_CONFIG
         self.enable_rag = enable_rag
         self.enable_langfuse = enable_langfuse
         self.selected_analysts = selected_analysts
+        
+        # Initialize middleware
+        self.middleware = middleware or []
+        
+        # Add default middleware if enabled and available
+        if MIDDLEWARE_AVAILABLE:
+            if enable_token_tracking and TokenTrackingMiddleware:
+                # Check if token tracking middleware already exists
+                has_token_tracking = any(
+                    isinstance(mw, TokenTrackingMiddleware) for mw in self.middleware
+                )
+                if not has_token_tracking:
+                    token_middleware = TokenTrackingMiddleware(
+                        model=self.config.get("deep_think_llm", "gpt-4o")
+                    )
+                    self.middleware.append(token_middleware)
+                    logger.info("✓ Token tracking middleware enabled")
+            
+            if enable_summarization and SummarizationMiddleware:
+                # Check if summarization middleware already exists
+                has_summarization = any(
+                    isinstance(mw, SummarizationMiddleware) for mw in self.middleware
+                )
+                if not has_summarization:
+                    summarization_middleware = SummarizationMiddleware(
+                        token_threshold=self.config.get("summarization_threshold", 50000),
+                        summarization_model=self.config.get("summarization_model", "gpt-4o-mini"),
+                        llm_provider=self.config.get("llm_provider", "openai")
+                    )
+                    self.middleware.append(summarization_middleware)
+                    logger.info("✓ Summarization middleware enabled")
+            
+            if enable_todo_lists and TodoListMiddleware:
+                # Check if todo list middleware already exists
+                has_todo_lists = any(
+                    isinstance(mw, TodoListMiddleware) for mw in self.middleware
+                )
+                if not has_todo_lists:
+                    todo_middleware = TodoListMiddleware()
+                    self.middleware.append(todo_middleware)
+                    logger.info("✓ Todo list middleware enabled")
+            
+            if enable_filesystem and FilesystemMiddleware:
+                # Check if filesystem middleware already exists
+                has_filesystem = any(
+                    isinstance(mw, FilesystemMiddleware) for mw in self.middleware
+                )
+                if not has_filesystem:
+                    fs_root = self.config.get("filesystem_root", "/tmp/tradingagents")
+                    fs_middleware = FilesystemMiddleware(root_dir=fs_root)
+                    self.middleware.append(fs_middleware)
+                    logger.info(f"✓ Filesystem middleware enabled (root: {fs_root})")
+            
+            if enable_subagents and MIDDLEWARE_AVAILABLE and SubAgentMiddleware:
+                # Check if sub-agent middleware already exists
+                has_subagents = any(
+                    isinstance(mw, SubAgentMiddleware) for mw in self.middleware
+                )
+                if not has_subagents:
+                    subagent_middleware = SubAgentMiddleware(config=self.config)
+                    self.middleware.append(subagent_middleware)
+                    logger.info("✓ Sub-agent delegation middleware enabled")
+        
+        # Collect all middleware tools
+        self.middleware_tools = []
+        for mw in self.middleware:
+            if hasattr(mw, 'tools'):
+                self.middleware_tools.extend(mw.tools)
+        
+        if self.middleware_tools:
+            logger.info(f"✓ Loaded {len(self.middleware_tools)} middleware tools")
         
         # Initialize Langfuse tracer if available and enabled
         self.langfuse_tracer = None
@@ -241,39 +344,41 @@ class TradingAgentsGraph:
 
     def _create_tool_nodes(self) -> Dict[str, ToolNode]:
         """Create tool nodes for different data sources using abstract methods."""
+        # Base tools for each analyst type
+        base_tools = {
+            "market": [
+                # Core stock data tools
+                get_stock_data,
+                # Technical indicators
+                get_indicators,
+            ],
+            "social": [
+                # News tools for social media analysis
+                get_news,
+            ],
+            "news": [
+                # News and insider information
+                get_news,
+                get_global_news,
+                get_insider_sentiment,
+                get_insider_transactions,
+            ],
+            "fundamentals": [
+                # Fundamental analysis tools
+                get_fundamentals,
+                get_balance_sheet,
+                get_cashflow,
+                get_income_statement,
+            ],
+        }
+        
+        # Add middleware tools to all tool nodes
+        for analyst_type in base_tools:
+            base_tools[analyst_type].extend(self.middleware_tools)
+        
         return {
-            "market": ToolNode(
-                [
-                    # Core stock data tools
-                    get_stock_data,
-                    # Technical indicators
-                    get_indicators,
-                ]
-            ),
-            "social": ToolNode(
-                [
-                    # News tools for social media analysis
-                    get_news,
-                ]
-            ),
-            "news": ToolNode(
-                [
-                    # News and insider information
-                    get_news,
-                    get_global_news,
-                    get_insider_sentiment,
-                    get_insider_transactions,
-                ]
-            ),
-            "fundamentals": ToolNode(
-                [
-                    # Fundamental analysis tools
-                    get_fundamentals,
-                    get_balance_sheet,
-                    get_cashflow,
-                    get_income_statement,
-                ]
-            ),
+            analyst_type: ToolNode(tools)
+            for analyst_type, tools in base_tools.items()
         }
 
     def propagate(self, company_name, trade_date, store_analysis: bool = False):
@@ -313,6 +418,10 @@ class TradingAgentsGraph:
             company_name, trade_date, historical_context
         )
         
+        # Apply middleware pre-processing
+        for mw in self.middleware:
+            init_agent_state = mw.pre_process(init_agent_state)
+        
         # Get Langfuse callback handler if enabled
         langfuse_callbacks = []
         if self.langfuse_tracer and self.langfuse_tracer.enabled:
@@ -349,12 +458,19 @@ class TradingAgentsGraph:
                     pass
                 else:
                     chunk["messages"][-1].pretty_print()
+                    # Apply middleware post-processing to each chunk
+                    for mw in self.middleware:
+                        chunk = mw.post_process(chunk)
                     trace.append(chunk)
 
             final_state = trace[-1]
         else:
             # Standard mode without tracing
             final_state = self.graph.invoke(init_agent_state, **args)
+            
+            # Apply middleware post-processing to final state
+            for mw in self.middleware:
+                final_state = mw.post_process(final_state)
 
         # Store current state for reflection
         self.curr_state = final_state
@@ -382,6 +498,15 @@ class TradingAgentsGraph:
         # Add profitability enhancements to final state if available
         if profitability_enhancements:
             final_state["profitability_enhancements"] = profitability_enhancements
+        
+        # Log token usage if tracking is enabled
+        if self.middleware and MIDDLEWARE_AVAILABLE and TokenTrackingMiddleware:
+            for mw in self.middleware:
+                if isinstance(mw, TokenTrackingMiddleware):
+                    token_summary = mw.get_summary()
+                    if token_summary:
+                        logger.info(f"Token usage summary: {token_summary}")
+                        final_state["_token_usage_summary"] = token_summary
 
         # Return decision and processed signal
         return final_state, self.process_signal(final_state["final_trade_decision"])

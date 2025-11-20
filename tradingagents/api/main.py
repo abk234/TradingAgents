@@ -3,12 +3,14 @@ from fastapi import FastAPI, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from contextlib import asynccontextmanager
+from prometheus_client import make_asgi_app
+from prometheus_fastapi_instrumentator import Instrumentator
 import uvicorn
 import os
 import json
 
 from tradingagents.api.models import (
-    ChatRequest, ChatResponse, 
+    ChatRequest, ChatResponse,
     AnalysisRequest, AnalysisResponse,
     FeedbackRequest
 )
@@ -16,6 +18,7 @@ from tradingagents.bot.conversational_agent import ConversationalAgent
 from tradingagents.default_config import DEFAULT_CONFIG
 from tradingagents.database.learning_ops import LearningOperations
 from tradingagents.monitoring.langfuse_integration import get_langfuse_tracer
+from tradingagents.monitoring.metrics import TradingMetrics
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -24,6 +27,7 @@ logger = logging.getLogger("api")
 # Global instances
 agent = None
 learning_ops = None
+trading_metrics = TradingMetrics()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -70,6 +74,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Prometheus metrics instrumentation
+Instrumentator().instrument(app).expose(app, endpoint="/metrics")
+
+# Mount additional Prometheus metrics
+metrics_app = make_asgi_app()
+app.mount("/metrics/internal", metrics_app)
+
 @app.get("/")
 async def root():
     return {"status": "ok", "message": "TradingAgents API is running"}
@@ -90,14 +101,17 @@ async def chat(request: ChatRequest):
     """
     if not agent:
         raise HTTPException(status_code=503, detail="Agent not initialized")
-    
+
+    # Track chat request
+    trading_metrics.track_chat_request()
+
     try:
         # Log prompt metadata if provided
         if request.prompt_type or request.prompt_id:
             logger.info(f"Predefined prompt used - Type: {request.prompt_type}, ID: {request.prompt_id}")
         # Convert Pydantic models to dicts for the agent
         history = [
-            {"role": msg.role.value, "content": msg.content} 
+            {"role": msg.role.value, "content": msg.content}
             for msg in request.conversation_history
         ]
         
@@ -113,13 +127,22 @@ async def chat(request: ChatRequest):
                 "prompt_id": request.prompt_id
             }
             logger.info(f"Applying prompt-specific optimizations for {request.prompt_type}/{request.prompt_id}")
-        
+
+        # Track agent processing time
+        import time
+        start_time = time.time()
+
         response_text = await agent.chat(
             message=request.message,
             history=history,
             prompt_metadata=prompt_metadata
         )
-        
+
+        # Record processing time
+        processing_time = time.time() - start_time
+        trading_metrics.track_agent_processing_time(processing_time)
+        trading_metrics.track_successful_chat()
+
         # Log interaction to database for learning
         if learning_ops and request.conversation_id:
             # Log user message with prompt metadata
@@ -149,8 +172,10 @@ async def chat(request: ChatRequest):
             response=response_text,
             conversation_id=request.conversation_id or "new_session"
         )
-        
+
+
     except Exception as e:
+        trading_metrics.track_failed_chat()
         logger.error(f"Error in chat endpoint: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -316,8 +341,10 @@ async def feedback(request: FeedbackRequest):
     """
     if not learning_ops:
         raise HTTPException(status_code=503, detail="Learning ops not initialized")
-        
+
     try:
+        # Track feedback
+        trading_metrics.track_user_feedback(request.rating)
         logger.info(f"Received feedback: {request}")
         
         # If we have a message_id (which maps to interaction_id), update the record

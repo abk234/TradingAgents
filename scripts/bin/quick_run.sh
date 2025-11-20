@@ -53,6 +53,8 @@ show_usage() {
     echo "  stats             - Quick performance statistics"
     echo "  indicators [TICK...] - Show all indicators (or for specific ticker(s))"
     echo "                         Can specify multiple tickers: indicators AAPL MSFT GOOGL"
+    echo "                         Multiple tickers show comparison table (easier to scan)"
+    echo "                         Use --detailed to show full breakdown for each ticker"
     echo "                         Use --refresh to recalculate indicators"
     echo "                         Use --refresh-data to fetch fresh data first"
     echo "  indexes           - Show market indexes and regime analysis"
@@ -244,6 +246,7 @@ case "$COMMAND" in
     "indicators")
         REFRESH_FLAG=""
         REFRESH_DATA_FLAG=""
+        DETAILED_FLAG=""
         TICKERS=()
         
         # Parse arguments - collect tickers and flags
@@ -255,6 +258,9 @@ case "$COMMAND" in
                     ;;
                 --refresh-data)
                     REFRESH_DATA_FLAG="--refresh-data"
+                    ;;
+                --detailed)
+                    DETAILED_FLAG="--detailed"
                     ;;
                 *)
                     # Assume it's a ticker symbol
@@ -288,6 +294,11 @@ case "$COMMAND" in
             else
                 echo -e "${CYAN}Technical Indicators Reference Guide:${NC}\n"
             fi
+        fi
+        
+        # Add --detailed flag if specified
+        if [ -n "$DETAILED_FLAG" ]; then
+            CMD_ARGS+=("--detailed")
         fi
         
         $VENV_PATH/bin/python -m tradingagents.screener.show_indicators "${CMD_ARGS[@]}"
