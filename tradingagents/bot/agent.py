@@ -137,17 +137,61 @@ class TradingAgent:
             # Stream response with better chunk handling
             async for chunk in self.agent.astream(inputs):
                 chunks_processed += 1
-                
+
+                # Debug: Log every chunk in debug mode
+                if self.debug and chunks_processed <= 5:
+                    logger.info(f"Chunk {chunks_processed} type: {type(chunk)}, keys: {chunk.keys() if isinstance(chunk, dict) else 'N/A'}")
+                    if isinstance(chunk, dict):
+                        # Log all available keys and their content types
+                        for key in chunk.keys():
+                            val = chunk[key]
+                            logger.info(f"  Key '{key}': type={type(val)}")
+
+                            # If it's a dict, show its keys
+                            if isinstance(val, dict):
+                                logger.info(f"    Dict keys: {list(val.keys())}")
+                                if 'messages' in val:
+                                    logger.info(f"    Has messages: count={len(val['messages'])}, types={[type(m).__name__ for m in val['messages']]}")
+                            # If it's a list
+                            elif isinstance(val, list):
+                                logger.info(f"    List count: {len(val)}, types: {[type(m).__name__ for m in val]}")
+                            # If it has messages attribute
+                            elif hasattr(val, 'messages'):
+                                logger.info(f"    Has messages attribute: {len(val.messages)}, types: {[type(m).__name__ for m in val.messages]}")
+
                 # Log progress every 10 chunks
                 if chunks_processed % 10 == 0:
                     logger.debug(f"Processed {chunks_processed} chunks...")
-                
+
                 # Handle different chunk formats
                 if isinstance(chunk, dict):
-                    # Check for messages in chunk
-                    if "messages" in chunk and len(chunk["messages"]) > 0:
-                        last_message = chunk["messages"][-1]
-                        final_state_messages = chunk["messages"]  # Keep track of all messages
+                    # LangGraph can return chunks in different formats
+                    messages = None
+
+                    # Format 1: Direct messages key
+                    if "messages" in chunk and chunk["messages"]:
+                        messages = chunk["messages"]
+                    # Format 2: Agent dict state with messages
+                    elif "agent" in chunk:
+                        agent_state = chunk["agent"]
+                        if isinstance(agent_state, dict) and "messages" in agent_state:
+                            messages = agent_state["messages"]
+                        elif hasattr(agent_state, 'messages'):
+                            messages = agent_state.messages
+                    # Format 3: Other node keys that might contain messages
+                    if not messages:
+                        for key, value in chunk.items():
+                            if isinstance(value, dict) and "messages" in value and value["messages"]:
+                                messages = value["messages"]
+                                break
+                            elif hasattr(value, 'messages') and value.messages:
+                                messages = value.messages
+                                break
+
+                    # Process messages if found
+                    if messages and len(messages) > 0:
+                        last_message = messages[-1]
+                        final_state_messages = messages  # Keep track of all messages
                         
                         # Handle AIMessage with content
                         if hasattr(last_message, 'content') and last_message.content:

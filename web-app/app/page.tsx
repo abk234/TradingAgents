@@ -22,7 +22,7 @@ export default function Home() {
       case "direct":
         return <DirectAnalysis />
       case "portfolio":
-        return <PortfolioView />
+        return <PortfolioView onNavigateToAnalysis={(ticker) => setActiveView("direct")} />
       case "risk":
         return <RiskDashboard />
       case "history":

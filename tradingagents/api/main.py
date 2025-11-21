@@ -207,22 +207,13 @@ async def chat_stream(request: ChatRequest):
             
             # Send initial connection event
             yield f"data: {json.dumps({'type': 'connected'})}\n\n"
-            
-            # Check agent has required attributes
-            if not hasattr(agent, 'trading_agent') or not hasattr(agent, '_format_history'):
-                error_data = {
-                    "type": "error",
-                    "message": "Agent not properly initialized"
-                }
-                yield f"data: {json.dumps(error_data)}\n\n"
-                return
-            
+
             # Convert Pydantic models to dicts for the agent
             history = [
-                {"role": msg.role.value, "content": msg.content} 
+                {"role": msg.role.value, "content": msg.content}
                 for msg in request.conversation_history
             ]
-            
+
             # Apply prompt-specific optimizations
             prompt_metadata = None
             if request.prompt_type or request.prompt_id:
@@ -230,42 +221,43 @@ async def chat_stream(request: ChatRequest):
                     "prompt_type": request.prompt_type,
                     "prompt_id": request.prompt_id
                 }
-            
+
             # Initialize state tracker
             state_tracker = get_state_tracker()
             from tradingagents.bot.state_tracker import EddieState
-            
+
             # Set initial state
             state_tracker.set_state(EddieState.PROCESSING, "Processing your request...")
             state_tracker.clear_active_tools()
-            
-            # Stream from the trading agent
+
+            # Stream from the conversational agent (with intent classification)
             full_response = ""
             tool_calls = set()  # Use set to avoid duplicates
             active_tools = []
-            
-            async for chunk in agent.trading_agent.astream(
-                request.message, 
-                conversation_history=agent._format_history(history)
+
+            async for chunk in agent.chat_stream(
+                message=request.message,
+                history=history,
+                prompt_metadata=prompt_metadata
             ):
                 # Parse chunk to detect tool calls and content
                 chunk_str = str(chunk)
-                
+
                 # Detect tool calls (format: "🔧 Using tools: tool1, tool2...")
                 if "🔧 Using tools:" in chunk_str:
                     # Extract tool names
                     tool_line = chunk_str.split("🔧 Using tools:")[1].split("\n")[0].strip()
                     tool_names = [t.strip() for t in tool_line.replace("...", "").split(",") if t.strip()]
-                    
+
                     for tool_name in tool_names:
                         tool_calls.add(tool_name)
                         if tool_name not in active_tools:
                             active_tools.append(tool_name)
                             state_tracker.add_active_tool(tool_name)
-                    
+
                     # Update state message
                     state_tracker.set_state(EddieState.PROCESSING, f"Using tools: {', '.join(active_tools)}")
-                    
+
                     # Send progress event
                     progress_data = {
                         "type": "progress",
@@ -273,7 +265,7 @@ async def chat_stream(request: ChatRequest):
                         "message": f"Using tools: {', '.join(active_tools)}"
                     }
                     yield f"data: {json.dumps(progress_data)}\n\n"
-                
+
                 # Regular content chunks (skip progress dots and warnings)
                 elif chunk_str.strip() and chunk_str != "." and not chunk_str.startswith("⚠️"):
                     # If we have active tools and content starts, mark tools as completed
@@ -285,11 +277,11 @@ async def chat_stream(request: ChatRequest):
                         }
                         yield f"data: {json.dumps(completed_data)}\n\n"
                         active_tools = []
-                    
+
                     # Update state to speaking when content starts
                     if not full_response:  # First content chunk
                         state_tracker.set_state(EddieState.SPEAKING, "Generating response...")
-                    
+
                     # Send content chunk
                     content_data = {
                         "type": "content",

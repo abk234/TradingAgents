@@ -75,3 +75,65 @@ export interface PromptAnalytics {
     avg_rating: number
     daily_usage: Record<string, number>
 }
+
+// Historical Analysis Types
+export interface HistoricalAnalysis {
+    id: string
+    ticker: string
+    date: string
+    type: "analysis" | "chat"
+    summary: string
+    sentiment: "bullish" | "bearish" | "neutral"
+    conversation_id?: string
+    confidence?: number
+}
+
+export interface HistoricalResponse {
+    analyses: HistoricalAnalysis[]
+    total: number
+}
+
+// Performance and Portfolio Types
+export interface PerformanceData {
+    month: string
+    return: number
+}
+
+export interface AllocationData {
+    name: string
+    value: number
+}
+
+export interface PortfolioPerformance {
+    monthly_returns: PerformanceData[]
+    sector_allocation: AllocationData[]
+    ytd_return: number
+    win_rate: number
+    profit_factor: number
+}
+
+// Risk Analysis Types
+export interface RiskAnalysisRequest {
+    positions: Array<{
+        ticker: string
+        shares: number
+        entryPrice: number
+    }>
+    total_value: number
+}
+
+export interface RiskAnalysisResponse {
+    var: number
+    sharpe_ratio: number
+    beta: number
+    volatility: number
+    risk_alerts: RiskAlert[]
+    sector_concentration: Record<string, number>
+}
+
+export interface RiskAlert {
+    level: "high" | "medium" | "low"
+    type: "concentration" | "volatility" | "correlation" | "liquidity"
+    title: string
+    description: string
+}

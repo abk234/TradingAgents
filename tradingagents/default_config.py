@@ -66,4 +66,5 @@ DEFAULT_CONFIG = {
     "enable_sector_rotation": True,  # Sector rotation detection
     "enable_correlation_check": True,  # Correlation-based risk management
     "enable_adaptive_config": True,  # ✅ Adjust strategy based on market regime
+    "debug": True,  # Enable debug logging
 }

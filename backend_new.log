@@ -1,0 +1,43 @@
+INFO:     Will watch for changes in these directories: ['/Users/lxupkzwjs/Developer/eval/TradingAgents']
+INFO:     Uvicorn running on http://0.0.0.0:8005 (Press CTRL+C to quit)
+INFO:     Started reloader process [27565] using WatchFiles
+INFO:     Started server process [27601]
+INFO:     Waiting for application startup.
+INFO:api:Initializing Conversational Agent...
+INFO:api:Langfuse tracing enabled via environment variables
+INFO:tradingagents.bot.agent:✓ TradingAgent initialized with 27 tools
+INFO:tradingagents.database.connection:✓ Monitored connection pool created for 'investment_intelligence'
+INFO:tradingagents.database.learning_ops:✓ Learning tables initialized
+INFO:api:Conversational Agent and Learning Ops initialized successfully.
+INFO:     Application startup complete.
+INFO:     127.0.0.1:55349 - "GET /metrics HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55352 - "GET /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55375 - "GET /metrics HTTP/1.1" 200 OK
+INFO:tradingagents.cognitive.cognitive_controller:Cognitive mode decision: analyst (confidence: 0.50) - Standard analytical mode
+INFO:tradingagents.bot.conversational_agent:Cognitive mode: analyst - Standard analytical mode
+INFO:tradingagents.bot.conversational_agent:Detected intent: ANALYSIS for message: Show me the top 3 stocks...
+INFO:tradingagents.bot.agent:Starting astream for: Show me the top 3 stocks...
+INFO:     127.0.0.1:55419 - "GET /metrics HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55422 - "GET /metrics HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55423 - "GET /metrics HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55424 - "GET /metrics HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55425 - "GET /metrics HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55427 - "GET /metrics HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55428 - "GET /metrics HTTP/1.1" 200 OK
+INFO:tradingagents.bot.agent:Chunk 1 type: <class 'dict'>, keys: dict_keys(['agent'])
+INFO:tradingagents.bot.agent:  Key 'agent': type=<class 'dict'>
+INFO:tradingagents.bot.agent:    Dict keys: ['messages']
+INFO:tradingagents.bot.agent:    Has messages: count=1, types=['AIMessage']
+INFO:tradingagents.bot.agent:Streaming completed. Processed 1 chunks, yielded content: True, tools used: 0
+INFO:     127.0.0.1:55377 - "POST /chat HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55432 - "GET /metrics HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55449 - "GET /metrics HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55468 - "GET /metrics HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55470 - "GET /metrics HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55472 - "GET /metrics HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55473 - "GET /metrics HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55474 - "GET /metrics HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55475 - "GET /metrics HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55476 - "GET /metrics HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55477 - "GET /metrics HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55482 - "GET /metrics HTTP/1.1" 200 OK

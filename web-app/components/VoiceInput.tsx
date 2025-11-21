@@ -34,7 +34,11 @@ export function VoiceInput({ onTranscription, onError, className }: VoiceInputPr
 
     const connectWebSocket = async () => {
         try {
-            const ws = new WebSocket("ws://localhost:8005/voice/ws")
+            // Dynamically construct WebSocket URL based on current location
+            const protocol = window.location.protocol === "https:" ? "wss:" : "ws:"
+            const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8005"
+            const wsUrl = apiUrl.replace(/^https?:/, protocol) + "/voice/ws"
+            const ws = new WebSocket(wsUrl)
 
             ws.onopen = () => {
                 setIsConnected(true)
@@ -142,26 +146,28 @@ export function VoiceInput({ onTranscription, onError, className }: VoiceInputPr
             mediaRecorder.start(100) // Send chunks every 100ms
             setIsRecording(true)
 
-        } catch (error: any) {
+        } catch (error) {
+            const err = error as DOMException | Error
+
             // Only log non-permission errors to avoid console noise for expected user actions
-            if (error.name !== "NotAllowedError" && error.name !== "PermissionDeniedError") {
-                console.error("Error starting recording:", error)
+            if (err.name !== "NotAllowedError" && err.name !== "PermissionDeniedError") {
+                console.error("Error starting recording:", err)
             }
 
             // Provide specific error messages based on error type
             let errorMessage = "Failed to access microphone. "
 
-            if (error.name === "NotAllowedError" || error.name === "PermissionDeniedError") {
+            if (err.name === "NotAllowedError" || err.name === "PermissionDeniedError") {
                 errorMessage += "Please allow microphone access in your browser settings. " +
                     "Look for the microphone icon in the address bar and click 'Allow', or check your browser's site permissions."
-            } else if (error.name === "NotFoundError" || error.name === "DevicesNotFoundError") {
+            } else if (err.name === "NotFoundError" || err.name === "DevicesNotFoundError") {
                 errorMessage += "No microphone found. Please connect a microphone and try again."
-            } else if (error.name === "NotReadableError" || error.name === "TrackStartError") {
+            } else if (err.name === "NotReadableError" || err.name === "TrackStartError") {
                 errorMessage += "Microphone is being used by another application. Please close other apps using the microphone."
-            } else if (error.name === "OverconstrainedError") {
+            } else if (err.name === "OverconstrainedError") {
                 errorMessage += "Microphone doesn't support the required settings. Please try a different microphone."
             } else {
-                errorMessage += `Error: ${error.message || "Unknown error"}.`
+                errorMessage += `Error: ${err.message || "Unknown error"}.`
             }
 
             onError?.(errorMessage)

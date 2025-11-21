@@ -5,7 +5,11 @@ import {
     AnalysisResponse,
     FeedbackRequest,
     AgentState,
-    PromptAnalytics
+    PromptAnalytics,
+    HistoricalResponse,
+    PortfolioPerformance,
+    RiskAnalysisRequest,
+    RiskAnalysisResponse
 } from "./types"
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8005"
@@ -70,6 +74,24 @@ class ApiClient {
 
     async getPromptAnalytics(days: number = 30): Promise<PromptAnalytics> {
         return this.request<PromptAnalytics>(`/analytics/prompts?days=${days}`)
+    }
+
+    // Historical Endpoints
+    async getHistoricalAnalyses(limit: number = 100, offset: number = 0): Promise<HistoricalResponse> {
+        return this.request<HistoricalResponse>(`/analytics/history?limit=${limit}&offset=${offset}`)
+    }
+
+    // Portfolio Performance
+    async getPortfolioPerformance(): Promise<PortfolioPerformance> {
+        return this.request<PortfolioPerformance>("/analytics/portfolio/performance")
+    }
+
+    // Risk Analysis
+    async analyzeRisk(request: RiskAnalysisRequest): Promise<RiskAnalysisResponse> {
+        return this.request<RiskAnalysisResponse>("/analytics/risk", {
+            method: "POST",
+            body: JSON.stringify(request),
+        })
     }
 
     // Voice Endpoints

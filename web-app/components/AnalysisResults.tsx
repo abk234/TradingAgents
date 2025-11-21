@@ -18,9 +18,20 @@ import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { StockChart } from "./StockChart"
 
+interface AnalysisData {
+    summary?: string
+    analysts?: Record<string, string>
+    debate?: {
+        bullish?: string
+        bearish?: string
+    }
+    decision?: string
+    recommendation?: string
+}
+
 interface AnalysisResultsProps {
     ticker: string
-    data: any // Structured analysis data
+    data: AnalysisData
     isLoading?: boolean
 }
 
@@ -174,7 +185,7 @@ export function AnalysisResults({ ticker, data, isLoading }: AnalysisResultsProp
 
                                 {activeTab === "analysts" && (
                                     <div className="space-y-8">
-                                        {Object.entries(data.analysts || {}).map(([role, content]: [string, any]) => (
+                                        {Object.entries(data.analysts || {}).map(([role, content]) => (
                                             <div key={role} className="border-b border-border/50 pb-6 last:border-0">
                                                 <h4 className="text-lg font-semibold capitalize mb-2 text-primary">{role.replace("_", " ")}</h4>
                                                 <ReactMarkdown remarkPlugins={[remarkGfm]}>

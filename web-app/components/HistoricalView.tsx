@@ -1,53 +1,67 @@
 "use client"
 
-import { useState } from "react"
-import { Search, Calendar, FileText, ArrowRight } from "lucide-react"
+import { useState, useEffect } from "react"
+import { Search, Calendar, FileText, ArrowRight, Loader2 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
-
-interface HistoricalItem {
-    id: string
-    ticker: string
-    date: string
-    type: "analysis" | "chat"
-    summary: string
-    sentiment: "bullish" | "bearish" | "neutral"
-}
+import { api } from "@/lib/api/client"
+import { HistoricalAnalysis } from "@/lib/api/types"
+import { toast } from "react-hot-toast"
 
 export function HistoricalView() {
     const [searchQuery, setSearchQuery] = useState("")
+    const [history, setHistory] = useState<HistoricalAnalysis[]>([])
+    const [isLoading, setIsLoading] = useState(true)
+    const [error, setError] = useState<string | null>(null)
 
-    // Mock data
-    const history: HistoricalItem[] = [
-        {
-            id: "1",
-            ticker: "NVDA",
-            date: "2024-03-15",
-            type: "analysis",
-            summary: "Strong buy signal based on new AI chip architecture announcement and increased data center demand.",
-            sentiment: "bullish"
-        },
-        {
-            id: "2",
-            ticker: "TSLA",
-            date: "2024-03-14",
-            type: "chat",
-            summary: "Discussion about Q1 delivery numbers and impact on margins. Cautious outlook.",
-            sentiment: "bearish"
-        },
-        {
-            id: "3",
-            ticker: "AAPL",
-            date: "2024-03-12",
-            type: "analysis",
-            summary: "Neutral stance pending WWDC announcements. Services revenue growth remains strong.",
-            sentiment: "neutral"
+    useEffect(() => {
+        const fetchHistory = async () => {
+            try {
+                setIsLoading(true)
+                setError(null)
+                const response = await api.getHistoricalAnalyses()
+                setHistory(response.analyses)
+            } catch (err) {
+                console.error("Failed to fetch historical analyses:", err)
+                setError("Failed to load history. Using cached data.")
+                toast.error("Failed to load analysis history")
+                // Fallback to mock data if API fails
+                setHistory([
+                    {
+                        id: "1",
+                        ticker: "NVDA",
+                        date: new Date().toISOString().split('T')[0],
+                        type: "analysis",
+                        summary: "Strong buy signal based on new AI chip architecture announcement and increased data center demand.",
+                        sentiment: "bullish"
+                    },
+                    {
+                        id: "2",
+                        ticker: "TSLA",
+                        date: new Date(Date.now() - 86400000).toISOString().split('T')[0],
+                        type: "chat",
+                        summary: "Discussion about Q1 delivery numbers and impact on margins. Cautious outlook.",
+                        sentiment: "bearish"
+                    },
+                    {
+                        id: "3",
+                        ticker: "AAPL",
+                        date: new Date(Date.now() - 2 * 86400000).toISOString().split('T')[0],
+                        type: "analysis",
+                        summary: "Neutral stance pending WWDC announcements. Services revenue growth remains strong.",
+                        sentiment: "neutral"
+                    }
+                ])
+            } finally {
+                setIsLoading(false)
+            }
         }
-    ]
+        fetchHistory()
+    }, [])
 
     const filteredHistory = history.filter(item =>
-        item.ticker.includes(searchQuery.toUpperCase()) ||
+        item.ticker.toLowerCase().includes(searchQuery.toLowerCase()) ||
         item.summary.toLowerCase().includes(searchQuery.toLowerCase())
     )
 
@@ -69,8 +83,22 @@ export function HistoricalView() {
                 </div>
             </div>
 
-            <div className="space-y-4">
-                {filteredHistory.map((item) => (
+            {isLoading ? (
+                <div className="flex items-center justify-center py-12">
+                    <Loader2 className="w-8 h-8 animate-spin text-primary" />
+                    <span className="ml-3 text-muted-foreground">Loading history...</span>
+                </div>
+            ) : filteredHistory.length === 0 ? (
+                <div className="text-center py-12 border-2 border-dashed border-border rounded-xl bg-card/50">
+                    <FileText className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
+                    <h3 className="text-lg font-medium mb-2">No history found</h3>
+                    <p className="text-muted-foreground">
+                        {searchQuery ? "Try a different search term" : "Start analyzing stocks to build your history"}
+                    </p>
+                </div>
+            ) : (
+                <div className="space-y-4">
+                    {filteredHistory.map((item) => (
                     <div
                         key={item.id}
                         className="bg-card border border-border rounded-xl p-4 hover:border-primary/50 transition-colors cursor-pointer group"
@@ -109,8 +137,9 @@ export function HistoricalView() {
                             </Button>
                         </div>
                     </div>
-                ))}
-            </div>
+                    ))}
+                </div>
+            )}
         </div>
     )
 }

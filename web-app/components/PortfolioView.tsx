@@ -18,7 +18,11 @@ import { usePortfolio } from "@/lib/hooks/usePortfolio"
 import { PositionCard } from "./PositionCard"
 import { cn } from "@/lib/utils"
 
-export function PortfolioView() {
+interface PortfolioViewProps {
+    onNavigateToAnalysis?: (ticker: string) => void
+}
+
+export function PortfolioView({ onNavigateToAnalysis }: PortfolioViewProps) {
     const { positions, addPosition, removePosition, getTotalValue, getTotalPL } = usePortfolio()
     const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
     const [newPosition, setNewPosition] = useState({
@@ -46,9 +50,9 @@ export function PortfolioView() {
     }
 
     const handleAnalyze = (ticker: string) => {
-        // In a real app, this would navigate to the analysis view with the ticker pre-filled
-        console.log(`Analyzing ${ticker}`)
-        // For now, we could use a toast or just log it
+        if (onNavigateToAnalysis) {
+            onNavigateToAnalysis(ticker)
+        }
     }
 
     return (

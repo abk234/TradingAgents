@@ -1,43 +1,66 @@
 import { useState, useEffect } from "react"
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts"
-import { TrendingUp, Target, Award, MessageSquare, ThumbsUp, Zap } from "lucide-react"
+import { TrendingUp, Target, Award, MessageSquare, ThumbsUp, Zap, Loader2 } from "lucide-react"
 import { api } from "@/lib/api/client"
-import { PromptAnalytics } from "@/lib/api/types"
+import { PromptAnalytics, PortfolioPerformance } from "@/lib/api/types"
+import { toast } from "react-hot-toast"
 
 export function AnalyticsView() {
     const [promptAnalytics, setPromptAnalytics] = useState<PromptAnalytics | null>(null)
+    const [portfolioPerformance, setPortfolioPerformance] = useState<PortfolioPerformance | null>(null)
+    const [isLoading, setIsLoading] = useState(true)
 
     useEffect(() => {
         const fetchAnalytics = async () => {
             try {
-                const data = await api.getPromptAnalytics()
-                setPromptAnalytics(data)
+                setIsLoading(true)
+                const [promptData, performanceData] = await Promise.all([
+                    api.getPromptAnalytics(),
+                    api.getPortfolioPerformance()
+                ])
+                setPromptAnalytics(promptData)
+                setPortfolioPerformance(performanceData)
             } catch (error) {
-                console.error("Failed to fetch prompt analytics:", error)
+                console.error("Failed to fetch analytics:", error)
+                toast.error("Failed to load analytics. Using sample data.")
+                // Set fallback data
+                setPortfolioPerformance({
+                    monthly_returns: [
+                        { month: "Jan", return: 5.2 },
+                        { month: "Feb", return: -2.1 },
+                        { month: "Mar", return: 8.4 },
+                        { month: "Apr", return: 3.7 },
+                        { month: "May", return: 1.2 },
+                        { month: "Jun", return: 6.5 },
+                    ],
+                    sector_allocation: [
+                        { name: "Technology", value: 45 },
+                        { name: "Finance", value: 20 },
+                        { name: "Healthcare", value: 15 },
+                        { name: "Consumer", value: 10 },
+                        { name: "Cash", value: 10 },
+                    ],
+                    ytd_return: 24.5,
+                    win_rate: 68.4,
+                    profit_factor: 2.15
+                })
+            } finally {
+                setIsLoading(false)
             }
         }
         fetchAnalytics()
     }, [])
 
-    // Mock data for charts (keep existing mock data for now as API doesn't provide time-series yet)
-    const performanceData = [
-        { month: "Jan", return: 5.2 },
-        { month: "Feb", return: -2.1 },
-        { month: "Mar", return: 8.4 },
-        { month: "Apr", return: 3.7 },
-        { month: "May", return: 1.2 },
-        { month: "Jun", return: 6.5 },
-    ]
-
-    const allocationData = [
-        { name: "Technology", value: 45 },
-        { name: "Finance", value: 20 },
-        { name: "Healthcare", value: 15 },
-        { name: "Consumer", value: 10 },
-        { name: "Cash", value: 10 },
-    ]
-
     const COLORS = ["#00C805", "#FF6B6B", "#3B82F6", "#F59E0B", "#9CA3AF"]
+
+    if (isLoading) {
+        return (
+            <div className="flex items-center justify-center h-96">
+                <Loader2 className="w-8 h-8 animate-spin text-primary" />
+                <span className="ml-3 text-muted-foreground">Loading analytics...</span>
+            </div>
+        )
+    }
 
     return (
         <div className="space-y-6">
@@ -48,21 +71,27 @@ export function AnalyticsView() {
                         <TrendingUp className="w-4 h-4" />
                         <span className="text-sm font-medium">YTD Return</span>
                     </div>
-                    <div className="text-3xl font-bold font-mono text-bullish">+24.5%</div>
+                    <div className="text-3xl font-bold font-mono text-bullish">
+                        +{portfolioPerformance?.ytd_return?.toFixed(1) || "0.0"}%
+                    </div>
                 </div>
                 <div className="bg-card border border-border rounded-xl p-6">
                     <div className="flex items-center gap-2 text-muted-foreground mb-2">
                         <Target className="w-4 h-4" />
                         <span className="text-sm font-medium">Win Rate</span>
                     </div>
-                    <div className="text-3xl font-bold font-mono">68.4%</div>
+                    <div className="text-3xl font-bold font-mono">
+                        {portfolioPerformance?.win_rate?.toFixed(1) || "0.0"}%
+                    </div>
                 </div>
                 <div className="bg-card border border-border rounded-xl p-6">
                     <div className="flex items-center gap-2 text-muted-foreground mb-2">
                         <Award className="w-4 h-4" />
                         <span className="text-sm font-medium">Profit Factor</span>
                     </div>
-                    <div className="text-3xl font-bold font-mono">2.15</div>
+                    <div className="text-3xl font-bold font-mono">
+                        {portfolioPerformance?.profit_factor?.toFixed(2) || "0.00"}
+                    </div>
                 </div>
             </div>
 
@@ -102,7 +131,7 @@ export function AnalyticsView() {
                 <div className="bg-card border border-border rounded-xl p-6 h-[400px]">
                     <h3 className="font-semibold mb-6">Monthly Performance</h3>
                     <ResponsiveContainer width="100%" height="85%">
-                        <BarChart data={performanceData}>
+                        <BarChart data={portfolioPerformance?.monthly_returns || []}>
                             <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
                             <XAxis dataKey="month" stroke="hsl(var(--muted-foreground))" fontSize={12} tickLine={false} axisLine={false} />
                             <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(val) => `${val}%`} />
@@ -120,7 +149,7 @@ export function AnalyticsView() {
                     <ResponsiveContainer width="100%" height="85%">
                         <PieChart>
                             <Pie
-                                data={allocationData}
+                                data={portfolioPerformance?.sector_allocation || []}
                                 cx="50%"
                                 cy="50%"
                                 innerRadius={60}
@@ -128,7 +157,7 @@ export function AnalyticsView() {
                                 paddingAngle={5}
                                 dataKey="value"
                             >
-                                {allocationData.map((entry, index) => (
+                                {(portfolioPerformance?.sector_allocation || []).map((entry, index) => (
                                     <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                                 ))}
                             </Pie>
@@ -138,7 +167,7 @@ export function AnalyticsView() {
                         </PieChart>
                     </ResponsiveContainer>
                     <div className="flex justify-center gap-4 flex-wrap mt-4">
-                        {allocationData.map((entry, index) => (
+                        {(portfolioPerformance?.sector_allocation || []).map((entry, index) => (
                             <div key={entry.name} className="flex items-center gap-2 text-xs">
                                 <div className="w-3 h-3 rounded-full" style={{ backgroundColor: COLORS[index % COLORS.length] }} />
                                 <span>{entry.name}</span>

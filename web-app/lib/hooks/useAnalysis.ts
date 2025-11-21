@@ -162,10 +162,11 @@ export function useAnalysis(): UseAnalysisReturn {
                 }
             }
 
-        } catch (error: any) {
-            if (error.name === 'AbortError') return
+        } catch (error) {
+            const err = error as Error
+            if (err.name === 'AbortError') return
 
-            console.error("Analysis Error:", error)
+            console.error("Analysis Error:", err)
             toast.error("Failed to complete analysis")
 
             setMessages(prev => prev.map(msg =>

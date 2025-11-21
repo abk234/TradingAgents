@@ -38,10 +38,10 @@ class ConversationalAgent:
     def __init__(self, config: Dict[str, Any] = None):
         self.config = config or DEFAULT_CONFIG
         self.debug = self.config.get("debug", False)
-        
+
         # Initialize the core LLM for conversation
         self.llm = ChatOpenAI(
-            model=self.config.get("quick_think_llm", "llama3.3"), # Use quick model for chat
+            model=self.config.get("quick_think_llm", "llama3.1"),
             base_url=self.config.get("backend_url", "http://localhost:11434/v1"),
             api_key="ollama",
             temperature=0.7
@@ -61,16 +61,95 @@ class ConversationalAgent:
         self.cognitive_controller = get_cognitive_controller()
         self.state_tracker = get_state_tracker() 
 
+    async def chat_stream(
+        self,
+        message: str,
+        history: List[Dict[str, str]],
+        user_preferences: Optional[Dict] = None,
+        prompt_metadata: Optional[Dict[str, str]] = None
+    ):
+        """
+        Process a user message and stream the response (streaming version).
+
+        Args:
+            message: User's message
+            history: Conversation history
+            user_preferences: Optional user preferences
+            prompt_metadata: Optional prompt metadata (prompt_type, prompt_id) for optimizations
+
+        Yields:
+            Response chunks
+        """
+        try:
+            # Apply prompt-specific optimizations
+            original_message = message
+            if prompt_metadata:
+                prompt_type = prompt_metadata.get("prompt_type")
+                prompt_id = prompt_metadata.get("prompt_id")
+
+                # Optimize based on prompt type
+                if prompt_type == "quick_wins":
+                    logger.info(f"Quick wins prompt detected - optimizing for speed")
+                    if "top" in message.lower() or "best" in message.lower() or "buy" in message.lower():
+                        message = f"[QUICK_WINS_MODE] {message}"
+
+                elif prompt_type == "analysis":
+                    logger.info(f"Analysis prompt detected - ensuring comprehensive analysis")
+                    if "analyze" not in message.lower():
+                        message = f"Analyze {message}"
+
+                elif prompt_type == "risk":
+                    logger.info(f"Risk management prompt detected - prioritizing risk assessment")
+                    message = f"[RISK_FOCUS] {message}"
+
+                elif prompt_type == "market":
+                    logger.info(f"Market intelligence prompt detected - prioritizing market context")
+                    message = f"[MARKET_INTELLIGENCE] {message}"
+
+            # Cognitive Mode Decision (v2.0)
+            system_health = self.state_tracker.get_state().system_health
+            mode_decision = self.cognitive_controller.decide_mode(
+                user_message=message,
+                market_conditions=None,
+                system_health=system_health,
+                user_emotional_state=None
+            )
+
+            logger.info(f"Cognitive mode: {mode_decision.mode.value} - {mode_decision.reasoning}")
+
+            # Intent Classification
+            intent = self._classify_intent(message)
+            logger.info(f"Detected intent: {intent} for message: {message[:50]}...")
+
+            if intent == "ANALYSIS":
+                # Delegate to Trading Agent (streaming)
+                async for chunk in self.trading_agent.astream(message, conversation_history=self._format_history(history)):
+                    yield chunk
+
+            elif intent == "KNOWLEDGE":
+                # TODO: Query RAG
+                context = "RSI (Relative Strength Index) is a momentum oscillator that measures the speed and change of price movements."
+                async for chunk in self._generate_conversational_response_stream(original_message, history, context):
+                    yield chunk
+
+            else:  # CHAT / GENERAL
+                async for chunk in self._generate_conversational_response_stream(original_message, history):
+                    yield chunk
+
+        except Exception as e:
+            logger.error(f"Error in ConversationalAgent.chat_stream: {e}", exc_info=True)
+            yield "I apologize, but I encountered an error processing your request. Please try again."
+
     async def chat(
-        self, 
-        message: str, 
-        history: List[Dict[str, str]], 
+        self,
+        message: str,
+        history: List[Dict[str, str]],
         user_preferences: Optional[Dict] = None,
         prompt_metadata: Optional[Dict[str, str]] = None
     ) -> str:
         """
         Process a user message and determine the best course of action.
-        
+
         Args:
             message: User's message
             history: Conversation history
@@ -195,24 +274,55 @@ class ConversationalAgent:
         # Add cognitive mode prompt addition (v2.0)
         mode_prompt = self.cognitive_controller.get_mode_prompt_addition()
         system_prompt_with_mode = SYSTEM_PROMPT + "\n" + mode_prompt
-        
+
         messages = [SystemMessage(content=system_prompt_with_mode)]
-        
+
         # Add history
         for msg in history:
             if msg["role"] == "user":
                 messages.append(HumanMessage(content=msg["content"]))
             elif msg["role"] == "assistant":
                 messages.append(AIMessage(content=msg["content"]))
-        
+
         # Add context if available
         if context:
             messages.append(SystemMessage(content=f"Relevant Knowledge Context: {context}"))
-            
+
         messages.append(HumanMessage(content=message))
-        
+
         response = await self.llm.ainvoke(messages)
         return response.content
+
+    async def _generate_conversational_response_stream(self, message: str, history: List[Dict[str, str]], context: str = None):
+        """
+        Generate a conversational response using the LLM (streaming version).
+        Yields chunks of text as they are generated.
+        """
+        # Add cognitive mode prompt addition (v2.0)
+        mode_prompt = self.cognitive_controller.get_mode_prompt_addition()
+        system_prompt_with_mode = SYSTEM_PROMPT + "\n" + mode_prompt
+
+        messages = [SystemMessage(content=system_prompt_with_mode)]
+
+        # Add history
+        for msg in history:
+            if msg["role"] == "user":
+                messages.append(HumanMessage(content=msg["content"]))
+            elif msg["role"] == "assistant":
+                messages.append(AIMessage(content=msg["content"]))
+
+        # Add context if available
+        if context:
+            messages.append(SystemMessage(content=f"Relevant Knowledge Context: {context}"))
+
+        messages.append(HumanMessage(content=message))
+
+        # Stream the response
+        async for chunk in self.llm.astream(messages):
+            if hasattr(chunk, 'content'):
+                yield chunk.content
+            else:
+                yield str(chunk)
 
     def _format_history(self, history: List[Dict[str, str]]) -> List:
         """Convert dict history to LangChain messages."""
