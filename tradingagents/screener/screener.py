@@ -396,6 +396,7 @@ class DailyScreener:
 
                 if prices and len(prices) > 0:
                     result['current_price'] = float(prices[0]['close'])
+                    result['current_volume'] = float(prices[0]['volume']) if prices[0].get('volume') else 0.0
                     result['name'] = result.get('company_name', 'N/A')
 
                     # Calculate change percentage
@@ -407,6 +408,7 @@ class DailyScreener:
                         result['change_pct'] = 0.0
                 else:
                     result['current_price'] = 0.0
+                    result['current_volume'] = 0.0
                     result['change_pct'] = 0.0
                     result['name'] = result.get('company_name', 'N/A')
 
@@ -450,6 +452,7 @@ class DailyScreener:
             
             if prices and len(prices) > 0:
                 result['current_price'] = float(prices[0]['close'])
+                result['current_volume'] = float(prices[0]['volume']) if prices[0].get('volume') else 0.0
                 result['name'] = result.get('company_name', 'N/A')
                 
                 # Calculate change percentage
@@ -461,6 +464,7 @@ class DailyScreener:
                     result['change_pct'] = 0.0
             else:
                 result['current_price'] = result.get('price', 0.0)
+                result['current_volume'] = result.get('volume', 0.0)
                 result['change_pct'] = 0.0
                 result['name'] = result.get('company_name', 'N/A')
         

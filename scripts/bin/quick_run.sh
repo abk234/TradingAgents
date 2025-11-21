@@ -51,9 +51,20 @@ show_usage() {
     echo "                     Use --refresh to refresh underlying data"
     echo "  alerts            - Check price alerts"
     echo "                     Use --refresh to refresh price data"
-    echo "  top               - Show top 5 opportunities"
+    echo "  top [N]           - Show top N opportunities (default: 5)"
     echo "                     Use --refresh to run fresh screener scan"
+    echo "                     Use --min-rr X to filter by R/R ratio (e.g., --min-rr 2.0)"
     echo "  stats             - Quick performance statistics"
+    echo ""
+    echo -e "${GREEN}Trading Metrics:${NC}"
+    echo "  professional      - Show professional-grade trades (R/R >= 2.0)"
+    echo "                     Use --min-rr X to change minimum R/R"
+    echo "  excellent         - Show excellent trades (R/R >= 3.0)"
+    echo "  setups [N]        - Detailed trade setups with position sizing (default: 10)"
+    echo "                     Use --account X --risk Y for custom sizing"
+    echo "  position TICKER   - Calculate position size for specific stock"
+    echo "                     Use --account X --risk Y for custom sizing"
+    echo "  trade-summary     - Today's actionable trades summary"
     echo "  indicators [TICK...] - Show all indicators (or for specific ticker(s))"
     echo "                         Can specify multiple tickers: indicators AAPL MSFT GOOGL"
     echo "                         Multiple tickers show comparison table (easier to scan)"
@@ -256,21 +267,145 @@ case "$COMMAND" in
 
     "top")
         REFRESH_FLAG=""
+        LIMIT=5
+        MIN_RR=""
         shift
         for arg in "$@"; do
             case "$arg" in
                 --refresh)
                     REFRESH_FLAG="--refresh"
                     ;;
+                --min-rr)
+                    shift
+                    MIN_RR="--min-rr $1"
+                    ;;
+                --min-rr=*)
+                    MIN_RR="--min-rr ${arg#*=}"
+                    ;;
+                [0-9]*)
+                    LIMIT="$arg"
+                    ;;
             esac
         done
-        echo -e "${CYAN}Top 5 Opportunities:${NC}\n"
-        $VENV_PATH/bin/python -m tradingagents.screener top 5 $REFRESH_FLAG
+        echo -e "${CYAN}Top $LIMIT Opportunities:${NC}\n"
+        $VENV_PATH/bin/python -m tradingagents.screener top $LIMIT $REFRESH_FLAG $MIN_RR
         ;;
 
     "stats")
         echo -e "${CYAN}Performance Statistics:${NC}\n"
         $VENV_PATH/bin/python -m tradingagents.evaluate stats
+        ;;
+
+    # Trading Metrics Commands
+    "professional")
+        MIN_RR=2.0
+        LIMIT=20
+        shift
+        for arg in "$@"; do
+            case "$arg" in
+                --min-rr)
+                    shift
+                    MIN_RR="$1"
+                    ;;
+                --min-rr=*)
+                    MIN_RR="${arg#*=}"
+                    ;;
+                [0-9]*)
+                    LIMIT="$arg"
+                    ;;
+            esac
+        done
+        echo -e "${CYAN}Professional-Grade Trades (R/R >= $MIN_RR):${NC}\n"
+        $VENV_PATH/bin/python -m tradingagents.screener.trading_commands professional --min-rr $MIN_RR --limit $LIMIT
+        ;;
+
+    "excellent")
+        LIMIT=20
+        shift
+        for arg in "$@"; do
+            case "$arg" in
+                [0-9]*)
+                    LIMIT="$arg"
+                    ;;
+            esac
+        done
+        echo -e "${CYAN}Excellent Trades (R/R >= 3.0):${NC}\n"
+        $VENV_PATH/bin/python -m tradingagents.screener.trading_commands professional --min-rr 3.0 --limit $LIMIT
+        ;;
+
+    "setups")
+        LIMIT=10
+        ACCOUNT=10000
+        RISK=1.0
+        MIN_RR=2.0
+        shift
+        for arg in "$@"; do
+            case "$arg" in
+                --account)
+                    shift
+                    ACCOUNT="$1"
+                    ;;
+                --account=*)
+                    ACCOUNT="${arg#*=}"
+                    ;;
+                --risk)
+                    shift
+                    RISK="$1"
+                    ;;
+                --risk=*)
+                    RISK="${arg#*=}"
+                    ;;
+                --min-rr)
+                    shift
+                    MIN_RR="$1"
+                    ;;
+                --min-rr=*)
+                    MIN_RR="${arg#*=}"
+                    ;;
+                [0-9]*)
+                    LIMIT="$arg"
+                    ;;
+            esac
+        done
+        echo -e "${CYAN}Detailed Trade Setups:${NC}\n"
+        $VENV_PATH/bin/python -m tradingagents.screener.trading_commands setups --min-rr $MIN_RR --limit $LIMIT --account $ACCOUNT --risk $RISK
+        ;;
+
+    "position")
+        if [ -z "$2" ]; then
+            echo -e "${RED}Error: Please provide a ticker symbol${NC}"
+            echo "Usage: ./quick_run.sh position AAPL [--account 10000] [--risk 1.0]"
+            exit 1
+        fi
+        TICKER="$2"
+        ACCOUNT=10000
+        RISK=1.0
+        shift 2
+        for arg in "$@"; do
+            case "$arg" in
+                --account)
+                    shift
+                    ACCOUNT="$1"
+                    ;;
+                --account=*)
+                    ACCOUNT="${arg#*=}"
+                    ;;
+                --risk)
+                    shift
+                    RISK="$1"
+                    ;;
+                --risk=*)
+                    RISK="${arg#*=}"
+                    ;;
+            esac
+        done
+        echo -e "${CYAN}Position Size Calculator for $TICKER:${NC}\n"
+        $VENV_PATH/bin/python -m tradingagents.screener.trading_commands position $TICKER --account $ACCOUNT --risk $RISK
+        ;;
+
+    "trade-summary")
+        echo -e "${CYAN}Today's Trade Summary:${NC}\n"
+        $VENV_PATH/bin/python -m tradingagents.screener.trading_commands summary
         ;;
 
     "indicators")

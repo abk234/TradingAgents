@@ -18,9 +18,29 @@ console = Console()
 
 def format_price(price: float) -> str:
     """Format price with currency."""
-    if price is None:
+    if price is None or price == 0:
         return "N/A"
     return f"${price:,.2f}"
+
+
+def format_volume(volume: float) -> str:
+    """Format volume with commas and abbreviations (M for millions, K for thousands)."""
+    if volume is None or volume == 0:
+        return "[dim]--[/dim]"
+    
+    volume = float(volume)
+    
+    if volume >= 1_000_000:
+        # Format as millions (e.g., 1.2M)
+        vol_m = volume / 1_000_000
+        return f"{vol_m:.1f}M"
+    elif volume >= 1_000:
+        # Format as thousands (e.g., 1.2K)
+        vol_k = volume / 1_000
+        return f"{vol_k:.1f}K"
+    else:
+        # Format with commas for smaller numbers
+        return f"{volume:,.0f}"
 
 
 def format_score(score: int) -> str:
@@ -206,6 +226,8 @@ def print_screener_results_clean(
     table.add_column("#", style="dim", width=2, justify="right")
     table.add_column("Symbol", style="bold cyan", width=6)
     table.add_column("Action", justify="left", width=10)
+    table.add_column("Price", justify="right", width=8)
+    table.add_column("Volume", justify="right", width=8)
     table.add_column("Entry", justify="right", width=7)
     table.add_column("Target", justify="right", width=7)
     table.add_column("Stop", justify="right", width=7)
@@ -219,6 +241,7 @@ def print_screener_results_clean(
         symbol = result.get('symbol', 'N/A')
         company_name = result.get('company_name', result.get('name', 'N/A'))[:22]
         current_price = result.get('current_price') or result.get('price', 0)
+        current_volume = result.get('current_volume') or result.get('volume', 0)
         priority_score = result.get('priority_score', 0)
 
         # Get technical signals
@@ -274,6 +297,8 @@ def print_screener_results_clean(
             str(idx),
             symbol,
             format_recommendation_clean(recommendation),
+            format_price(current_price),
+            format_volume(current_volume),
             format_price(entry_price) if entry_price else "[dim]--[/dim]",
             format_price(target_price) if target_price else "[dim]--[/dim]",
             format_price(stop_loss) if stop_loss else "[dim]--[/dim]",
