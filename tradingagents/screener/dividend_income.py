@@ -358,6 +358,45 @@ class DividendIncomeScreener:
             # Calculate annual income per $10,000 invested
             annual_income_per_10k = dividend_yield * 10000 if dividend_yield else 0
 
+            # Get trading metrics from latest daily_scans entry (if available)
+            trading_metrics_query = """
+                SELECT
+                    entry_price_min,
+                    entry_price_max,
+                    target,
+                    stop_loss,
+                    gain_percent,
+                    risk_reward_ratio,
+                    technical_signals,
+                    recommendation
+                FROM daily_scans
+                WHERE ticker_id = %s
+                ORDER BY scan_date DESC
+                LIMIT 1
+            """
+            trading_metrics_data = self.db.execute_dict_query(trading_metrics_query, (ticker_id,))
+
+            # Extract trading metrics
+            entry_price_min = None
+            entry_price_max = None
+            target_price = None
+            stop_loss = None
+            gain_percent = None
+            risk_reward_ratio = None
+            technical_signals = None
+            recommendation = None
+
+            if trading_metrics_data and len(trading_metrics_data) > 0:
+                metrics = trading_metrics_data[0]
+                entry_price_min = float(metrics['entry_price_min']) if metrics['entry_price_min'] else None
+                entry_price_max = float(metrics['entry_price_max']) if metrics['entry_price_max'] else None
+                target_price = float(metrics['target']) if metrics['target'] else None
+                stop_loss = float(metrics['stop_loss']) if metrics['stop_loss'] else None
+                gain_percent = float(metrics['gain_percent']) if metrics['gain_percent'] else None
+                risk_reward_ratio = float(metrics['risk_reward_ratio']) if metrics['risk_reward_ratio'] else None
+                technical_signals = metrics['technical_signals']
+                recommendation = metrics['recommendation']
+
             result = {
                 'ticker_id': ticker_id,
                 'symbol': symbol,
@@ -375,6 +414,15 @@ class DividendIncomeScreener:
                 'market_cap': market_cap,
                 'volatility': volatility,
                 'annual_income_per_10k': annual_income_per_10k,
+                # Trading metrics from daily_scans
+                'entry_price_min': entry_price_min,
+                'entry_price_max': entry_price_max,
+                'target': target_price,
+                'stop_loss': stop_loss,
+                'gain_percent': gain_percent,
+                'risk_reward_ratio': risk_reward_ratio,
+                'technical_signals': technical_signals,
+                '_recommendation': recommendation,
                 **score_result
             }
 

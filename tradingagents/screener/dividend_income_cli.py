@@ -15,6 +15,13 @@ from rich.text import Text
 
 from .dividend_income import DividendIncomeScreener
 from tradingagents.database import get_db_connection
+from tradingagents.utils.screener_table_formatter import (
+    format_recommendation_clean,
+    format_price,
+    format_gain_percentage,
+    format_rsi
+)
+import json
 
 logger = logging.getLogger(__name__)
 console = Console()
@@ -95,6 +102,13 @@ def display_results(results: List[Dict[str, Any]], show_details: bool = False):
     table.add_column("Symbol", style="bold cyan", width=8)
     table.add_column("Company", style="white", width=25, overflow="fold")
     table.add_column("Score", justify="center", width=10)
+    table.add_column("Action", justify="left", width=10)
+    table.add_column("Entry", justify="right", width=7)
+    table.add_column("Target", justify="right", width=7)
+    table.add_column("Stop", justify="right", width=7)
+    table.add_column("Gain%", justify="right", width=6)
+    table.add_column("R/R", justify="right", width=5)
+    table.add_column("RSI", justify="center", width=3)
     table.add_column("Yield", justify="right", width=10)
     table.add_column("Price", justify="right", width=10)
     table.add_column("Annual Div", justify="right", width=10)
@@ -102,11 +116,61 @@ def display_results(results: List[Dict[str, Any]], show_details: bool = False):
     table.add_column("Income/10K", justify="right", width=12)
 
     for idx, result in enumerate(results, 1):
+        # Get technical signals and RSI
+        technical_signals = result.get('technical_signals')
+        if isinstance(technical_signals, str):
+            try:
+                technical_signals = json.loads(technical_signals)
+            except:
+                technical_signals = {}
+        
+        rsi = technical_signals.get('rsi') if isinstance(technical_signals, dict) else None
+        
+        # Get recommendation (from pre-calculated or generate from RSI)
+        recommendation = result.get('_recommendation')
+        if not recommendation:
+            # Generate simple recommendation based on RSI
+            if rsi and rsi < 30:
+                recommendation = "BUY"
+            elif rsi and rsi > 70:
+                recommendation = "SELL"
+            else:
+                recommendation = "HOLD"
+        
+        # Get entry/target prices and trading metrics
+        entry_min = result.get('entry_price_min')
+        target_price = result.get('target')
+        stop_loss = result.get('stop_loss')
+        gain_pct = result.get('gain_percent')
+        risk_reward_ratio = result.get('risk_reward_ratio')
+        
+        # Format R/R Ratio
+        rr_formatted = "[dim]--[/dim]"
+        if risk_reward_ratio is not None:
+            rr_val = float(risk_reward_ratio)
+            if rr_val >= 3.0:
+                rr_formatted = f"[bold green]{rr_val:.1f}[/bold green]"
+            elif rr_val >= 2.0:
+                rr_formatted = f"[green]{rr_val:.1f}[/green]"
+            elif rr_val >= 1.5:
+                rr_formatted = f"[cyan]{rr_val:.1f}[/cyan]"
+            elif rr_val >= 1.0:
+                rr_formatted = f"[yellow]{rr_val:.1f}[/yellow]"
+            else:
+                rr_formatted = f"[red]{rr_val:.1f}[/red]"
+        
         table.add_row(
             str(idx),
             result['symbol'],
             result.get('company_name', 'N/A')[:25],
             format_score(result['income_score'], result['category']),
+            format_recommendation_clean(recommendation),
+            format_price(entry_min) if entry_min else "[dim]--[/dim]",
+            format_price(target_price) if target_price else "[dim]--[/dim]",
+            format_price(stop_loss) if stop_loss else "[dim]--[/dim]",
+            format_gain_percentage(gain_pct) if gain_pct else "[dim]--[/dim]",
+            rr_formatted,
+            format_rsi(rsi),
             format_percentage(result['dividend_yield']),
             format_currency(result['current_price']),
             format_currency(result['annual_dividend']),
