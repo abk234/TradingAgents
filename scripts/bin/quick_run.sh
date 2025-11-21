@@ -30,6 +30,9 @@ show_usage() {
     echo -e "${GREEN}Market Analysis:${NC}"
     echo "  screener          - Run screener with sector analysis (top 10)"
     echo "  screener-fast     - Fast screener (no news, optimized)"
+    echo "  dividend-income   - Find best stocks for living off dividends (top 20)"
+    echo "                     Use --details for detailed breakdown"
+    echo "                     Use --top N to show N results"
     echo "  analyze TICKER    - Analyze specific stock (AI-powered)"
     echo "                     Use --refresh-data to fetch fresh data first"
     echo "  morning           - Full morning briefing"
@@ -114,6 +117,33 @@ case "$COMMAND" in
     "screener-fast")
         echo -e "${CYAN}Running fast screener...${NC}\n"
         $VENV_PATH/bin/python -m tradingagents.screener run --fast --top 10
+        ;;
+
+    "dividend-income")
+        # Parse arguments for dividend income screener
+        TOP_N=20
+        DETAILS_FLAG=""
+        shift  # Remove 'dividend-income' command
+
+        for arg in "$@"; do
+            case "$arg" in
+                --details)
+                    DETAILS_FLAG="--details"
+                    ;;
+                --top)
+                    shift
+                    TOP_N="$1"
+                    ;;
+                --top=*)
+                    TOP_N="${arg#*=}"
+                    ;;
+            esac
+        done
+
+        echo -e "${CYAN}${BOLD}Finding Best Dividend Income Stocks...${NC}\n"
+        echo -e "${YELLOW}Scanning for stocks suitable for living off dividends${NC}"
+        echo -e "${YELLOW}Minimum criteria: 2.5%+ yield, 3+ years dividend history${NC}\n"
+        $VENV_PATH/bin/python -m tradingagents.screener.dividend_income_main --top "$TOP_N" $DETAILS_FLAG
         ;;
 
     "analyze")

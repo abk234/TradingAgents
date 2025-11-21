@@ -290,10 +290,44 @@ class DailyScreener:
             if result:
                 results.append(result)
 
-        # Sort by priority score
-        results.sort(key=lambda x: x['priority_score'], reverse=True)
+        # Sort by recommendation strength first, then by priority score
+        # This ensures BUY recommendations appear at the top
+        def get_recommendation_rank(recommendation: str) -> int:
+            """
+            Assign ranking to recommendations so BUYs appear first.
+            Lower number = higher priority in display.
+            """
+            rec_upper = (recommendation or "").upper()
+            if "STRONG BUY" in rec_upper or "STRONG_BUY" in rec_upper:
+                return 1  # Highest priority
+            elif "BUY DIP" in rec_upper:
+                return 2
+            elif "BUY" in rec_upper:
+                return 3
+            elif "ACCUMULATION" in rec_upper or "ACCUMULATE" in rec_upper:
+                return 4
+            elif "NEUTRAL" in rec_upper or "HOLD" in rec_upper:
+                return 5
+            elif "WAIT" in rec_upper:
+                return 6
+            elif "SELL RALLY" in rec_upper:
+                return 7
+            elif "SELL" in rec_upper and "STRONG" not in rec_upper:
+                return 8
+            elif "STRONG SELL" in rec_upper or "STRONG_SELL" in rec_upper:
+                return 9
+            else:
+                return 10  # Unknown recommendations last
 
-        # Assign rankings
+        # Sort by: 1) Recommendation strength (BUY first), 2) Priority score (high to low)
+        results.sort(
+            key=lambda x: (
+                get_recommendation_rank(x.get('recommendation', '')),
+                -x['priority_score']  # Negative for descending order
+            )
+        )
+
+        # Assign rankings based on new sorted order
         for i, result in enumerate(results):
             result['priority_rank'] = i + 1
 

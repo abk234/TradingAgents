@@ -2385,3 +2385,36 @@ def get_all_tools() -> List:
         # Portfolio (placeholder)
         get_portfolio_status,
     ]
+
+
+def get_core_tools() -> List:
+    """
+    Get a reduced set of core tools for smaller models that may struggle with 27+ tools.
+    
+    This includes only the most essential tools for basic functionality.
+    Use this for models like llama3.1 or when experiencing tool overload issues.
+
+    Returns:
+        List of core LangChain tools (reduced set)
+    """
+    return [
+        # Essential Screening & Discovery
+        run_screener,
+        get_top_stocks,
+        
+        # Essential Analysis
+        analyze_stock,
+        get_stock_info,
+        
+        # Essential Quick Checks
+        quick_technical_check,
+        quick_news_check,
+        quick_fundamentals_check,
+        
+        # Essential Validation
+        check_earnings_risk,
+        validate_price_sources,
+        
+        # Essential Help
+        explain_metric,
+    ]

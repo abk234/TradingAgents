@@ -25,6 +25,8 @@ from tradingagents.utils import (
     print_header,
     print_section,
     print_screener_results,
+    print_screener_results_clean,
+    print_screener_legend,
     print_sector_analysis,
     print_success,
     print_warning,
@@ -113,12 +115,16 @@ def cmd_run(args):
     # Show report
     if results and not args.quiet:
         if use_rich:
-            # Use rich formatted output
-            print_header("Daily Screener Results", f"{len(results)} stocks analyzed")
-            # Check if user wants BUY recommendations only
-            show_buy_only = getattr(args, 'buy_only', False)
-            sort_by = getattr(args, 'sort_by', 'gain')
-            print_screener_results(results, limit=args.top, show_buy_only=show_buy_only, sort_by=sort_by)
+            # Use rich formatted output with new clean table style
+            print_screener_results_clean(results, limit=args.top, show_summary=True)
+
+            # Show detailed breakdown if requested
+            if args.details:
+                from tradingagents.utils import print_screener_details
+                print_screener_details(results, top_n=args.details_limit or 5)
+
+            # Show legend
+            print_screener_legend()
         else:
             # Use traditional text output
             print("\n")
@@ -391,6 +397,17 @@ def main():
         choices=['gain', 'opportunity', 'rsi', 'priority'],
         default='gain',
         help='Sort results by: gain (default, highest profit potential), opportunity (composite score), rsi (oversold first), or priority (original score)'
+    )
+    run_parser.add_argument(
+        '--details',
+        action='store_true',
+        help='Show detailed breakdown for top stocks (includes full company names, entry ranges, target prices)'
+    )
+    run_parser.add_argument(
+        '--details-limit',
+        type=int,
+        default=5,
+        help='Number of stocks to show detailed info for (default: 5, use with --details)'
     )
     run_parser.set_defaults(func=cmd_run)
 

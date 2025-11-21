@@ -9,7 +9,7 @@ from langchain_openai import ChatOpenAI
 from langgraph.prebuilt import create_react_agent
 import logging
 
-from .tools import get_all_tools
+from .tools import get_all_tools, get_core_tools
 from .prompts import TRADING_EXPERT_PROMPT
 
 logger = logging.getLogger(__name__)
@@ -27,7 +27,8 @@ class TradingAgent:
         model_name: str = "llama3.3",
         base_url: str = "http://localhost:11434/v1",
         temperature: float = 0.7,
-        debug: bool = False
+        debug: bool = False,
+        use_core_tools: bool = False
     ):
         """
         Initialize the trading agent.
@@ -37,6 +38,7 @@ class TradingAgent:
             base_url: API endpoint for LLM (default: Ollama local)
             temperature: Sampling temperature (default: 0.7)
             debug: Enable debug logging (default: False)
+            use_core_tools: Use reduced tool set for smaller models (default: False)
         """
         self.debug = debug
 
@@ -49,8 +51,12 @@ class TradingAgent:
             timeout=120  # 2 minute timeout for tool calls
         )
 
-        # Get all tools
-        self.tools = get_all_tools()
+        # Get tools - use core set for smaller models if requested
+        if use_core_tools:
+            self.tools = get_core_tools()
+            logger.info(f"Using core tools set ({len(self.tools)} tools) for model {model_name}")
+        else:
+            self.tools = get_all_tools()
 
         # Create ReAct agent with tools
         self.agent = create_react_agent(

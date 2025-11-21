@@ -1,12 +1,80 @@
+# Python
 .venv
-results
+venv/
 env/
 __pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+.eggs/
+dist/
+build/
+*.egg
+
+# Virtual environments
+-/
+.venv/
+venv/
+ENV/
+env/
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.cursor/
+*.sublime-project
+*.sublime-workspace
+
+# OS files
 .DS_Store
-*.csv
-src/
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Logs
+*.log
+logs/
+*.log.*
+
+# Results and generated data
+results/
 eval_results/
 eval_data/
-*.egg-info/
-.env
-venv/
+feature_validation_results/
+
+# Data files
+*.csv
+*.xlsx
+*.xls
+
+# Source directories (if not needed)
+src/
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Temporary files
+*.tmp
+*.temp
+.cache/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Docker
+.dockerignore

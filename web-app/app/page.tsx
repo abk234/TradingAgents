@@ -9,6 +9,7 @@ import { RiskDashboard } from "@/components/RiskDashboard"
 import { HistoricalView } from "@/components/HistoricalView"
 import { AnalyticsView } from "@/components/AnalyticsView"
 import { SettingsView } from "@/components/SettingsView"
+import { SystemView } from "@/components/SystemView"
 import { ViewPlaceholder } from "@/components/ViewPlaceholder"
 import { Toaster } from "react-hot-toast"
 
@@ -31,6 +32,8 @@ export default function Home() {
         return <AnalyticsView />
       case "settings":
         return <SettingsView />
+      case "system":
+        return <SystemView />
       default:
         return <ChatInterface />
     }

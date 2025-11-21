@@ -51,3 +51,23 @@ class UserPreference(BaseModel):
     investment_horizon: str
     favorite_sectors: List[str] = []
     excluded_sectors: List[str] = []
+
+class TickerCreate(BaseModel):
+    symbol: str
+    company_name: Optional[str] = None
+    sector: Optional[str] = None
+    industry: Optional[str] = None
+    market_cap: Optional[int] = None
+    priority_tier: int = 1
+    tags: List[str] = []
+    notes: Optional[str] = None
+
+class TickerUpdate(BaseModel):
+    company_name: Optional[str] = None
+    sector: Optional[str] = None
+    industry: Optional[str] = None
+    market_cap: Optional[int] = None
+    priority_tier: Optional[int] = None
+    tags: Optional[List[str]] = None
+    notes: Optional[str] = None
+    active: Optional[bool] = None

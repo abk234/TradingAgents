@@ -25,6 +25,12 @@ from .cli_formatter import (
     cprint,
 )
 
+from .screener_table_formatter import (
+    print_screener_results_clean,
+    print_screener_legend,
+    print_screener_details,
+)
+
 from .help_text import (
     show_screener_legend,
     show_sector_recommendations,
@@ -52,6 +58,9 @@ __all__ = [
     'format_money',
     'format_percentage',
     'print_screener_results',
+    'print_screener_results_clean',
+    'print_screener_legend',
+    'print_screener_details',
     'print_sector_analysis',
     'print_analysis_summary',
     'print_dividend_calendar',

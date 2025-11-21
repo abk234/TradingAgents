@@ -107,7 +107,12 @@ class ScanOperations:
             'enterprise_to_ebitda': json_serializable(scan_data.get('enterprise_to_ebitda')),
             'market_cap': json_serializable(scan_data.get('market_cap')),
             'entry_timing': scan_data.get('entry_timing'),  # String, no conversion needed
-            'recommendation': scan_data.get('recommendation')  # Store recommendation for sector analysis
+            'recommendation': scan_data.get('recommendation'),  # Store recommendation for sector analysis
+            # Trading metrics
+            'target': json_serializable(scan_data.get('target')),
+            'stop_loss': json_serializable(scan_data.get('stop_loss')),
+            'gain_percent': json_serializable(scan_data.get('gain_percent')),
+            'risk_reward_ratio': json_serializable(scan_data.get('risk_reward_ratio'))
         }
 
         # Use upsert to handle re-running scans on same day
@@ -120,8 +125,9 @@ class ScanOperations:
                 bb_upper, bb_lower, bb_middle,
                 support_level, resistance_level,
                 enterprise_value, enterprise_to_ebitda, market_cap,
-                entry_timing, recommendation
-            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                entry_timing, recommendation,
+                target, stop_loss, gain_percent, risk_reward_ratio
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             ON CONFLICT (ticker_id, scan_date) DO UPDATE
             SET price = EXCLUDED.price,
                 volume = EXCLUDED.volume,
@@ -145,7 +151,11 @@ class ScanOperations:
                 enterprise_to_ebitda = EXCLUDED.enterprise_to_ebitda,
                 market_cap = EXCLUDED.market_cap,
                 entry_timing = EXCLUDED.entry_timing,
-                recommendation = EXCLUDED.recommendation
+                recommendation = EXCLUDED.recommendation,
+                target = EXCLUDED.target,
+                stop_loss = EXCLUDED.stop_loss,
+                gain_percent = EXCLUDED.gain_percent,
+                risk_reward_ratio = EXCLUDED.risk_reward_ratio
             RETURNING scan_id
         """
 
@@ -176,7 +186,11 @@ class ScanOperations:
                 data['enterprise_to_ebitda'],
                 data['market_cap'],
                 data['entry_timing'],
-                data['recommendation']
+                data['recommendation'],
+                data['target'],
+                data['stop_loss'],
+                data['gain_percent'],
+                data['risk_reward_ratio']
             ),
             fetch_one=True
         )

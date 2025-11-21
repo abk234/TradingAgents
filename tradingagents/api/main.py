@@ -9,16 +9,20 @@ from prometheus_fastapi_instrumentator import Instrumentator
 import uvicorn
 import os
 import json
+from datetime import datetime
 
 from tradingagents.api.models import (
     ChatRequest, ChatResponse,
     AnalysisRequest, AnalysisResponse,
-    FeedbackRequest
+    FeedbackRequest,
+    TickerCreate, TickerUpdate
 )
 from tradingagents.bot.conversational_agent import ConversationalAgent
 from tradingagents.bot.state_tracker import get_state_tracker
 from tradingagents.default_config import DEFAULT_CONFIG
 from tradingagents.database.learning_ops import LearningOperations
+from tradingagents.database.system_ops import SystemOperations
+from tradingagents.database.ticker_ops import TickerOperations
 from tradingagents.monitoring.langfuse_integration import get_langfuse_tracer
 from tradingagents.monitoring.metrics import TradingMetrics
 
@@ -29,12 +33,14 @@ logger = logging.getLogger("api")
 # Global instances
 agent = None
 learning_ops = None
+system_ops = None
+ticker_ops = None
 trading_metrics = None  # Initialize in lifespan to avoid Prometheus duplication
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
-    global agent, learning_ops, trading_metrics
+    global agent, learning_ops, system_ops, ticker_ops, trading_metrics
     logger.info("Initializing Conversational Agent...")
     try:
         # Initialize metrics (do this here to avoid Prometheus duplication on reload)
@@ -48,6 +54,8 @@ async def lifespan(app: FastAPI):
             
         agent = ConversationalAgent(config=DEFAULT_CONFIG)
         learning_ops = LearningOperations()
+        system_ops = SystemOperations()
+        ticker_ops = TickerOperations()
         logger.info("Conversational Agent and Learning Ops initialized successfully.")
     except Exception as e:
         logger.error(f"Failed to initialize agent: {e}")
@@ -718,6 +726,126 @@ async def get_eddie_state():
             "timestamp": None,
             "message": ""
         }
+
+@app.get("/system/status")
+async def get_system_status():
+    """
+    Get system status and database statistics.
+    """
+    if not system_ops:
+        raise HTTPException(status_code=503, detail="System ops not initialized")
+    
+    try:
+        stats = system_ops.get_database_stats()
+        services = system_ops.get_service_status()
+        missing_data = system_ops.get_missing_data_report()
+        
+        return {
+            "status": "online",
+            "services": services,
+            "stats": stats,
+            "missing_data": missing_data,
+            "timestamp": datetime.now().isoformat()
+        }
+    except Exception as e:
+        logger.error(f"Error fetching system status: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/data/tickers")
+async def get_tickers(active_only: bool = True):
+    """
+    Get all tickers.
+    """
+    if not ticker_ops:
+        raise HTTPException(status_code=503, detail="Ticker ops not initialized")
+    
+    try:
+        return ticker_ops.get_all_tickers(active_only=active_only)
+    except Exception as e:
+        logger.error(f"Error fetching tickers: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/data/tickers")
+async def add_ticker(ticker: TickerCreate):
+    """
+    Add a new ticker.
+    """
+    if not ticker_ops:
+        raise HTTPException(status_code=503, detail="Ticker ops not initialized")
+    
+    try:
+        ticker_id = ticker_ops.add_ticker(
+            symbol=ticker.symbol,
+            company_name=ticker.company_name,
+            sector=ticker.sector,
+            industry=ticker.industry,
+            market_cap=ticker.market_cap,
+            priority_tier=ticker.priority_tier,
+            tags=ticker.tags,
+            notes=ticker.notes
+        )
+        return {"status": "success", "ticker_id": ticker_id, "symbol": ticker.symbol}
+    except Exception as e:
+        logger.error(f"Error adding ticker: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.put("/data/tickers/{symbol}")
+async def update_ticker(symbol: str, ticker: TickerUpdate):
+    """
+    Update an existing ticker.
+    """
+    if not ticker_ops:
+        raise HTTPException(status_code=503, detail="Ticker ops not initialized")
+    
+    try:
+        # Convert pydantic model to dict, excluding None values
+        update_data = ticker.dict(exclude_unset=True)
+        
+        success = ticker_ops.update_ticker(symbol, **update_data)
+        if not success:
+            raise HTTPException(status_code=404, detail=f"Ticker {symbol} not found")
+            
+        return {"status": "success", "symbol": symbol, "updated_fields": list(update_data.keys())}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error updating ticker: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.delete("/data/tickers/{symbol}")
+async def remove_ticker(symbol: str, soft_delete: bool = True):
+    """
+    Remove a ticker (soft delete by default).
+    """
+    if not ticker_ops:
+        raise HTTPException(status_code=503, detail="Ticker ops not initialized")
+    
+    try:
+        success = ticker_ops.remove_ticker(symbol, soft_delete=soft_delete)
+        if not success:
+            raise HTTPException(status_code=404, detail=f"Ticker {symbol} not found")
+            
+        return {"status": "success", "symbol": symbol, "action": "soft_delete" if soft_delete else "hard_delete"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error removing ticker: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/data/refresh/{type}")
+async def refresh_data(type: str, background_tasks: BackgroundTasks):
+    """
+    Trigger a data refresh task.
+    """
+    if type not in ["scan", "analysis", "rag"]:
+        raise HTTPException(status_code=400, detail="Invalid refresh type. Must be 'scan', 'analysis', or 'rag'")
+    
+    # In a real implementation, we would trigger background tasks here
+    # For now, we'll just simulate it or call a placeholder
+    
+    logger.info(f"Triggering data refresh for {type}")
+    
+    return {"status": "accepted", "message": f"Refresh task for {type} started"}
 
 if __name__ == "__main__":
     uvicorn.run("tradingagents.api.main:app", host="0.0.0.0", port=8005, reload=True)

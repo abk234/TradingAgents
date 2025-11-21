@@ -117,6 +117,42 @@ class EntryPriceCalculator:
             atr_pct=atr_pct
         )
 
+        # === CALCULATE TRADING METRICS (Target, Stop Loss, Gain%, R/R Ratio) ===
+        target = None
+        stop_loss = None
+        gain_percent = None
+        risk_reward_ratio = None
+
+        # Calculate Target: Use resistance_level or bb_upper (whichever is more conservative/closer)
+        if resistance_level and bb_upper:
+            # Use the more conservative (lower) target
+            target = min(resistance_level, bb_upper)
+        elif resistance_level:
+            target = resistance_level
+        elif bb_upper:
+            target = bb_upper
+
+        # Calculate Stop Loss: 2% below support level
+        if support_level:
+            stop_loss = support_level * 0.98
+        elif entry_min:
+            # Fallback: If no support level, use 5% below entry price
+            # This is conservative and gives traders a reasonable stop loss
+            stop_loss = entry_min * 0.95
+            logger.debug(f"No support level available, using 5% below entry as stop loss: {stop_loss:.2f}")
+
+        # Calculate Gain% and R/R Ratio if we have the necessary data
+        if target and entry_min and entry_min > 0:
+            # Gain% = (target - entry_min) / entry_min * 100
+            gain_percent = ((target - entry_min) / entry_min) * 100
+
+            # R/R Ratio = (target - entry_min) / (entry_min - stop_loss)
+            if stop_loss and entry_min > stop_loss:
+                risk = entry_min - stop_loss
+                reward = target - entry_min
+                if risk > 0:
+                    risk_reward_ratio = reward / risk
+
         return {
             'entry_price_min': round(entry_min, 2) if entry_min else None,
             'entry_price_max': round(entry_max, 2) if entry_max else None,
@@ -129,7 +165,12 @@ class EntryPriceCalculator:
             'resistance_level': round(resistance_level, 2) if resistance_level else None,
             'enterprise_value': int(enterprise_value) if enterprise_value else None,
             'enterprise_to_ebitda': round(enterprise_to_ebitda, 2) if enterprise_to_ebitda else None,
-            'market_cap': int(market_cap) if market_cap else None
+            'market_cap': int(market_cap) if market_cap else None,
+            # New trading metrics
+            'target': round(target, 2) if target else None,
+            'stop_loss': round(stop_loss, 2) if stop_loss else None,
+            'gain_percent': round(gain_percent, 2) if gain_percent else None,
+            'risk_reward_ratio': round(risk_reward_ratio, 2) if risk_reward_ratio else None
         }
 
     def _empty_result(self) -> Dict[str, Any]:
@@ -146,7 +187,11 @@ class EntryPriceCalculator:
             'resistance_level': None,
             'enterprise_value': None,
             'enterprise_to_ebitda': None,
-            'market_cap': None
+            'market_cap': None,
+            'target': None,
+            'stop_loss': None,
+            'gain_percent': None,
+            'risk_reward_ratio': None
         }
 
     def _calculate_support(

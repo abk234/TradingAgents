@@ -11,7 +11,8 @@ import {
     Settings,
     ChevronLeft,
     ChevronRight,
-    Bot
+    Bot,
+    Database
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -31,6 +32,7 @@ export function Sidebar({ activeView, onViewChange, isCollapsed, toggleCollapse 
         { id: "risk", label: "Risk Dashboard", icon: ShieldAlert },
         { id: "history", label: "History", icon: History },
         { id: "analytics", label: "Analytics", icon: BarChart3 },
+        { id: "system", label: "System & Data", icon: Database },
         { id: "settings", label: "Settings", icon: Settings },
     ]
 
