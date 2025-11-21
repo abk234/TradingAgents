@@ -1,111 +1,93 @@
 "use client"
 
-import * as React from "react"
-import { motion } from "framer-motion"
+import { Activity, Mic, Volume2, BrainCircuit, AlertCircle, CheckCircle2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
-export type EddieState = "idle" | "listening" | "processing" | "speaking" | "error" | "validating"
+export type AgentState = "idle" | "listening" | "processing" | "speaking" | "error" | "validating"
 
 interface EddieStateIndicatorProps {
-    state: EddieState
+    state: AgentState
+    message?: string
     className?: string
-    size?: "sm" | "md" | "lg"
 }
 
-const stateConfig = {
-    idle: {
-        color: "bg-gray-400",
-        pulse: false,
-        spin: false,
-        glow: false,
-        label: "Ready"
-    },
-    listening: {
-        color: "bg-blue-500",
-        pulse: true,
-        spin: false,
-        glow: true,
-        label: "Listening"
-    },
-    processing: {
-        color: "bg-purple-500",
-        pulse: false,
-        spin: true,
-        glow: true,
-        label: "Thinking"
-    },
-    speaking: {
-        color: "bg-green-500",
-        pulse: false,
-        spin: false,
-        glow: false,
-        label: "Speaking"
-    },
-    error: {
-        color: "bg-red-500",
-        pulse: true,
-        spin: false,
-        glow: true,
-        label: "Error"
-    },
-    validating: {
-        color: "bg-yellow-500",
-        pulse: true,
-        spin: false,
-        glow: false,
-        label: "Validating"
+export function EddieStateIndicator({ state, message, className }: EddieStateIndicatorProps) {
+    const getStateConfig = (s: AgentState) => {
+        switch (s) {
+            case "listening":
+                return {
+                    icon: Mic,
+                    color: "text-blue-500",
+                    bg: "bg-blue-500/10",
+                    border: "border-blue-500/20",
+                    animate: "animate-pulse"
+                }
+            case "processing":
+                return {
+                    icon: BrainCircuit,
+                    color: "text-purple-500",
+                    bg: "bg-purple-500/10",
+                    border: "border-purple-500/20",
+                    animate: "animate-pulse"
+                }
+            case "speaking":
+                return {
+                    icon: Volume2,
+                    color: "text-green-500",
+                    bg: "bg-green-500/10",
+                    border: "border-green-500/20",
+                    animate: "animate-bounce" // Subtle bounce
+                }
+            case "error":
+                return {
+                    icon: AlertCircle,
+                    color: "text-red-500",
+                    bg: "bg-red-500/10",
+                    border: "border-red-500/20",
+                    animate: ""
+                }
+            case "validating":
+                return {
+                    icon: Activity,
+                    color: "text-orange-500",
+                    bg: "bg-orange-500/10",
+                    border: "border-orange-500/20",
+                    animate: "animate-spin"
+                }
+            case "idle":
+            default:
+                return {
+                    icon: CheckCircle2,
+                    color: "text-muted-foreground",
+                    bg: "bg-secondary",
+                    border: "border-border",
+                    animate: ""
+                }
+        }
     }
-}
 
-const sizeConfig = {
-    sm: "w-3 h-3",
-    md: "w-4 h-4",
-    lg: "w-6 h-6"
-}
-
-export function EddieStateIndicator({ state, className, size = "md" }: EddieStateIndicatorProps) {
-    const config = stateConfig[state]
-    const sizeClass = sizeConfig[size]
+    const config = getStateConfig(state)
+    const Icon = config.icon
 
     return (
-        <div className={cn("flex items-center gap-2", className)}>
-            <motion.div
-                className={cn(
-                    "rounded-full",
-                    config.color,
-                    sizeClass,
-                    config.glow && "shadow-lg"
+        <div className={cn(
+            "flex items-center gap-3 px-3 py-2 rounded-full border transition-all duration-300",
+            config.bg,
+            config.border,
+            className
+        )}>
+            <div className={cn("relative flex items-center justify-center", config.color)}>
+                <Icon className={cn("w-4 h-4", config.animate)} />
+                {state === "processing" && (
+                    <span className="absolute inset-0 rounded-full animate-ping opacity-20 bg-current" />
                 )}
-                animate={{
-                    scale: config.pulse ? [1, 1.2, 1] : 1,
-                    opacity: config.pulse ? [1, 0.7, 1] : 1,
-                    rotate: config.spin ? 360 : 0,
-                }}
-                transition={{
-                    scale: {
-                        duration: 1.5,
-                        repeat: Infinity,
-                        ease: "easeInOut"
-                    },
-                    opacity: {
-                        duration: 1.5,
-                        repeat: Infinity,
-                        ease: "easeInOut"
-                    },
-                    rotate: {
-                        duration: 2,
-                        repeat: Infinity,
-                        ease: "linear"
-                    }
-                }}
-                style={{
-                    boxShadow: config.glow
-                        ? `0 0 ${size === "lg" ? "12px" : size === "md" ? "8px" : "4px"} ${config.color.replace("bg-", "")}`
-                        : undefined
-                }}
-            />
-            <span className="text-sm text-muted-foreground">{config.label}</span>
+            </div>
+
+            {message && (
+                <span className={cn("text-xs font-medium", config.color)}>
+                    {message}
+                </span>
+            )}
         </div>
     )
 }
-

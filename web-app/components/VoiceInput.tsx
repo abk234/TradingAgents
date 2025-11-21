@@ -35,15 +35,15 @@ export function VoiceInput({ onTranscription, onError, className }: VoiceInputPr
     const connectWebSocket = async () => {
         try {
             const ws = new WebSocket("ws://localhost:8005/voice/ws")
-            
+
             ws.onopen = () => {
                 setIsConnected(true)
                 console.log("WebSocket connected")
             }
-            
+
             ws.onmessage = (event) => {
                 const data = JSON.parse(event.data)
-                
+
                 if (data.type === "transcription") {
                     setIsProcessing(false)
                     onTranscription(data.text)
@@ -53,18 +53,18 @@ export function VoiceInput({ onTranscription, onError, className }: VoiceInputPr
                     onError?.(data.message || "Transcription error")
                 }
             }
-            
+
             ws.onerror = (error) => {
                 console.error("WebSocket error:", error)
                 setIsConnected(false)
                 onError?.("Connection error")
             }
-            
+
             ws.onclose = () => {
                 setIsConnected(false)
                 console.log("WebSocket disconnected")
             }
-            
+
             websocketRef.current = ws
         } catch (error) {
             console.error("Error connecting WebSocket:", error)
@@ -81,33 +81,33 @@ export function VoiceInput({ onTranscription, onError, className }: VoiceInputPr
             }
 
             // Request microphone access
-            const stream = await navigator.mediaDevices.getUserMedia({ 
+            const stream = await navigator.mediaDevices.getUserMedia({
                 audio: {
                     echoCancellation: true,
                     noiseSuppression: true,
                     autoGainControl: true
                 }
             })
-            
+
             // Connect WebSocket if not connected
             if (!websocketRef.current || websocketRef.current.readyState !== WebSocket.OPEN) {
                 await connectWebSocket()
                 // Wait a bit for connection
                 await new Promise(resolve => setTimeout(resolve, 500))
             }
-            
+
             // Create MediaRecorder
             const mediaRecorder = new MediaRecorder(stream, {
                 mimeType: "audio/webm;codecs=opus"
             })
-            
+
             mediaRecorderRef.current = mediaRecorder
             audioChunksRef.current = []
-            
+
             mediaRecorder.ondataavailable = (event) => {
                 if (event.data.size > 0) {
                     audioChunksRef.current.push(event.data)
-                    
+
                     // Send audio chunk to WebSocket
                     if (websocketRef.current?.readyState === WebSocket.OPEN) {
                         const reader = new FileReader()
@@ -124,7 +124,7 @@ export function VoiceInput({ onTranscription, onError, className }: VoiceInputPr
                     }
                 }
             }
-            
+
             mediaRecorder.onstop = () => {
                 // Send end signal
                 if (websocketRef.current?.readyState === WebSocket.OPEN) {
@@ -133,21 +133,24 @@ export function VoiceInput({ onTranscription, onError, className }: VoiceInputPr
                     }))
                     setIsProcessing(true)
                 }
-                
+
                 // Stop all tracks
                 stream.getTracks().forEach(track => track.stop())
             }
-            
+
             // Start recording
             mediaRecorder.start(100) // Send chunks every 100ms
             setIsRecording(true)
-            
+
         } catch (error: any) {
-            console.error("Error starting recording:", error)
-            
+            // Only log non-permission errors to avoid console noise for expected user actions
+            if (error.name !== "NotAllowedError" && error.name !== "PermissionDeniedError") {
+                console.error("Error starting recording:", error)
+            }
+
             // Provide specific error messages based on error type
             let errorMessage = "Failed to access microphone. "
-            
+
             if (error.name === "NotAllowedError" || error.name === "PermissionDeniedError") {
                 errorMessage += "Please allow microphone access in your browser settings. " +
                     "Look for the microphone icon in the address bar and click 'Allow', or check your browser's site permissions."
@@ -160,7 +163,7 @@ export function VoiceInput({ onTranscription, onError, className }: VoiceInputPr
             } else {
                 errorMessage += `Error: ${error.message || "Unknown error"}.`
             }
-            
+
             onError?.(errorMessage)
         }
     }

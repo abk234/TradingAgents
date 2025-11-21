@@ -32,6 +32,21 @@
   --radius-lg: var(--radius);
   --radius-md: calc(var(--radius) - 2px);
   --radius-sm: calc(var(--radius) - 4px);
+
+  /* Trading Colors */
+  --color-bullish: hsl(var(--bullish));
+  --color-bullish-foreground: hsl(var(--bullish-foreground));
+  --color-bearish: hsl(var(--bearish));
+  --color-bearish-foreground: hsl(var(--bearish-foreground));
+  --color-neutral: hsl(var(--neutral));
+  --color-neutral-foreground: hsl(var(--neutral-foreground));
+
+  /* Chart Colors */
+  --color-chart-1: hsl(var(--chart-1));
+  --color-chart-2: hsl(var(--chart-2));
+  --color-chart-3: hsl(var(--chart-3));
+  --color-chart-4: hsl(var(--chart-4));
+  --color-chart-5: hsl(var(--chart-5));
 }
 
 /* 
@@ -74,6 +89,23 @@
   --ring: 212.7 26.8% 83.9%;
 
   --radius: 0.5rem;
+
+  /* Trading Colors - Emerald for Bullish, Rose for Bearish, Amber for Neutral */
+  --bullish: 142.1 76.2% 36.3%;
+  --bullish-foreground: 355.7 100% 97.3%;
+
+  --bearish: 346.8 77.2% 49.8%;
+  --bearish-foreground: 355.7 100% 97.3%;
+
+  --neutral: 45.4 93.4% 47.5%;
+  --neutral-foreground: 26 83.3% 14.1%;
+
+  /* Chart Colors */
+  --chart-1: 220 70% 50%;
+  --chart-2: 160 60% 45%;
+  --chart-3: 30 80% 55%;
+  --chart-4: 280 65% 60%;
+  --chart-5: 340 75% 55%;
 }
 
 /* Base styles */
@@ -159,7 +191,7 @@
   @apply overflow-x-auto;
 }
 
-.prose > * {
+.prose>* {
   @apply max-w-full;
 }
 
