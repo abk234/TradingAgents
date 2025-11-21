@@ -50,9 +50,31 @@ redis>=5.0.0
 fastapi>=0.100.0
 uvicorn>=0.20.0
 plotly>=5.18.0
+chainlit>=1.0.0  # Chat UI for Eddie
+websockets>=12.0  # WebSocket support for real-time audio
 
 # Monitoring & Observability
 langfuse>=2.0.0
+prometheus-client>=0.20.0
+prometheus-fastapi-instrumentator>=7.0.0
+psutil>=5.9.0
+
+# Voice (v2.0)
+# TTS>=0.20.0  # Coqui TTS - Primary voice synthesis engine (requires Python <= 3.12)
+# Note: TTS package doesn't support Python 3.13+. System will use pyttsx3 fallback.
+# To install TTS, use Python 3.12 or earlier: python3.12 -m venv venv
+pyttsx3>=2.90  # Fallback TTS - System TTS fallback
+faster-whisper>=1.0.0  # Speech-to-Text (STT) - Low latency transcription
+SpeechRecognition>=3.10.0  # Fallback STT engine
+
+# Cognitive Architecture (v2.0)
+networkx>=3.0  # Knowledge graph
+
+# Web Crawling (v2.0)
+crawl4ai>=0.3.0
+duckduckgo-search>=4.0.0
+beautifulsoup4>=4.12.0
+playwright>=1.40.0  # For JavaScript rendering
 
 # Build Tools
 setuptools>=68.0.0

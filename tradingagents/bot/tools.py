@@ -1140,7 +1140,8 @@ def find_similar_situations(ticker: str, top_n: int = 5) -> str:
 
         # Get latest scan for current state
         ticker_id = ticker_ops.get_ticker_id(ticker.upper())
-        latest_scan = scan_ops.get_latest_scan_for_ticker(ticker_id)
+        latest_scan_date = scan_ops.get_latest_scan_date()
+        latest_scan = scan_ops.get_latest_scan(ticker_id=ticker_id, scan_date=latest_scan_date) if latest_scan_date else None
 
         if not latest_scan:
             return f"No recent data available for similarity search on {ticker}"
@@ -1849,7 +1850,8 @@ def check_data_quality(ticker: str) -> str:
             return f"Ticker {ticker} not found in database."
 
         # Get latest scan result to check data freshness
-        latest_scan = scan_ops.get_latest_scan_for_ticker(ticker_id)
+        latest_scan_date = scan_ops.get_latest_scan_date()
+        latest_scan = scan_ops.get_latest_scan(ticker_id=ticker_id, scan_date=latest_scan_date) if latest_scan_date else None
 
         if latest_scan:
             price_timestamp = latest_scan.get('scanned_at')
@@ -1944,6 +1946,384 @@ def check_earnings_risk(ticker: str) -> str:
         return f"Error checking earnings risk for {ticker}: {str(e)}"
 
 
+@tool
+def run_system_doctor_check(ticker: str) -> str:
+    """
+    Run System Doctor health check - audits data integrity and indicator calculations.
+    
+    Eddie v2.0's "System Doctor" performs self-diagnostics:
+    1. Data sanity check: Compares local database prices with external API (yfinance)
+    2. Indicator math audit: Independently calculates RSI/MACD to verify application values
+    3. System health assessment: Overall health status and recommendations
+    
+    Args:
+        ticker: Stock ticker symbol (e.g., "AAPL", "TSLA")
+    
+    Returns:
+        Comprehensive system health report with data validation and indicator audits
+    
+    Use this when:
+    - Before making major recommendations (automatic health check)
+    - User questions data reliability
+    - User disputes indicator values ("That RSI looks wrong")
+    - Building trust through transparency
+    - Detecting potential data desync or calculation errors
+    
+    This is Eddie's way of "feeling" if something is wrong with the system!
+    """
+    try:
+        from tradingagents.validation import SystemDoctor
+        import pandas as pd
+        import yfinance as yf
+        
+        doctor = SystemDoctor()
+        db, ticker_ops, scan_ops, _ = get_db()
+        
+        # Get ticker info
+        ticker_id = ticker_ops.get_ticker_id(ticker.upper())
+        if not ticker_id:
+            return f"Ticker {ticker} not found in database."
+        
+        # Get latest price from database
+        latest_scan_date = scan_ops.get_latest_scan_date()
+        latest_scan = scan_ops.get_latest_scan(ticker_id=ticker_id, scan_date=latest_scan_date) if latest_scan_date else None
+        if not latest_scan:
+            return f"No scan data available for {ticker}. Please run screener first."
+        
+        local_price = float(latest_scan.get('price', 0))
+        if local_price == 0:
+            return f"Price data not available for {ticker}."
+        
+        # Get indicator values from scan (if available)
+        technical_signals = latest_scan.get('technical_signals', {})
+        application_indicators = {}
+        if isinstance(technical_signals, dict):
+            if 'rsi' in technical_signals:
+                application_indicators['RSI'] = float(technical_signals['rsi'])
+            if 'macd' in technical_signals:
+                application_indicators['MACD'] = float(technical_signals['macd'])
+        
+        # Get price history for indicator audit
+        price_history = None
+        if application_indicators:
+            try:
+                # Fetch historical data for indicator calculation
+                stock = yf.Ticker(ticker.upper())
+                hist = stock.history(period="3mo")  # 3 months should be enough
+                if not hist.empty:
+                    price_history = hist['Close']
+            except Exception as e:
+                logger.warning(f"Could not fetch price history for indicator audit: {e}")
+        
+        # Perform health check
+        report = doctor.perform_health_check(
+            ticker=ticker.upper(),
+            local_price=local_price,
+            application_indicators=application_indicators if application_indicators else None,
+            price_history=price_history,
+            external_price=None  # Will fetch automatically
+        )
+        
+        return report.format_for_display()
+        
+    except Exception as e:
+        logger.error(f"Error running system doctor check for {ticker}: {e}")
+        return f"Error running system doctor check for {ticker}: {str(e)}"
+
+
+@tool
+def synthesize_speech(text: str, tone: str = "professional") -> str:
+    """
+    Convert text to speech with emotional tone (v2.0 Voice feature).
+    
+    Eddie v2.0 can now speak! This tool synthesizes speech from text with
+    context-aware emotional tone injection.
+    
+    Args:
+        text: Text to convert to speech
+        tone: Emotional tone (calm, professional, energetic, technical, reassuring, auto)
+            - calm: Calm, reassuring (for stressed users, market crashes)
+            - professional: Standard analytical tone (default)
+            - energetic: Energetic but cautionary (for all-time highs)
+            - technical: Technical, precise (for system diagnostics)
+            - reassuring: Reassuring, supportive
+            - auto: Auto-detect tone from context
+    
+    Returns:
+        Confirmation message with audio file path or URL
+    
+    Use this when:
+    - User requests voice output
+    - Providing important recommendations (can offer voice option)
+    - Market conditions require emotional adaptation
+    - User seems stressed (use calm/reassuring tone)
+    
+    Note: This is a basic TTS implementation. Full voice interface (STT + streaming)
+    will be added in Phase 2.
+    """
+    try:
+        from tradingagents.voice import get_tts_engine, EmotionalTone
+        from tradingagents.voice.tone_detector import get_tone_detector
+        from tradingagents.bot.state_tracker import get_state_tracker
+        from tradingagents.cognitive import get_cognitive_controller
+        
+        # Auto-detect tone if not specified
+        if tone == "auto":
+            state_tracker = get_state_tracker()
+            cognitive_controller = get_cognitive_controller()
+            tone_detector = get_tone_detector()
+            
+            tone_enum = tone_detector.detect_tone(
+                market_conditions=None,  # Could fetch from database
+                user_emotional_state=None,  # Could detect from voice/text
+                system_health=state_tracker.get_state().system_health,
+                message_content=text,
+                cognitive_mode=cognitive_controller.get_current_mode().value
+            )
+        else:
+            # Map tone string to enum
+            tone_map = {
+                "calm": EmotionalTone.CALM,
+                "professional": EmotionalTone.PROFESSIONAL,
+                "energetic": EmotionalTone.ENERGETIC,
+                "technical": EmotionalTone.TECHNICAL,
+                "reassuring": EmotionalTone.REASSURING
+            }
+            tone_enum = tone_map.get(tone.lower(), EmotionalTone.PROFESSIONAL)
+        
+        # Synthesize speech
+        tts_engine = get_tts_engine()
+        audio_bytes = tts_engine.synthesize(text, tone=tone_enum, return_bytes=True)
+        
+        if audio_bytes:
+            # Save to temporary file or return via API
+            import tempfile
+            import os
+            temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.wav')
+            temp_file.write(audio_bytes)
+            temp_path = temp_file.name
+            temp_file.close()
+            
+            return f"✅ Speech synthesized successfully!\n\n" \
+                   f"**Tone:** {tone_enum.value}\n" \
+                   f"**Audio file:** {temp_path}\n" \
+                   f"**Text:** {text[:100]}{'...' if len(text) > 100 else ''}\n\n" \
+                   f"Note: Audio file saved temporarily. For web playback, use the /voice/synthesize API endpoint."
+        else:
+            return "⚠️ Speech synthesis failed. TTS engine may not be available."
+            
+    except ImportError as e:
+        return f"⚠️ TTS not available: {str(e)}\n\nInstall with: pip install TTS"
+    except Exception as e:
+        logger.error(f"Error synthesizing speech: {e}")
+        return f"Error synthesizing speech: {str(e)}"
+
+
+@tool
+def research_from_web(topic: str) -> str:
+    """
+    Research a topic from the web using autonomous web crawling (v2.0).
+    
+    Eddie v2.0's autonomous researcher can learn about new market terms, events,
+    or concepts by searching and crawling the web.
+    
+    Args:
+        topic: Topic to research (e.g., "0DTE options", "Death Cross", "market crash")
+    
+    Returns:
+        Research summary with key points and sources
+    
+    Use this when:
+    - User mentions an unknown term (e.g., "What are 0DTE options?")
+    - Market crash occurs (proactive learning)
+    - User asks about something not in Eddie's knowledge base
+    - Learning about new trading concepts
+    
+    This is Eddie's way of learning from the open internet!
+    """
+    try:
+        from tradingagents.research import get_autonomous_researcher
+        import asyncio
+        
+        researcher = get_autonomous_researcher()
+        
+        # Check if we've already learned about this
+        existing_knowledge = researcher.get_learned_knowledge(topic)
+        if existing_knowledge:
+            knowledge = existing_knowledge.get("knowledge", {})
+            sources = knowledge.get("sources", [])
+            key_points = knowledge.get("key_points", [])
+            
+            result = f"📚 **I've learned about {topic} before:**\n\n"
+            result += f"**Sources:** {len(sources)} sources\n\n"
+            
+            if key_points:
+                result += "**Key Points:**\n"
+                for point in key_points[:5]:
+                    result += f"- {point}\n"
+                result += "\n"
+            
+            result += f"**Summary:** {knowledge.get('summary', '')[:300]}...\n\n"
+            result += "Would you like me to research this again for updated information?"
+            return result
+        
+        # Learn about the topic
+        logger.info(f"Researching topic from web: {topic}")
+        
+        # Run async function
+        loop = asyncio.get_event_loop()
+        if loop.is_running():
+            # If loop is already running, use a different approach
+            import concurrent.futures
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                future = executor.submit(asyncio.run, researcher.learn_about(topic))
+                learning_result = future.result()
+        else:
+            learning_result = loop.run_until_complete(researcher.learn_about(topic))
+        
+        if not learning_result.get("learned"):
+            return f"⚠️ Could not learn about {topic} from the web. Error: {learning_result.get('error', 'Unknown')}"
+        
+        knowledge = learning_result.get("knowledge", {})
+        sources = knowledge.get("sources", [])
+        key_points = knowledge.get("key_points", [])
+        summary = knowledge.get("summary", "")
+        
+        result = f"🌐 **Research Results for: {topic}**\n\n"
+        result += f"**Sources Found:** {len(sources)}\n\n"
+        
+        if sources:
+            result += "**Sources:**\n"
+            for source in sources[:3]:
+                result += f"- {source.get('title', 'Unknown')} ({source.get('url', '')})\n"
+            result += "\n"
+        
+        if key_points:
+            result += "**Key Points:**\n"
+            for point in key_points[:5]:
+                result += f"- {point}\n"
+            result += "\n"
+        
+        if summary:
+            result += f"**Summary:**\n{summary[:500]}{'...' if len(summary) > 500 else ''}\n"
+        
+        result += "\n✅ **Knowledge stored in my memory for future reference!**"
+        
+        return result
+        
+    except ImportError as e:
+        return f"⚠️ Web crawling not available: {str(e)}\n\nInstall with: pip install crawl4ai duckduckgo-search"
+    except Exception as e:
+        logger.error(f"Error researching from web: {e}")
+        return f"Error researching {topic}: {str(e)}"
+
+
+@tool
+def advanced_research(topic: str, verify_sources: bool = True) -> str:
+    """
+    Advanced autonomous research with source verification and conflict resolution (v2.0).
+    
+    This is an enhanced version of research_from_web that includes:
+    - Source credibility verification
+    - Conflict detection and resolution
+    - Knowledge graph integration
+    - Event-driven learning triggers
+    
+    Args:
+        topic: Topic to research
+        verify_sources: If True, verify source credibility and resolve conflicts
+    
+    Returns:
+        Research summary with verification results
+    
+    Use this when:
+    - Learning about critical trading concepts
+    - User mentions unknown terms
+    - Market events occur
+    - You need verified, credible information
+    
+    This tool provides higher quality, verified knowledge compared to basic research.
+    """
+    try:
+        from tradingagents.research import get_advanced_learner, LearningTrigger
+        import asyncio
+        
+        learner = get_advanced_learner()
+        
+        # Detect if this is an unknown term
+        unknown_terms = learner.detect_unknown_term(topic)
+        trigger = LearningTrigger.UNKNOWN_TERM if unknown_terms else LearningTrigger.USER_REQUEST
+        
+        # Learn with verification
+        loop = asyncio.get_event_loop()
+        if loop.is_running():
+            import concurrent.futures
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                future = executor.submit(asyncio.run, learner.learn_with_verification(topic, trigger))
+                result = future.result()
+        else:
+            result = loop.run_until_complete(learner.learn_with_verification(topic, trigger))
+        
+        if not result.get("learned"):
+            return f"⚠️ Could not learn about {topic}. Error: {result.get('error', 'Unknown')}"
+        
+        verifications = result.get("verifications", [])
+        conflicts_detected = result.get("conflicts_detected", 0)
+        conflicts_resolved = result.get("conflicts_resolved", 0)
+        
+        # Build response
+        response = f"🔬 **Advanced Research Results for: {topic}**\n\n"
+        
+        # Source verification
+        if verify_sources and verifications:
+            response += "**Source Verification:**\n"
+            high_cred = [v for v in verifications if v.get("credibility", 0) >= 0.8]
+            medium_cred = [v for v in verifications if 0.6 <= v.get("credibility", 0) < 0.8]
+            low_cred = [v for v in verifications if v.get("credibility", 0) < 0.6]
+            
+            if high_cred:
+                response += f"✅ High Credibility ({len(high_cred)} sources):\n"
+                for v in high_cred[:3]:
+                    response += f"  - {v.get('url', 'Unknown')} (credibility: {v.get('credibility', 0):.2f})\n"
+            
+            if medium_cred:
+                response += f"⚠️  Medium Credibility ({len(medium_cred)} sources)\n"
+            
+            if low_cred:
+                response += f"❌ Low Credibility ({len(low_cred)} sources) - Use with caution\n"
+            
+            response += "\n"
+        
+        # Conflicts
+        if conflicts_detected > 0:
+            response += f"⚠️  **Conflicts Detected:** {conflicts_detected}\n"
+            response += f"✅ **Conflicts Resolved:** {conflicts_resolved}\n\n"
+        
+        # Knowledge summary
+        knowledge = result.get("knowledge", {})
+        summary = knowledge.get("summary", "")
+        key_points = knowledge.get("key_points", [])
+        
+        if summary:
+            response += f"**Summary:**\n{summary[:500]}{'...' if len(summary) > 500 else ''}\n\n"
+        
+        if key_points:
+            response += "**Key Points:**\n"
+            for point in key_points[:5]:
+                response += f"- {point}\n"
+            response += "\n"
+        
+        response += "✅ **Knowledge stored in knowledge graph with verification!**"
+        
+        return response
+        
+    except ImportError as e:
+        return f"⚠️ Advanced research not available: {str(e)}\n\nInstall dependencies: pip install crawl4ai duckduckgo-search"
+    except Exception as e:
+        logger.error(f"Error in advanced research: {e}")
+        return f"Error researching {topic}: {str(e)}"
+
+
 # =============================================================================
 # EXPORT ALL TOOLS
 # =============================================================================
@@ -1974,6 +2354,14 @@ def get_all_tools() -> List:
         validate_price_sources,    # Phase 2: Multi-source price validation
         check_earnings_risk,       # Phase 2: Earnings proximity warnings
         validate_news_multi_source,  # Phase 3 Part 3: News sentiment validation
+        run_system_doctor_check,   # Phase 3 v2.0: System Doctor - self-diagnostics
+        
+        # Voice (v2.0)
+        synthesize_speech,         # Phase 1.4: Text-to-speech with emotional tone
+        
+        # Autonomous Research (v2.0)
+        research_from_web,         # Phase 1.5: Web crawling and autonomous learning
+        advanced_research,         # Phase 2.4: Advanced research with verification and conflict resolution
 
         # Help & Education
         explain_metric,

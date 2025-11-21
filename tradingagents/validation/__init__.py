@@ -27,6 +27,13 @@ from .earnings_calendar import (
     get_earnings_calendar_alphavantage,
 )
 
+from .system_doctor import (
+    SystemDoctor,
+    SystemHealthReport,
+    IndicatorAuditResult,
+    DataSanityCheckResult,
+)
+
 __all__ = [
     # Phase 1: Data Quality
     'check_price_staleness',
@@ -46,4 +53,10 @@ __all__ = [
     'EarningsEvent',
     'get_earnings_calendar_yfinance',
     'get_earnings_calendar_alphavantage',
+
+    # Phase 3: System Doctor (v2.0)
+    'SystemDoctor',
+    'SystemHealthReport',
+    'IndicatorAuditResult',
+    'DataSanityCheckResult',
 ]

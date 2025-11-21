@@ -1,5 +1,6 @@
 import logging
-from fastapi import FastAPI, HTTPException, BackgroundTasks
+from typing import Optional
+from fastapi import FastAPI, HTTPException, BackgroundTasks, UploadFile, File, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from contextlib import asynccontextmanager
@@ -15,6 +16,7 @@ from tradingagents.api.models import (
     FeedbackRequest
 )
 from tradingagents.bot.conversational_agent import ConversationalAgent
+from tradingagents.bot.state_tracker import get_state_tracker
 from tradingagents.default_config import DEFAULT_CONFIG
 from tradingagents.database.learning_ops import LearningOperations
 from tradingagents.monitoring.langfuse_integration import get_langfuse_tracer
@@ -27,14 +29,18 @@ logger = logging.getLogger("api")
 # Global instances
 agent = None
 learning_ops = None
-trading_metrics = TradingMetrics()
+trading_metrics = None  # Initialize in lifespan to avoid Prometheus duplication
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
-    global agent, learning_ops
+    global agent, learning_ops, trading_metrics
     logger.info("Initializing Conversational Agent...")
     try:
+        # Initialize metrics (do this here to avoid Prometheus duplication on reload)
+        if trading_metrics is None:
+            trading_metrics = TradingMetrics()
+        
         # Ensure Langfuse is enabled in config if env vars are present
         if os.getenv("LANGFUSE_PUBLIC_KEY") and os.getenv("LANGFUSE_SECRET_KEY"):
             DEFAULT_CONFIG["enable_langfuse"] = True
@@ -225,6 +231,14 @@ async def chat_stream(request: ChatRequest):
                     "prompt_id": request.prompt_id
                 }
             
+            # Initialize state tracker
+            state_tracker = get_state_tracker()
+            from tradingagents.bot.state_tracker import EddieState
+            
+            # Set initial state
+            state_tracker.set_state(EddieState.PROCESSING, "Processing your request...")
+            state_tracker.clear_active_tools()
+            
             # Stream from the trading agent
             full_response = ""
             tool_calls = set()  # Use set to avoid duplicates
@@ -247,6 +261,10 @@ async def chat_stream(request: ChatRequest):
                         tool_calls.add(tool_name)
                         if tool_name not in active_tools:
                             active_tools.append(tool_name)
+                            state_tracker.add_active_tool(tool_name)
+                    
+                    # Update state message
+                    state_tracker.set_state(EddieState.PROCESSING, f"Using tools: {', '.join(active_tools)}")
                     
                     # Send progress event
                     progress_data = {
@@ -268,6 +286,10 @@ async def chat_stream(request: ChatRequest):
                         yield f"data: {json.dumps(completed_data)}\n\n"
                         active_tools = []
                     
+                    # Update state to speaking when content starts
+                    if not full_response:  # First content chunk
+                        state_tracker.set_state(EddieState.SPEAKING, "Generating response...")
+                    
                     # Send content chunk
                     content_data = {
                         "type": "content",
@@ -275,6 +297,10 @@ async def chat_stream(request: ChatRequest):
                     }
                     yield f"data: {json.dumps(content_data)}\n\n"
                     full_response += chunk_str
+            
+            # Reset state to idle after completion
+            state_tracker.set_state(EddieState.IDLE, "Ready")
+            state_tracker.clear_active_tools()
             
             # Send completion event
             completion_data = {
@@ -305,6 +331,11 @@ async def chat_stream(request: ChatRequest):
             yield f"data: {json.dumps(completion_data)}\n\n"
             
         except Exception as e:
+            # Set error state
+            state_tracker = get_state_tracker()
+            from tradingagents.bot.state_tracker import EddieState
+            state_tracker.set_state(EddieState.ERROR, f"Error: {str(e)}")
+            
             logger.error(f"Error in streaming chat endpoint: {e}", exc_info=True)
             import traceback
             error_trace = traceback.format_exc()
@@ -381,6 +412,265 @@ async def feedback(request: FeedbackRequest):
         logger.error(f"Error processing feedback: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.post("/voice/synthesize")
+async def synthesize_speech(
+    text: str,
+    tone: Optional[str] = "professional",
+    return_base64: bool = False
+):
+    """
+    Synthesize speech from text with emotional tone (v2.0).
+    
+    Args:
+        text: Text to synthesize
+        tone: Emotional tone (calm, professional, energetic, technical, reassuring)
+        return_base64: If True, return audio as base64 string
+    
+    Returns:
+        Audio file (WAV) or base64 string
+    """
+    try:
+        from tradingagents.voice import get_tts_engine, EmotionalTone
+        import base64
+        
+        # Map tone string to enum
+        tone_map = {
+            "calm": EmotionalTone.CALM,
+            "professional": EmotionalTone.PROFESSIONAL,
+            "energetic": EmotionalTone.ENERGETIC,
+            "technical": EmotionalTone.TECHNICAL,
+            "reassuring": EmotionalTone.REASSURING
+        }
+        
+        tone_enum = tone_map.get(tone.lower(), EmotionalTone.PROFESSIONAL)
+        
+        # Synthesize
+        tts_engine = get_tts_engine()
+        audio_bytes = tts_engine.synthesize(text, tone=tone_enum, return_bytes=True)
+        
+        if audio_bytes:
+            if return_base64:
+                import base64
+                audio_b64 = base64.b64encode(audio_bytes).decode('utf-8')
+                return {"audio_base64": audio_b64, "format": "wav"}
+            else:
+                from fastapi.responses import Response
+                return Response(content=audio_bytes, media_type="audio/wav")
+        else:
+            raise HTTPException(status_code=500, detail="Failed to synthesize speech")
+            
+    except ImportError as e:
+        logger.warning(f"TTS not available: {e}")
+        raise HTTPException(
+            status_code=503,
+            detail="TTS engine not available. Install TTS library: pip install TTS"
+        )
+    except Exception as e:
+        logger.error(f"Error synthesizing speech: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/voice/transcribe")
+async def transcribe_speech(
+    audio: UploadFile = File(...),
+    audio_format: str = "wav",
+    sample_rate: int = 16000
+):
+    """
+    Transcribe speech to text (v2.0 STT).
+    
+    Args:
+        audio: Audio file upload (WAV format)
+        audio_format: Audio format (wav, mp3, etc.)
+        sample_rate: Sample rate in Hz
+    
+    Returns:
+        Transcription result with text and metadata
+    """
+    try:
+        from tradingagents.voice import get_stt_engine
+        
+        # Read audio file
+        audio_data = await audio.read()
+        
+        # Transcribe
+        stt_engine = get_stt_engine()
+        result = stt_engine.transcribe(
+            audio_data=audio_data,
+            audio_format=audio_format,
+            sample_rate=sample_rate
+        )
+        
+        return result
+        
+    except ImportError as e:
+        logger.warning(f"STT not available: {e}")
+        raise HTTPException(
+            status_code=503,
+            detail="STT engine not available. Install faster-whisper: pip install faster-whisper"
+        )
+    except Exception as e:
+        logger.error(f"Error transcribing speech: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/voice/transcribe-stream")
+async def transcribe_speech_stream(
+    audio: UploadFile = File(...)
+):
+    """
+    Transcribe speech stream in real-time (v2.0 STT streaming).
+    
+    Args:
+        audio: Audio file upload
+    
+    Returns:
+        Streaming transcription results
+    """
+    try:
+        from tradingagents.voice import get_stt_engine
+        import json
+        
+        stt_engine = get_stt_engine()
+        
+        async def generate():
+            audio_data = await audio.read()
+            
+            # Stream transcription
+            for result in stt_engine.transcribe_streaming([audio_data]):
+                yield f"data: {json.dumps(result)}\n\n"
+            
+            yield "data: [DONE]\n\n"
+        
+        return StreamingResponse(generate(), media_type="text/event-stream")
+        
+    except ImportError as e:
+        logger.warning(f"STT not available: {e}")
+        raise HTTPException(
+            status_code=503,
+            detail="STT engine not available. Install faster-whisper: pip install faster-whisper"
+        )
+    except Exception as e:
+        logger.error(f"Error in streaming transcription: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.websocket("/voice/ws")
+async def websocket_audio_stream(websocket: WebSocket):
+    """
+    WebSocket endpoint for real-time audio streaming and transcription (v2.0).
+    
+    Supports:
+    - Real-time audio streaming from browser
+    - Continuous transcription
+    - Barge-in detection
+    - Two-way communication (audio -> text, text -> audio)
+    """
+    await websocket.accept()
+    logger.info("WebSocket connection established for audio streaming")
+    
+    try:
+        from tradingagents.voice import get_stt_engine, get_tts_engine, EmotionalTone
+        import base64
+        
+        stt_engine = get_stt_engine()
+        tts_engine = get_tts_engine()
+        
+        audio_buffer = b""
+        is_listening = False
+        
+        while True:
+            # Receive message from client
+            data = await websocket.receive_json()
+            message_type = data.get("type")
+            
+            if message_type == "audio_chunk":
+                # Accumulate audio chunks
+                audio_chunk_b64 = data.get("audio")
+                if audio_chunk_b64:
+                    audio_chunk = base64.b64decode(audio_chunk_b64)
+                    audio_buffer += audio_chunk
+                    is_listening = True
+                    
+            elif message_type == "audio_end":
+                # Transcribe accumulated audio
+                if audio_buffer and is_listening:
+                    try:
+                        result = stt_engine.transcribe(audio_buffer)
+                        
+                        # Send transcription back
+                        await websocket.send_json({
+                            "type": "transcription",
+                            "text": result["text"],
+                            "confidence": result.get("segments", [{}])[0].get("confidence", 0.0) if result.get("segments") else 0.0,
+                            "language": result.get("language", "en")
+                        })
+                        
+                        audio_buffer = b""
+                        is_listening = False
+                    except Exception as e:
+                        logger.error(f"Error transcribing audio: {e}")
+                        await websocket.send_json({
+                            "type": "error",
+                            "message": str(e)
+                        })
+                        
+            elif message_type == "synthesize":
+                # Synthesize text to speech
+                text = data.get("text", "")
+                tone = data.get("tone", "professional")
+                
+                if text:
+                    try:
+                        tone_map = {
+                            "calm": EmotionalTone.CALM,
+                            "professional": EmotionalTone.PROFESSIONAL,
+                            "energetic": EmotionalTone.ENERGETIC,
+                            "technical": EmotionalTone.TECHNICAL,
+                            "reassuring": EmotionalTone.REASSURING
+                        }
+                        tone_enum = tone_map.get(tone.lower(), EmotionalTone.PROFESSIONAL)
+                        
+                        audio_bytes = tts_engine.synthesize(text, tone=tone_enum, return_bytes=True)
+                        
+                        if audio_bytes:
+                            # Send audio as base64
+                            audio_b64 = base64.b64encode(audio_bytes).decode('utf-8')
+                            await websocket.send_json({
+                                "type": "audio",
+                                "audio_base64": audio_b64,
+                                "format": "wav"
+                            })
+                    except Exception as e:
+                        logger.error(f"Error synthesizing speech: {e}")
+                        await websocket.send_json({
+                            "type": "error",
+                            "message": str(e)
+                        })
+                        
+            elif message_type == "barge_in":
+                # User interrupted audio playback
+                logger.info("Barge-in signal received from client")
+                await websocket.send_json({
+                    "type": "barge_in_ack",
+                    "message": "Audio playback stopped"
+                })
+                        
+            elif message_type == "stop":
+                # Stop current operation
+                audio_buffer = b""
+                is_listening = False
+                await websocket.send_json({"type": "stopped"})
+                
+    except WebSocketDisconnect:
+        logger.info("WebSocket disconnected")
+    except Exception as e:
+        logger.error(f"Error in WebSocket audio stream: {e}")
+        try:
+            await websocket.send_json({
+                "type": "error",
+                "message": str(e)
+            })
+        except:
+            pass
+
 @app.get("/analytics/prompts")
 async def get_prompt_analytics(days: int = 30):
     """
@@ -402,6 +692,40 @@ async def get_prompt_analytics(days: int = 30):
     except Exception as e:
         logger.error(f"Error fetching prompt analytics: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/state")
+async def get_eddie_state():
+    """
+    Get Eddie's current state for UI visualization (v2.0).
+    
+    Returns:
+        Current state including:
+        - state: idle, listening, processing, speaking, error, validating
+        - confidence: Multi-factor confidence metrics
+        - current_ticker: Currently analyzed ticker
+        - active_tools: List of active tools
+        - system_health: HEALTHY, WARNING, CRITICAL
+    """
+    try:
+        state_tracker = get_state_tracker()
+        return state_tracker.get_state_dict()
+    except Exception as e:
+        logger.error(f"Error getting Eddie state: {e}")
+        # Return default state on error
+        return {
+            "state": "idle",
+            "confidence": {
+                "data_freshness": 0,
+                "math_verification": 0,
+                "ai_confidence": 0,
+                "overall": 0
+            },
+            "current_ticker": None,
+            "active_tools": [],
+            "system_health": "HEALTHY",
+            "timestamp": None,
+            "message": ""
+        }
 
 if __name__ == "__main__":
     uvicorn.run("tradingagents.api.main:app", host="0.0.0.0", port=8005, reload=True)

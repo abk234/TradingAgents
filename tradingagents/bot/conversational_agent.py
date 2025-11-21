@@ -8,6 +8,8 @@ from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 
 from tradingagents.bot.agent import TradingAgent
+from tradingagents.bot.state_tracker import get_state_tracker
+from tradingagents.cognitive import get_cognitive_controller, CognitiveMode
 from tradingagents.default_config import DEFAULT_CONFIG
 # We will import the RAG retriever here later when we implement it
 # from tradingagents.rag.context_retriever import ContextRetriever 
@@ -53,7 +55,11 @@ class ConversationalAgent:
         )
         
         # TODO: Initialize General Knowledge RAG
-        self.knowledge_retriever = None 
+        self.knowledge_retriever = None
+        
+        # Initialize cognitive controller (v2.0)
+        self.cognitive_controller = get_cognitive_controller()
+        self.state_tracker = get_state_tracker() 
 
     async def chat(
         self, 
@@ -103,6 +109,18 @@ class ConversationalAgent:
                     # For market intelligence, prioritize news and sector analysis
                     logger.info(f"Market intelligence prompt detected - prioritizing market context")
                     message = f"[MARKET_INTELLIGENCE] {message}"
+            
+            # 0. Cognitive Mode Decision (v2.0)
+            # Decide which mode Eddie should use based on context
+            system_health = self.state_tracker.get_state().system_health
+            mode_decision = self.cognitive_controller.decide_mode(
+                user_message=message,
+                market_conditions=None,  # Could fetch from database if needed
+                system_health=system_health,
+                user_emotional_state=None  # Could detect from voice/text analysis
+            )
+            
+            logger.info(f"Cognitive mode: {mode_decision.mode.value} - {mode_decision.reasoning}")
             
             # 1. Intent Classification (Simple heuristic or LLM call)
             # For now, we'll use a simple heuristic, but in production, use an LLM router.
@@ -174,7 +192,11 @@ class ConversationalAgent:
         """
         Generate a conversational response using the LLM.
         """
-        messages = [SystemMessage(content=SYSTEM_PROMPT)]
+        # Add cognitive mode prompt addition (v2.0)
+        mode_prompt = self.cognitive_controller.get_mode_prompt_addition()
+        system_prompt_with_mode = SYSTEM_PROMPT + "\n" + mode_prompt
+        
+        messages = [SystemMessage(content=system_prompt_with_mode)]
         
         # Add history
         for msg in history:

@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { useState, useRef, useEffect } from "react"
-import { Send, Bot, User, Loader2, ThumbsUp, ThumbsDown, BookmarkPlus, X } from "lucide-react"
+import { Send, Bot, User, Loader2, ThumbsUp, ThumbsDown, BookmarkPlus, X, Volume2, VolumeX } from "lucide-react"
 import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
 import { motion, AnimatePresence } from "framer-motion"
@@ -10,6 +10,7 @@ import { motion, AnimatePresence } from "framer-motion"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { PromptCategories } from "@/components/PromptCategories"
+import { VoiceInput } from "@/components/VoiceInput"
 import { cn } from "@/lib/utils"
 
 interface Message {
@@ -43,6 +44,7 @@ export function ChatInterface() {
         message: ""
     })
     const [streamingMessageId, setStreamingMessageId] = useState<string | null>(null)
+    const [voiceError, setVoiceError] = useState<string | null>(null)
     const messagesEndRef = useRef<HTMLDivElement>(null)
 
     const scrollToBottom = () => {
@@ -52,6 +54,16 @@ export function ChatInterface() {
     useEffect(() => {
         scrollToBottom()
     }, [messages])
+
+    // Cleanup audio on unmount
+    useEffect(() => {
+        return () => {
+            Object.values(audioRefs.current).forEach(audio => {
+                audio.pause()
+                audio.src = ""
+            })
+        }
+    }, [])
 
     const sendMessage = async (text: string, metadata?: { promptType: string, promptId: string }) => {
         if (!text.trim() || isLoading) return
@@ -218,6 +230,96 @@ export function ChatInterface() {
     }
 
     const [feedbackGiven, setFeedbackGiven] = useState<Record<string, boolean>>({})
+    const [playingAudio, setPlayingAudio] = useState<Record<string, boolean>>({})
+    const audioRefs = useRef<Record<string, HTMLAudioElement>>({})
+
+    const handlePlayVoice = async (messageId: string, text: string) => {
+        if (playingAudio[messageId]) {
+            // Stop playback (barge-in)
+            const audio = audioRefs.current[messageId]
+            if (audio) {
+                audio.pause()
+                audio.currentTime = 0
+            }
+            setPlayingAudio(prev => ({ ...prev, [messageId]: false }))
+            
+            // Notify that user interrupted (barge-in)
+            console.log("Barge-in: User stopped audio playback")
+            return
+        }
+
+        try {
+            setPlayingAudio(prev => ({ ...prev, [messageId]: true }))
+            
+            // Call voice synthesis API
+            const response = await fetch("http://127.0.0.1:8005/voice/synthesize", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    text: text,
+                    tone: "professional",
+                    return_base64: false
+                })
+            })
+
+            if (!response.ok) {
+                throw new Error("Failed to synthesize speech")
+            }
+
+            // Get audio blob
+            const audioBlob = await response.blob()
+            const audioUrl = URL.createObjectURL(audioBlob)
+            
+            // Create audio element and play
+            const audio = new Audio(audioUrl)
+            audioRefs.current[messageId] = audio
+            
+            // Set up barge-in detection (v2.0)
+            let bargeInDetected = false
+            let initialInput = input  // Capture input at start of playback
+            
+            const checkBargeIn = () => {
+                // Simple barge-in: if user starts typing or sends message, stop audio
+                // More sophisticated detection would use microphone monitoring
+                const currentInput = input
+                if (currentInput !== initialInput || isLoading) {
+                    bargeInDetected = true
+                    audio.pause()
+                    audio.currentTime = 0
+                    setPlayingAudio(prev => ({ ...prev, [messageId]: false }))
+                }
+            }
+            
+            // Monitor for barge-in (check every 100ms)
+            const bargeInInterval = setInterval(checkBargeIn, 100)
+            
+            audio.onended = () => {
+                clearInterval(bargeInInterval)
+                setPlayingAudio(prev => ({ ...prev, [messageId]: false }))
+                URL.revokeObjectURL(audioUrl)
+            }
+            
+            audio.onerror = () => {
+                clearInterval(bargeInInterval)
+                setPlayingAudio(prev => ({ ...prev, [messageId]: false }))
+                URL.revokeObjectURL(audioUrl)
+                console.error("Error playing audio")
+            }
+            
+            audio.onpause = () => {
+                if (bargeInDetected) {
+                    clearInterval(bargeInInterval)
+                    console.log("Audio paused due to barge-in")
+                }
+            }
+            
+            await audio.play()
+        } catch (error) {
+            console.error("Error synthesizing speech:", error)
+            setPlayingAudio(prev => ({ ...prev, [messageId]: false }))
+            alert("Voice synthesis failed. Make sure TTS is installed: pip install TTS")
+        }
+    }
 
     const handleFeedback = async (messageId: string, rating: number) => {
         if (!messageId || feedbackGiven[messageId]) return
@@ -320,6 +422,26 @@ export function ChatInterface() {
                                     {msg.role === "assistant" && msg.id !== "welcome" && (
                                         <div className="flex gap-2 mt-2 pt-2 border-t border-border/50">
                                             <button
+                                                onClick={() => msg.id && handlePlayVoice(msg.id, msg.content)}
+                                                className={cn(
+                                                    "text-xs flex items-center gap-1 transition-colors",
+                                                    playingAudio[msg.id || ""] 
+                                                        ? "text-primary hover:text-primary/80" 
+                                                        : "text-muted-foreground hover:text-primary"
+                                                )}
+                                                title="Play voice (v2.0)"
+                                            >
+                                                {playingAudio[msg.id || ""] ? (
+                                                    <>
+                                                        <VolumeX className="w-3 h-3" /> Stop
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <Volume2 className="w-3 h-3" /> Play Voice
+                                                    </>
+                                                )}
+                                            </button>
+                                            <button
                                                 onClick={() => msg.id && handleFeedback(msg.id, 5)}
                                                 disabled={msg.id ? feedbackGiven[msg.id] : false}
                                                 className={cn(
@@ -384,22 +506,56 @@ export function ChatInterface() {
                     <div ref={messagesEndRef} />
                 </div>
 
-                <form onSubmit={handleSubmit} className="mt-4 relative">
-                    <Input
-                        value={input}
-                        onChange={(e) => setInput(e.target.value)}
-                        placeholder="Ask about stocks, strategies, or market concepts..."
-                        className="pr-12 py-6 bg-secondary/30 border-border focus-visible:ring-primary/20"
-                        disabled={isLoading}
-                    />
-                    <Button
-                        type="submit"
-                        size="icon"
-                        className="absolute right-1 top-1 h-10 w-10"
-                        disabled={!input.trim() || isLoading}
+                {voiceError && (
+                    <motion.div
+                        initial={{ opacity: 0, y: -10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0 }}
+                        className="mb-2 p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-sm text-red-400"
                     >
-                        <Send className="w-4 h-4" />
-                    </Button>
+                        <div className="flex items-start gap-2">
+                            <X 
+                                className="w-4 h-4 mt-0.5 cursor-pointer shrink-0" 
+                                onClick={() => setVoiceError(null)}
+                            />
+                            <div className="flex-1">
+                                <strong>Microphone Error:</strong> {voiceError}
+                            </div>
+                        </div>
+                    </motion.div>
+                )}
+                <form onSubmit={handleSubmit} className="mt-4">
+                    <div className="flex gap-2 relative">
+                        <Input
+                            value={input}
+                            onChange={(e) => setInput(e.target.value)}
+                            placeholder="Ask about stocks, strategies, or market concepts..."
+                            className="flex-1 pr-12 py-6 bg-secondary/30 border-border focus-visible:ring-primary/20"
+                            disabled={isLoading}
+                        />
+                        <VoiceInput
+                            onTranscription={(text) => {
+                                setInput(text)
+                                setVoiceError(null) // Clear error on success
+                                sendMessage(text)
+                            }}
+                            onError={(error) => {
+                                console.error("Voice input error:", error)
+                                setVoiceError(error)
+                                // Auto-clear error after 8 seconds
+                                setTimeout(() => setVoiceError(null), 8000)
+                            }}
+                            className="shrink-0"
+                        />
+                        <Button
+                            type="submit"
+                            size="icon"
+                            className="absolute right-1 top-1 h-10 w-10"
+                            disabled={!input.trim() || isLoading}
+                        >
+                            <Send className="w-4 h-4" />
+                        </Button>
+                    </div>
                 </form>
             </div>
 
