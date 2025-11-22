@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# Copyright (c) 2024. All rights reserved.
+# Licensed under the Apache License, Version 2.0. See LICENSE file in the project root for license information.
+
 """
 Daily Screener CLI
 
@@ -35,7 +38,8 @@ from tradingagents.utils import (
     show_screener_legend,
     show_sector_recommendations,
     show_interpretation_tips,
-    display_next_steps
+    display_next_steps,
+    display_screener_quick_actions
 )
 
 # Set up logging
@@ -208,6 +212,14 @@ def cmd_run(args):
                 logger.error(f"Failed to initialize AI analyzer: {e}")
                 print(f"\n⚠️  Could not run AI analysis: {e}\n")
                 print("Tip: Make sure you have the analyze module properly configured.\n")
+
+    # Display quick actions based on results (unless disabled)
+    if results and not args.no_quick_actions:
+        display_screener_quick_actions(
+            results=results,
+            format_type='all' if not args.interactive else 'section',
+            interactive=args.interactive
+        )
 
     # Display next steps and recommendations
     display_next_steps('screener', context={'results_count': len(results) if results else 0})
@@ -408,6 +420,16 @@ def main():
         type=int,
         default=5,
         help='Number of stocks to show detailed info for (default: 5, use with --details)'
+    )
+    run_parser.add_argument(
+        '--no-quick-actions',
+        action='store_true',
+        help='Disable auto-generated quick action commands (useful for scripts)'
+    )
+    run_parser.add_argument(
+        '--interactive',
+        action='store_true',
+        help='Show interactive menu to select and execute commands'
     )
     run_parser.set_defaults(func=cmd_run)
 

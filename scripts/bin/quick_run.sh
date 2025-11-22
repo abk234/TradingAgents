@@ -89,7 +89,8 @@ show_usage() {
     echo "  strategy-screener-full [N] - Run screener + compare strategies on top N stocks (default: 20)"
     echo ""
     echo -e "${GREEN}Workflows:${NC}"
-    echo "  full-analysis     - Complete analysis (screener + briefing + eval)"
+    echo "  full-analysis     - Comprehensive analysis (9 steps: indexes, screener, setups,"
+    echo "                     dividends, indicators, briefing, portfolio, performance)"
     echo "  quick-check       - Fast check (digest + top stocks)"
     echo "  portfolio-review  - Complete portfolio review"
     echo "  strategy-test TICKER - Comprehensive strategy comparison"
@@ -515,7 +516,7 @@ case "$COMMAND" in
         if [ -z "$2" ] || [ -z "$3" ]; then
             echo -e "${RED}Error: Please provide strategy name and ticker${NC}"
             echo "Usage: ./quick_run.sh strategy-run value AAPL"
-            echo "Available strategies: value, growth, dividend, momentum, contrarian, quantitative, sector_rotation"
+            echo "Available strategies: value, growth, dividend, momentum, contrarian, quantitative, sector_rotation, market_structure"
             exit 1
         fi
         STRATEGY_NAME="$2"
@@ -597,18 +598,59 @@ case "$COMMAND" in
 
     # Workflows
     "full-analysis")
-        echo -e "${CYAN}${BOLD}Running Full Analysis Workflow${NC}\n"
-        echo -e "${YELLOW}Step 1/3: Market Screener${NC}"
+        echo -e "${CYAN}${BOLD}Running Comprehensive Full Analysis${NC}\n"
+        echo -e "${YELLOW}═══════════════════════════════════════════════════════════${NC}"
+        echo ""
+        
+        echo -e "${YELLOW}Step 1/9: Market Regime Analysis${NC}"
+        echo -e "${BLUE}Analyzing market indexes and current regime...${NC}"
+        $VENV_PATH/bin/python -m tradingagents.market.show_indexes
+        echo ""
+        
+        echo -e "${YELLOW}Step 2/9: Market Screener${NC}"
+        echo -e "${BLUE}Scanning all stocks for opportunities...${NC}"
         $VENV_PATH/bin/python -m tradingagents.screener run --sector-analysis --top 10
         echo ""
-        echo -e "${YELLOW}Step 2/3: Morning Briefing${NC}"
+        
+        echo -e "${YELLOW}Step 3/9: Top Opportunities${NC}"
+        echo -e "${BLUE}Identifying best trade opportunities...${NC}"
+        $VENV_PATH/bin/python -m tradingagents.screener top 10
+        echo ""
+        
+        echo -e "${YELLOW}Step 4/9: Trade Setups${NC}"
+        echo -e "${BLUE}Generating detailed trade setups with position sizing...${NC}"
+        $VENV_PATH/bin/python -m tradingagents.screener.trading_commands setups --limit 10
+        echo ""
+        
+        echo -e "${YELLOW}Step 5/9: Dividend Income Opportunities${NC}"
+        echo -e "${BLUE}Finding best dividend stocks...${NC}"
+        $VENV_PATH/bin/python -m tradingagents.screener.dividend_income_main --top 10
+        echo ""
+        
+        echo -e "${YELLOW}Step 6/9: Market Indicators Overview${NC}"
+        echo -e "${BLUE}Analyzing key market indicators...${NC}"
+        $VENV_PATH/bin/python -m tradingagents.screener.show_indicators
+        echo ""
+        
+        echo -e "${YELLOW}Step 7/9: Morning Briefing${NC}"
+        echo -e "${BLUE}Generating comprehensive market briefing...${NC}"
         $VENV_PATH/bin/python -m tradingagents.insights morning
         echo ""
-        echo -e "${YELLOW}Step 3/3: Performance Evaluation${NC}"
+        
+        echo -e "${YELLOW}Step 8/9: Portfolio Status${NC}"
+        echo -e "${BLUE}Reviewing portfolio performance...${NC}"
+        $VENV_PATH/bin/python -m tradingagents.portfolio view
+        echo ""
+        
+        echo -e "${YELLOW}Step 9/9: Performance Evaluation${NC}"
+        echo -e "${BLUE}Evaluating trading performance...${NC}"
         $VENV_PATH/bin/python -m tradingagents.evaluate update
         $VENV_PATH/bin/python -m tradingagents.evaluate report
         echo ""
-        echo -e "${GREEN}${BOLD}✓ Full analysis complete!${NC}"
+        
+        echo -e "${YELLOW}═══════════════════════════════════════════════════════════${NC}"
+        echo -e "${GREEN}${BOLD}✓ Comprehensive full analysis complete!${NC}"
+        echo -e "${CYAN}All major functionalities have been analyzed.${NC}"
         ;;
 
     "quick-check")

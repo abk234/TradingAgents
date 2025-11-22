@@ -1,3 +1,6 @@
+# Copyright (c) 2024. All rights reserved.
+# Licensed under the Apache License, Version 2.0. See LICENSE file in the project root for license information.
+
 """
 Portfolio Management CLI
 
@@ -345,20 +348,23 @@ def main():
             # Update portfolio totals
             portfolio_ops._update_portfolio_totals(args.portfolio_id)
             print("✓ Portfolio refreshed\n")
+        positions = portfolio_ops.get_positions(args.portfolio_id)
         print_portfolio_summary(portfolio_ops, args.portfolio_id)
-        display_next_steps('portfolio')
+        display_next_steps('portfolio', context={'positions': positions}, results=positions)
 
     elif args.command == 'buy':
         trans_date = datetime.strptime(args.date, '%Y-%m-%d').date() if args.date else date.today()
         buy_stock(portfolio_ops, ticker_ops, args.portfolio_id, args.symbol, args.shares, args.price, trans_date)
+        positions = portfolio_ops.get_positions(args.portfolio_id)
         print_portfolio_summary(portfolio_ops, args.portfolio_id)
-        display_next_steps('portfolio')
+        display_next_steps('portfolio', context={'positions': positions}, results=positions)
 
     elif args.command == 'sell':
         trans_date = datetime.strptime(args.date, '%Y-%m-%d').date() if args.date else date.today()
         sell_stock(portfolio_ops, ticker_ops, args.portfolio_id, args.symbol, args.shares, args.price, trans_date)
+        positions = portfolio_ops.get_positions(args.portfolio_id)
         print_portfolio_summary(portfolio_ops, args.portfolio_id)
-        display_next_steps('portfolio')
+        display_next_steps('portfolio', context={'positions': positions}, results=positions)
 
     elif args.command == 'performance':
         # Refresh if requested
@@ -375,11 +381,14 @@ def main():
             # Update portfolio totals
             portfolio_ops._update_portfolio_totals(args.portfolio_id)
             print("✓ Portfolio refreshed\n")
+        history = portfolio_ops.get_performance_history(args.portfolio_id, args.days)
         show_performance(portfolio_ops, args.portfolio_id, args.days)
-        display_next_steps('performance')
+        display_next_steps('performance', context={'days': args.days}, results=history)
 
     elif args.command == 'dividends':
+        dividends = portfolio_ops.get_upcoming_dividends(args.portfolio_id, args.days)
         show_dividends(portfolio_ops, args.portfolio_id, args.days)
+        display_next_steps('dividends', context={'days': args.days}, results=dividends)
 
     elif args.command == 'snapshot':
         portfolio_ops.create_snapshot(args.portfolio_id)

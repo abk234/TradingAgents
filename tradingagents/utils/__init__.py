@@ -1,3 +1,6 @@
+# Copyright (c) 2024. All rights reserved.
+# Licensed under the Apache License, Version 2.0. See LICENSE file in the project root for license information.
+
 # Utility functions for TradingAgents
 
 from .cli_formatter import (
@@ -42,6 +45,7 @@ from .help_text import (
 
 from .recommendations import (
     display_next_steps,
+    display_screener_quick_actions,
 )
 
 __all__ = [
@@ -77,4 +81,5 @@ __all__ = [
     'show_filtering_help',
     'format_score_with_context',
     'display_next_steps',
+    'display_screener_quick_actions',
 ]

@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# Copyright (c) 2024. All rights reserved.
+# Licensed under the Apache License, Version 2.0. See LICENSE file in the project root for license information.
+
 """
 Direct script to run TradingAgents analysis
 This bypasses the Typer CLI issues when running as a module

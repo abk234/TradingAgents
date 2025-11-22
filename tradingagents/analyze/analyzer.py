@@ -1,3 +1,6 @@
+# Copyright (c) 2024. All rights reserved.
+# Licensed under the Apache License, Version 2.0. See LICENSE file in the project root for license information.
+
 """
 Deep Analyzer Module
 
@@ -66,7 +69,11 @@ class DeepAnalyzer:
             config=self.config,
             enable_rag=enable_rag,
             db=self.db,
-            enable_langfuse=enable_langfuse
+            enable_langfuse=enable_langfuse,
+            enable_token_tracking=False,
+            enable_summarization=False,
+            enable_todo_lists=False,
+            enable_subagents=False
         )
 
         logger.info("✓ DeepAnalyzer initialized")

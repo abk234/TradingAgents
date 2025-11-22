@@ -1,3 +1,6 @@
+# Copyright (c) 2024. All rights reserved.
+# Licensed under the Apache License, Version 2.0. See LICENSE file in the project root for license information.
+
 """
 Custom LangChain Tools for TradingAgents Bot
 
@@ -253,7 +256,7 @@ def analyze_sector(sector_name: str) -> str:
         stocks = sector_analyzer.get_stocks_from_top_sectors(top_n_sectors=1, stocks_per_sector=5)
         if stocks:
             response.append("🌟 Top Stocks in This Sector:")
-            for symbol, score in stocks[:5]:
+            for symbol, _, score in stocks[:5]:
                 response.append(f"  • {symbol}: Score {score}/100")
 
         # Recommendation
@@ -374,10 +377,16 @@ def analyze_stock(ticker: str, portfolio_value: float = 100000) -> str:
         logger.info(f"🔍 Starting comprehensive analysis for {ticker.upper()}")
         logger.info("📊 Activating specialized agent team...")
 
+        # Apply nest_asyncio to fix "Sync client is not available" error
+        import nest_asyncio
+        nest_asyncio.apply()
+
         # Use fast config for bot (no news to save time)
+        import os
+        os.environ["LANGFUSE_ENABLED"] = "false"
         analyzer = DeepAnalyzer(
             config=FAST_CONFIG,
-            enable_rag=True,
+            enable_rag=False,
             debug=False
         )
 
@@ -504,8 +513,57 @@ def analyze_stock(ticker: str, portfolio_value: float = 100000) -> str:
         return "\n".join(response)
 
     except Exception as e:
-        logger.error(f"Error analyzing stock {ticker}: {e}")
-        return f"Error analyzing {ticker}: {str(e)}"
+        logger.error(f"Error analyzing stock {ticker}: {e}", exc_info=True)
+        
+        # Provide more detailed error messages based on exception type
+        error_type = type(e).__name__
+        error_msg = str(e)
+        
+        # Check for common connection issues
+        if "Connection" in error_msg or "connection" in error_msg.lower() or "timeout" in error_msg.lower():
+            # Try to diagnose the issue
+            diagnostic_msg = f"Connection error while analyzing {ticker}.\n\n"
+            
+            # Check Ollama if using Ollama provider
+            try:
+                import requests
+                config_to_check = FAST_CONFIG
+                if config_to_check.get("llm_provider", "").lower() == "ollama":
+                    try:
+                        response = requests.get("http://localhost:11434/api/tags", timeout=2)
+                        if response.status_code != 200:
+                            diagnostic_msg += "⚠️ Ollama is not responding properly.\n"
+                            diagnostic_msg += "   Solution: Restart Ollama with 'ollama serve'\n\n"
+                        else:
+                            models = response.json().get('models', [])
+                            model_name = config_to_check.get("deep_think_llm", "")
+                            model_found = any(m.get('name', '').startswith(model_name.split(':')[0]) for m in models)
+                            if not model_found:
+                                diagnostic_msg += f"⚠️ Required model '{model_name}' not found in Ollama.\n"
+                                diagnostic_msg += f"   Solution: Run 'ollama pull {model_name}'\n\n"
+                    except requests.RequestException:
+                        diagnostic_msg += "⚠️ Cannot connect to Ollama service.\n"
+                        diagnostic_msg += "   Solution: Make sure Ollama is running with 'ollama serve'\n\n"
+            except Exception:
+                pass  # Skip diagnostic if requests not available
+            
+            # Check for OpenAI API key if using OpenAI
+            try:
+                config_to_check = FAST_CONFIG
+                if config_to_check.get("llm_provider", "").lower() == "openai":
+                    import os
+                    api_key = os.getenv("OPENAI_API_KEY")
+                    if not api_key:
+                        diagnostic_msg += "⚠️ OPENAI_API_KEY environment variable not set.\n"
+                        diagnostic_msg += "   Solution: Set your OpenAI API key: export OPENAI_API_KEY='your-key'\n\n"
+            except Exception:
+                pass
+            
+            diagnostic_msg += f"Original error: {error_type}: {error_msg}"
+            return diagnostic_msg
+        else:
+            # For other errors, provide the error with type information
+            return f"Error analyzing {ticker}: {error_type}: {error_msg}\n\nIf this persists, check:\n- Service logs for detailed error information\n- Network connectivity\n- Required services are running"
 
 
 @tool

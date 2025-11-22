@@ -1,3 +1,6 @@
+# Copyright (c) 2024. All rights reserved.
+# Licensed under the Apache License, Version 2.0. See LICENSE file in the project root for license information.
+
 """
 Next Steps & Recommendations Helper
 
@@ -28,9 +31,23 @@ ADDING NEW COMMANDS:
 """
 
 from .cli_formatter import CLIFormatter
+from .screener_command_generator import (
+    generate_commands_from_results,
+    generate_commands_for_command,
+    format_command_description
+)
+from .interactive_menu import show_command_menu, execute_commands
+from typing import List, Dict, Any, Optional
 
 
-def display_next_steps(command_name: str, recommendations: list = None, context: dict = None):
+def display_next_steps(
+    command_name: str,
+    recommendations: list = None,
+    context: dict = None,
+    results: List[Dict[str, Any]] = None,
+    show_quick_actions: bool = True,
+    interactive: bool = False
+):
     """
     Display actionable next steps and recommendations in a consistent format.
     
@@ -38,6 +55,9 @@ def display_next_steps(command_name: str, recommendations: list = None, context:
         command_name: Name of the command (e.g., 'screener', 'analyze', 'portfolio')
         recommendations: List of recommendation strings (optional)
         context: Additional context dict (optional, e.g., {'ticker': 'AAPL', 'sector': 'Technology'})
+        results: Optional results list for commands that return data
+        show_quick_actions: If True, show auto-generated quick action commands
+        interactive: If True, show interactive menu for command selection
     """
     formatter = CLIFormatter()
     
@@ -55,12 +75,65 @@ def display_next_steps(command_name: str, recommendations: list = None, context:
             print(f"  {i}. {rec}")
         print()
     
-    # Display commands to execute
+    # Generate and display auto-generated quick actions (if enabled)
+    if show_quick_actions:
+        try:
+            auto_commands = generate_commands_for_command(
+                command_name=command_name,
+                context=context or {},
+                results=results or []
+            )
+            
+            if auto_commands:
+                display_quick_actions(
+                    auto_commands,
+                    format_type='section',
+                    interactive=interactive
+                )
+        except Exception as e:
+            # If auto-generation fails, fall back to static commands
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.debug(f"Auto-command generation failed: {e}")
+    
+    # Display static command references (fallback/backup)
     _display_command_references(command_name, context)
     
     # Display full guide reference
     print(f"{formatter.CYAN}📖 Full Guide:{formatter.NC} See docs/STRATEGY_RECOMMENDATIONS_COMMANDS.md for complete command reference")
     print()
+
+
+def display_quick_actions(
+    commands: Dict[str, List[str]],
+    format_type: str = 'section',
+    interactive: bool = False
+) -> None:
+    """
+    Display auto-generated quick action commands.
+    
+    Args:
+        commands: Dictionary mapping category names to lists of commands
+        format_type: Output format - 'inline', 'section', or 'all'
+        interactive: If True, show interactive menu for command selection
+    """
+    if not commands:
+        return
+    
+    formatter = CLIFormatter()
+    
+    # Display based on format type
+    if format_type in ['inline', 'all']:
+        _format_inline_commands(commands, formatter)
+    
+    if format_type in ['section', 'all']:
+        _format_section_commands(commands, formatter)
+    
+    # Interactive menu (if requested)
+    if interactive:
+        selected = show_command_menu(commands)
+        if selected:
+            execute_commands(selected)
 
 
 def _get_command_recommendations(command_name: str, context: dict = None) -> list:
@@ -388,4 +461,103 @@ def _display_command_references(command_name: str, context: dict = None):
         for cmd in commands:
             print(f"  {formatter.WHITE}{cmd}{formatter.NC}")
         print()
+
+
+def display_screener_quick_actions(
+    results: List[Dict[str, Any]],
+    format_type: str = 'all',
+    interactive: bool = False
+) -> None:
+    """
+    Display auto-generated quick action commands based on screener results.
+    
+    Args:
+        results: List of screener result dictionaries
+        format_type: Output format - 'inline', 'section', 'all', or 'none'
+        interactive: If True, show interactive menu for command selection
+    """
+    if not results:
+        return
+    
+    # Generate commands from results
+    commands = generate_commands_from_results(results)
+    
+    if not commands:
+        return
+    
+    display_quick_actions(commands, format_type=format_type, interactive=interactive)
+
+
+def _format_inline_commands(commands: Dict[str, List[str]], formatter: CLIFormatter) -> None:
+    """
+    Format commands as inline list (easy to copy/paste).
+    
+    Args:
+        commands: Dictionary mapping category names to lists of commands
+        formatter: CLIFormatter instance
+    """
+    print()
+    print(f"{formatter.CYAN}💡 Quick Actions - Copy & Paste:{formatter.NC}")
+    print()
+    
+    cmd_number = 1
+    for category, cmd_list in commands.items():
+        desc = format_command_description(category)
+        for cmd in cmd_list:
+            # Remove comments for cleaner display
+            cmd_clean = cmd.split('#')[0].strip()
+            print(f"  [{formatter.YELLOW}{cmd_number}{formatter.NC}] {formatter.WHITE}{desc}:{formatter.NC} {formatter.WHITE}{cmd_clean}{formatter.NC}")
+            cmd_number += 1
+    
+    print()
+
+
+def _format_section_commands(commands: Dict[str, List[str]], formatter: CLIFormatter) -> None:
+    """
+    Format commands in a separate section with categories.
+    
+    Args:
+        commands: Dictionary mapping category names to lists of commands
+        formatter: CLIFormatter instance
+    """
+    print()
+    print(f"{formatter.BOLD}{formatter.BLUE}{'═' * 55}{formatter.NC}")
+    print(f"{formatter.BOLD}{formatter.BLUE}🚀 QUICK ACTIONS - Based on Screener Results{formatter.NC}")
+    print(f"{formatter.BOLD}{formatter.BLUE}{'═' * 55}{formatter.NC}")
+    print()
+    
+    # Category emojis
+    category_emojis = {
+        'buy_signals': '📊',
+        'dividend_focus': '💰',
+        'top_n': '🏆',
+        'sector_based': '🏭',
+        'custom_filters': '🔍'
+    }
+    
+    for category, cmd_list in commands.items():
+        desc = format_command_description(category)
+        emoji = category_emojis.get(category, '•')
+        
+        # Count stocks in category (approximate from commands)
+        count_str = ""
+        if cmd_list:
+            # Try to extract ticker count from first command
+            first_cmd = cmd_list[0]
+            if 'analyze' in first_cmd or 'indicators' in first_cmd:
+                tickers = first_cmd.split()[2:] if len(first_cmd.split()) > 2 else []
+                # Filter out flags
+                tickers = [t for t in tickers if not t.startswith('--')]
+                if tickers:
+                    count_str = f" ({len(tickers)} stocks)"
+        
+        print(f"{emoji} {formatter.BOLD}{desc}{count_str}:{formatter.NC}")
+        for cmd in cmd_list:
+            # Remove comments for cleaner display
+            cmd_clean = cmd.split('#')[0].strip()
+            print(f"  {formatter.WHITE}{cmd_clean}{formatter.NC}")
+        print()
+    
+    print(f"{formatter.CYAN}💡 Tip: Copy any command above to execute it, or use --interactive for menu{formatter.NC}")
+    print()
 

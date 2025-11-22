@@ -1,3 +1,6 @@
+# Copyright (c) 2024. All rights reserved.
+# Licensed under the Apache License, Version 2.0. See LICENSE file in the project root for license information.
+
 """
 Multi-Strategy Investment Analysis System
 
@@ -66,6 +69,12 @@ try:
 except ImportError as e:
     SectorRotationStrategy = None
 
+try:
+    from .market_structure_cloud_trend import MarketStructureCloudTrendStrategy, create_market_structure_cloud_trend_strategy
+except ImportError as e:
+    MarketStructureCloudTrendStrategy = None
+    create_market_structure_cloud_trend_strategy = None
+
 __all__ = [
     "InvestmentStrategy",
     "StrategyResult",
@@ -89,6 +98,10 @@ if QuantitativeStrategy:
     __all__.append("QuantitativeStrategy")
 if SectorRotationStrategy:
     __all__.append("SectorRotationStrategy")
+if MarketStructureCloudTrendStrategy:
+    __all__.append("MarketStructureCloudTrendStrategy")
+if create_market_structure_cloud_trend_strategy:
+    __all__.append("create_market_structure_cloud_trend_strategy")
 
 __version__ = "1.0.0"
 

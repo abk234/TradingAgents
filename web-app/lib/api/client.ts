@@ -1,3 +1,8 @@
+/*
+ * Copyright (c) 2024. All rights reserved.
+ * Licensed under the Apache License, Version 2.0. See LICENSE file in the project root for license information.
+ */
+
 import {
     ChatRequest,
     ChatResponse,
@@ -23,9 +28,20 @@ class ApiClient {
 
     private async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
         const url = `${this.baseUrl}${endpoint}`
-        const headers = {
+
+        // Get API key from localStorage if available (client-side only)
+        let apiKey = "";
+        if (typeof window !== "undefined") {
+            apiKey = localStorage.getItem("api_key") || "";
+        }
+
+        const headers: Record<string, string> = {
             "Content-Type": "application/json",
-            ...options.headers,
+            ...options.headers as Record<string, string>,
+        }
+
+        if (apiKey) {
+            headers["X-API-Key"] = apiKey;
         }
 
         try {
@@ -98,7 +114,12 @@ class ApiClient {
     async synthesizeVoice(text: string, tone: string = "professional"): Promise<Blob> {
         const response = await fetch(`${this.baseUrl}/voice/synthesize`, {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: {
+                "Content-Type": "application/json",
+                ...(typeof window !== "undefined" && localStorage.getItem("api_key")
+                    ? { "X-API-Key": localStorage.getItem("api_key") || "" }
+                    : {})
+            },
             body: JSON.stringify({ text, tone, return_base64: false }),
         })
 

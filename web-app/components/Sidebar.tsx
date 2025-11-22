@@ -1,3 +1,8 @@
+/*
+ * Copyright (c) 2024. All rights reserved.
+ * Licensed under the Apache License, Version 2.0. See LICENSE file in the project root for license information.
+ */
+
 "use client"
 
 import * as React from "react"
@@ -11,6 +16,8 @@ import {
     Settings,
     ChevronLeft,
     ChevronRight,
+    Activity,
+    Terminal,
     Bot,
     Database
 } from "lucide-react"
@@ -33,6 +40,7 @@ export function Sidebar({ activeView, onViewChange, isCollapsed, toggleCollapse 
         { id: "history", label: "History", icon: History },
         { id: "analytics", label: "Analytics", icon: BarChart3 },
         { id: "system", label: "System & Data", icon: Database },
+        { id: "devtools", label: "Developer Tools", icon: Terminal },
         { id: "settings", label: "Settings", icon: Settings },
     ]
 
@@ -65,21 +73,19 @@ export function Sidebar({ activeView, onViewChange, isCollapsed, toggleCollapse 
                     const isActive = activeView === item.id
 
                     return (
-                        <button
+                        <Button
                             key={item.id}
-                            onClick={() => onViewChange(item.id)}
+                            variant={isActive ? "secondary" : "ghost"}
                             className={cn(
-                                "w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors",
-                                isActive
-                                    ? "bg-primary/10 text-primary"
-                                    : "text-muted-foreground hover:bg-secondary hover:text-foreground",
-                                isCollapsed && "justify-center px-2"
+                                "w-full justify-start",
+                                isCollapsed ? "justify-center px-2" : "px-3"
                             )}
+                            onClick={() => onViewChange(item.id)}
                             title={isCollapsed ? item.label : undefined}
                         >
                             <Icon className="w-5 h-5 shrink-0" />
                             {!isCollapsed && <span>{item.label}</span>}
-                        </button>
+                        </Button>
                     )
                 })}
             </nav>

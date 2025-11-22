@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# Copyright (c) 2024. All rights reserved.
+# Licensed under the Apache License, Version 2.0. See LICENSE file in the project root for license information.
+
 """
 Strategy Testing and Comparison Script
 
@@ -37,13 +40,21 @@ from tradingagents.strategies import (
     SectorRotationStrategy,
 )
 
+# Try to import Market Structure and Cloud Trend strategy
+try:
+    from tradingagents.strategies.market_structure_cloud_trend import MarketStructureCloudTrendStrategy
+    MARKET_STRUCTURE_AVAILABLE = True
+except ImportError:
+    MARKET_STRUCTURE_AVAILABLE = False
+    MarketStructureCloudTrendStrategy = None
+
 # Initialize console if rich is available
 console = Console() if RICH_AVAILABLE else None
 
 
 def get_all_strategies():
     """Get all available strategies."""
-    return [
+    strategies = [
         ValueStrategy(),
         GrowthStrategy(),
         DividendStrategy(),
@@ -52,6 +63,10 @@ def get_all_strategies():
         QuantitativeStrategy(),
         SectorRotationStrategy(),
     ]
+    # Add Market Structure and Cloud Trend if available
+    if MARKET_STRUCTURE_AVAILABLE:
+        strategies.append(MarketStructureCloudTrendStrategy())
+    return strategies
 
 
 def get_strategy_by_name(name: str):
@@ -65,6 +80,10 @@ def get_strategy_by_name(name: str):
         "quantitative": QuantitativeStrategy,
         "sector_rotation": SectorRotationStrategy,
     }
+    
+    # Add Market Structure and Cloud Trend if available
+    if MARKET_STRUCTURE_AVAILABLE and name.lower() in ["market_structure", "market-structure", "cloud_trend", "cloud-trend", "msct"]:
+        return MarketStructureCloudTrendStrategy()
     
     strategy_class = strategy_map.get(name.lower())
     if strategy_class:
@@ -110,16 +129,20 @@ def compare_single_stock(
     
     # Run comparison
     comparator = StrategyComparator(strategies)
+    # Prepare additional data (include ticker for AI Pine Script)
+    additional_data = {
+        "analysis_date": analysis_date,
+        "dividend_data": data.get("dividend_data", {}),
+        "news_data": data.get("news_data", {}),
+        "ticker": ticker,  # For Market Structure and Cloud Trend historical data fetch
+    }
+    
     comparison = comparator.compare(
         ticker=ticker,
         market_data=data["market_data"],
         fundamental_data=data["fundamental_data"],
         technical_data=data["technical_data"],
-        additional_data={
-            "analysis_date": analysis_date,
-            "dividend_data": data.get("dividend_data", {}),
-            "news_data": data.get("news_data", {}),
-        }
+        additional_data=additional_data
     )
     
     if output_json:
@@ -171,6 +194,7 @@ def compare_multiple_stocks(
                             "analysis_date": analysis_date,
                             "dividend_data": data.get("dividend_data", {}),
                             "news_data": data.get("news_data", {}),
+                            "ticker": ticker,  # For Market Structure and Cloud Trend historical data fetch
                         }
                     )
             else:
@@ -185,6 +209,7 @@ def compare_multiple_stocks(
                         "analysis_date": analysis_date,
                         "dividend_data": data.get("dividend_data", {}),
                         "news_data": data.get("news_data", {}),
+                        "ticker": ticker,  # For Market Structure and Cloud Trend historical data fetch
                     }
                 )
             
@@ -442,6 +467,7 @@ Examples:
                 "Contrarian Investing": "Buy when others fear",
                 "Quantitative Investing": "Factor-based systematic",
                 "Sector Rotation": "Economic cycle-based",
+                "Market Structure and Cloud Trend": "Market Structure & Cloud Trend",
             }
             
             for strategy in strategies:

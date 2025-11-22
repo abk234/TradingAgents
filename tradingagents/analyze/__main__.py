@@ -1,3 +1,6 @@
+# Copyright (c) 2024. All rights reserved.
+# Licensed under the Apache License, Version 2.0. See LICENSE file in the project root for license information.
+
 """
 Deep Analysis CLI
 
@@ -311,7 +314,12 @@ def main():
     # Display next steps and recommendations
     if results_list:
         ticker = results_list[0].get('ticker', args.tickers[0] if args.tickers else 'TICKER')
-        display_next_steps('analyze', context={'ticker': ticker})
+        tickers = [r.get('ticker', '') for r in results_list if r.get('ticker')]
+        display_next_steps(
+            'analyze',
+            context={'ticker': ticker, 'tickers': tickers},
+            results=results_list
+        )
 
     logger.info("Analysis complete!")
 

@@ -1,3 +1,6 @@
+# Copyright (c) 2024. All rights reserved.
+# Licensed under the Apache License, Version 2.0. See LICENSE file in the project root for license information.
+
 import os
 
 # Fast-mode configuration for quick morning screening
@@ -12,11 +15,11 @@ FAST_CONFIG = {
         "dataflows/data_cache",
     ),
 
-    # LLM settings - Use fastest models
+    # LLM settings - Use Ollama for fast local inference
     "llm_provider": "ollama",
-    "deep_think_llm": "llama3.1",  # Use faster model (not llama3.3)
-    "quick_think_llm": "llama3.1",
-    "backend_url": "http://localhost:11434/v1",
+    "deep_think_llm": "llama3.3",  # Use Ollama model
+    "quick_think_llm": "llama3.1",  # Use Ollama model
+    "backend_url": "http://localhost:11434/v1",  # Ollama endpoint
 
     # Reduced debate rounds for speed
     "max_debate_rounds": 1,

@@ -1,3 +1,6 @@
+# Copyright (c) 2024. All rights reserved.
+# Licensed under the Apache License, Version 2.0. See LICENSE file in the project root for license information.
+
 """
 Show Indicators - Display current indicator values with interpretations
 
@@ -1084,7 +1087,7 @@ class IndicatorDisplay:
             print()
         
         # Display next steps and recommendations
-        display_next_steps('indicators', context={'ticker': ticker})
+        display_next_steps('indicators', context={'ticker': ticker, 'tickers': [ticker]})
         
         # Add footer separator
         print(f"\n{self.formatter.CYAN}{'─'*80}{self.formatter.NC}\n")
@@ -1889,6 +1892,9 @@ def main():
             refresh=args.refresh or args.refresh_data,
             refresh_data=args.refresh_data
         )
+        
+        # Display next steps with all tickers
+        display_next_steps('indicators', context={'tickers': args.tickers, 'ticker': args.tickers[0] if args.tickers else None})
         
         # If --detailed flag is set, also show detailed views
         if args.detailed:

@@ -1,3 +1,8 @@
+/*
+ * Copyright (c) 2024. All rights reserved.
+ * Licensed under the Apache License, Version 2.0. See LICENSE file in the project root for license information.
+ */
+
 "use client"
 
 import { useState } from "react"
@@ -10,6 +15,7 @@ import { HistoricalView } from "@/components/HistoricalView"
 import { AnalyticsView } from "@/components/AnalyticsView"
 import { SettingsView } from "@/components/SettingsView"
 import { SystemView } from "@/components/SystemView"
+import { DevToolsView } from "@/components/DevToolsView"
 import { ViewPlaceholder } from "@/components/ViewPlaceholder"
 import { Toaster } from "react-hot-toast"
 
@@ -34,6 +40,8 @@ export default function Home() {
         return <SettingsView />
       case "system":
         return <SystemView />
+      case "devtools":
+        return <DevToolsView />
       default:
         return <ChatInterface />
     }

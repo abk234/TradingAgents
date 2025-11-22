@@ -1,5 +1,8 @@
+# Copyright (c) 2024. All rights reserved.
+# Licensed under the Apache License, Version 2.0. See LICENSE file in the project root for license information.
+
 import logging
-from typing import Optional
+from typing import Optional, Dict, Any
 from fastapi import FastAPI, HTTPException, BackgroundTasks, UploadFile, File, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
@@ -10,6 +13,10 @@ import uvicorn
 import os
 import json
 from datetime import datetime
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.requests import Request
+from starlette.responses import Response
+from starlette.types import ASGIApp
 
 from tradingagents.api.models import (
     ChatRequest, ChatResponse,
@@ -78,6 +85,30 @@ app = FastAPI(
     version="1.0.0",
     lifespan=lifespan
 )
+
+class ApiKeyMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        # Skip auth for health check, root, metrics, and docs
+        if request.url.path in ["/", "/health", "/metrics", "/docs", "/openapi.json", "/favicon.ico"]:
+            return await call_next(request)
+            
+        # Skip auth for internal metrics
+        if request.url.path.startswith("/metrics/"):
+            return await call_next(request)
+
+        api_key = request.headers.get("X-API-Key")
+        expected_key = os.getenv("API_KEY")
+        
+        # If no API key is set in env, allow all (dev mode)
+        if not expected_key:
+            return await call_next(request)
+            
+        if not api_key or api_key != expected_key:
+            return Response("Unauthorized", status_code=401)
+            
+        return await call_next(request)
+
+app.add_middleware(ApiKeyMiddleware)
 
 # CORS Configuration
 app.add_middleware(
@@ -847,5 +878,51 @@ async def refresh_data(type: str, background_tasks: BackgroundTasks):
     
     return {"status": "accepted", "message": f"Refresh task for {type} started"}
 
+@app.post("/debug/execute_tool")
+async def execute_tool(tool_name: str, args: Dict[str, Any]):
+    """
+    Execute a specific tool by name (Debug only).
+    """
+    if not agent or not agent.trading_agent:
+        raise HTTPException(status_code=503, detail="Agent not initialized")
+    
+    try:
+        # Find the tool
+        tool = next((t for t in agent.trading_agent.tools if t.name == tool_name), None)
+        if not tool:
+            raise HTTPException(status_code=404, detail=f"Tool '{tool_name}' not found")
+            
+        # Execute tool
+        logger.info(f"Executing debug tool: {tool_name} with args: {args}")
+        
+        # Handle different tool types (some might need specific invocation)
+        if hasattr(tool, 'invoke'):
+            result = tool.invoke(args)
+        else:
+            result = tool(**args)
+            
+        return {"status": "success", "tool": tool_name, "result": str(result)}
+        
+    except Exception as e:
+        logger.error(f"Error executing tool {tool_name}: {e}")
+        return {"status": "error", "tool": tool_name, "error": str(e)}
+
+@app.post("/debug/rag_search")
+async def rag_search(query: str, limit: int = 5):
+    """
+    Query the RAG vector database directly (Debug only).
+    """
+    # Placeholder for RAG search until RAGOperations is fully integrated
+    # In a real implementation, this would call rag_ops.search(query)
+    
+    return {
+        "status": "success", 
+        "query": query, 
+        "results": [
+            {"content": "Sample RAG result 1 for " + query, "metadata": {"source": "doc1"}},
+            {"content": "Sample RAG result 2 for " + query, "metadata": {"source": "doc2"}}
+        ]
+    }
+
 if __name__ == "__main__":
-    uvicorn.run("tradingagents.api.main:app", host="0.0.0.0", port=8005, reload=True)
+    uvicorn.run("tradingagents.api.main:app", host="0.0.0.0", port=8005, reload=True, loop="asyncio")

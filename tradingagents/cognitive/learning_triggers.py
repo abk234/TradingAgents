@@ -1,3 +1,6 @@
+# Copyright (c) 2024. All rights reserved.
+# Licensed under the Apache License, Version 2.0. See LICENSE file in the project root for license information.
+
 """
 Event-Driven Learning Triggers for Eddie v2.0
 Phase 2.4: Advanced Autonomous Learning

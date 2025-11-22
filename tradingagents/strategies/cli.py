@@ -1,3 +1,6 @@
+# Copyright (c) 2024. All rights reserved.
+# Licensed under the Apache License, Version 2.0. See LICENSE file in the project root for license information.
+
 """
 CLI Commands for Strategy System
 """
@@ -17,6 +20,14 @@ from .momentum import MomentumStrategy
 from .contrarian import ContrarianStrategy
 from .quantitative import QuantitativeStrategy
 from .sector_rotation import SectorRotationStrategy
+
+# Try to import Market Structure and Cloud Trend strategy
+try:
+    from .market_structure_cloud_trend import MarketStructureCloudTrendStrategy
+    MARKET_STRUCTURE_AVAILABLE = True
+except ImportError:
+    MARKET_STRUCTURE_AVAILABLE = False
+    MarketStructureCloudTrendStrategy = None
 
 # Try to import integration (may not be available)
 try:
@@ -38,6 +49,10 @@ def get_strategy_by_name(name: str):
         "quantitative": QuantitativeStrategy,
         "sector_rotation": SectorRotationStrategy,
     }
+    
+    # Add Market Structure and Cloud Trend if available
+    if MARKET_STRUCTURE_AVAILABLE and name.lower() in ["market_structure", "market-structure", "cloud_trend", "cloud-trend", "msct"]:
+        return MarketStructureCloudTrendStrategy()
     
     strategy_class = strategy_map.get(name.lower())
     if strategy_class:
@@ -71,6 +86,9 @@ def cmd_compare(args):
             QuantitativeStrategy(),
             SectorRotationStrategy(),
         ]
+        # Add Market Structure and Cloud Trend if available
+        if MARKET_STRUCTURE_AVAILABLE:
+            strategies.append(MarketStructureCloudTrendStrategy())
     
     if not strategies:
         print("Error: No strategies to compare", file=sys.stderr)
@@ -88,16 +106,21 @@ def cmd_compare(args):
     # Run comparison
     print(f"Comparing {len(strategies)} strategies...")
     comparator = StrategyComparator(strategies)
+    
+    # Prepare additional data (include ticker for Market Structure and Cloud Trend)
+    additional_data = {
+        "analysis_date": analysis_date,
+        "dividend_data": data.get("dividend_data", {}),
+        "news_data": data.get("news_data", {}),
+        "ticker": ticker,  # For Market Structure and Cloud Trend historical data fetch
+    }
+    
     comparison = comparator.compare(
         ticker=ticker,
         market_data=data["market_data"],
         fundamental_data=data["fundamental_data"],
         technical_data=data["technical_data"],
-        additional_data={
-            "analysis_date": analysis_date,
-            "dividend_data": data.get("dividend_data", {}),
-            "news_data": data.get("news_data", {}),
-        }
+        additional_data=additional_data
     )
     
     # Output results
@@ -118,8 +141,11 @@ def cmd_single_strategy(args):
     # Get strategy
     strategy = get_strategy_by_name(strategy_name)
     if not strategy:
+        available = "value, growth, dividend, momentum, contrarian, quantitative, sector_rotation"
+        if MARKET_STRUCTURE_AVAILABLE:
+            available += ", market_structure"
         print(f"Error: Unknown strategy '{strategy_name}'", file=sys.stderr)
-        print(f"Available strategies: value, growth, dividend, momentum, contrarian, quantitative, sector_rotation")
+        print(f"Available strategies: {available}")
         return 1
     
     # Collect data
@@ -133,16 +159,21 @@ def cmd_single_strategy(args):
     
     # Run strategy
     print(f"Running {strategy.get_strategy_name()}...")
+    
+    # Prepare additional data (include ticker for Market Structure and Cloud Trend)
+    additional_data = {
+        "analysis_date": analysis_date,
+        "dividend_data": data.get("dividend_data", {}),
+        "news_data": data.get("news_data", {}),
+        "ticker": ticker,  # For Market Structure and Cloud Trend historical data fetch
+    }
+    
     result = strategy.evaluate(
         ticker=ticker,
         market_data=data["market_data"],
         fundamental_data=data["fundamental_data"],
         technical_data=data["technical_data"],
-        additional_data={
-            "analysis_date": analysis_date,
-            "dividend_data": data.get("dividend_data", {}),
-            "news_data": data.get("news_data", {}),
-        }
+        additional_data=additional_data
     )
     
     # Output results
@@ -165,6 +196,10 @@ def cmd_list(args):
         ("quantitative", "Quantitative Investing", "Factor-based systematic"),
         ("sector_rotation", "Sector Rotation", "Economic cycle-based"),
     ]
+    
+    # Add Market Structure and Cloud Trend if available
+    if MARKET_STRUCTURE_AVAILABLE:
+        strategies.append(("market_structure", "Market Structure and Cloud Trend", "Market Structure & Cloud Trend"))
     
     print("Available Strategies:")
     print("=" * 60)

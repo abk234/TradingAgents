@@ -1,3 +1,6 @@
+# Copyright (c) 2024. All rights reserved.
+# Licensed under the Apache License, Version 2.0. See LICENSE file in the project root for license information.
+
 from .utils.agent_utils import create_msg_delete
 from .utils.agent_states import AgentState, InvestDebateState, RiskDebateState
 from .utils.memory import FinancialSituationMemory

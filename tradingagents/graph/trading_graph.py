@@ -1,3 +1,6 @@
+# Copyright (c) 2024. All rights reserved.
+# Licensed under the Apache License, Version 2.0. See LICENSE file in the project root for license information.
+
 # TradingAgents/graph/trading_graph.py
 
 import os
@@ -265,10 +268,16 @@ class TradingAgentsGraph:
                 logger.warning(f"⚠ Profitability enhancer initialization failed: {e}")
                 self.profitability_enhancer = None
 
+
         # Initialize LLMs
         if self.config["llm_provider"].lower() == "openai" or self.config["llm_provider"] == "ollama" or self.config["llm_provider"] == "openrouter":
             # For Ollama, we need to set a dummy API key since it doesn't require authentication
-            api_key = "ollama" if self.config["llm_provider"] == "ollama" else None
+            # Always explicitly pass the API key to avoid LangChain reading from environment
+            if self.config["llm_provider"] == "ollama":
+                api_key = "ollama"
+            else:
+                # For OpenAI/OpenRouter, get from environment or use default
+                api_key = os.getenv("OPENAI_API_KEY", "not-set")
             
             # Set timeout based on provider and model size
             # Ollama with large models (70B+) can take 5-10+ minutes for complex analysis
@@ -284,7 +293,7 @@ class TradingAgentsGraph:
             self.deep_thinking_llm = ChatOpenAI(
                 model=self.config["deep_think_llm"],
                 base_url=self.config["backend_url"],
-                api_key=api_key,
+                api_key=api_key,  # Explicitly pass as string
                 temperature=0.7,
                 timeout=timeout
             )
@@ -293,7 +302,7 @@ class TradingAgentsGraph:
             self.quick_thinking_llm = ChatOpenAI(
                 model=self.config["quick_think_llm"],
                 base_url=self.config["backend_url"],
-                api_key=api_key,
+                api_key=api_key,  # Explicitly pass as string
                 temperature=0.7,
                 timeout=quick_timeout
             )

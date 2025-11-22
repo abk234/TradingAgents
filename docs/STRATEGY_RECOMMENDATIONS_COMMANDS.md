@@ -730,6 +730,111 @@ VWAP (Volume-Weighted Average Price):
 
 ---
 
+## 🚀 Auto-Generated Quick Actions
+
+**NEW FEATURE:** All commands now automatically generate context-aware follow-up commands based on their results!
+
+### How It Works
+
+When you run any command (e.g., `./quick_run.sh screener`, `./quick_run.sh portfolio`, `./quick_run.sh analyze AAPL`), after the results, you'll see:
+
+1. **Inline Commands** - Numbered list of ready-to-copy commands
+2. **Section Format** - Organized by category (BUY signals, dividends, sectors, etc.)
+3. **Interactive Menu** - Select commands to execute automatically (use `--interactive` flag)
+
+### Command Categories
+
+The system automatically generates context-aware commands based on the command you run:
+
+**For Screener/Top Commands:**
+- **📊 BUY Signals** - Commands for all stocks with BUY/STRONG BUY recommendations
+- **💰 Dividend Focus** - Commands for dividend analysis and income stocks
+- **🏆 Top N Opportunities** - Commands for analyzing top-ranked stocks
+- **🏭 Sector-Based** - Commands for sector-specific analysis
+- **🔍 Custom Filters** - Commands for oversold stocks (RSI < 30), high volume, etc.
+
+**For Portfolio Commands:**
+- **Portfolio Analysis** - Analyze all positions in your portfolio
+- **Strategy Comparison** - Compare strategies across portfolio holdings
+- **Performance Review** - Review performance and evaluation
+- **Dividend Planning** - Plan dividend income strategy
+
+**For Analyze Commands:**
+- **Technical Analysis** - Show indicators and top opportunities
+- **Strategy Comparison** - Compare all strategies on the analyzed stock
+- **Portfolio Integration** - Calculate position sizing and check portfolio
+
+**For Dividends Commands:**
+- **Dividend Analysis** - Analyze stocks with upcoming dividends
+- **Portfolio Review** - Review portfolio and performance
+
+**For Indicators Commands:**
+- **Deep Analysis** - Run full analysis on tickers
+- **Market Context** - Check market indexes and screener
+
+**And many more for other commands!**
+
+### Usage Examples
+
+**Standard Output (Inline + Section):**
+```bash
+./quick_run.sh screener
+# Shows table + auto-generated commands you can copy/paste
+
+./quick_run.sh portfolio
+# Shows portfolio + auto-generated commands for your positions
+
+./quick_run.sh analyze AAPL
+# Shows analysis + auto-generated follow-up commands
+```
+
+**Interactive Menu (Screener only for now):**
+```bash
+./quick_run.sh screener --interactive
+# Shows menu where you can select commands to execute automatically
+```
+
+**Disable Quick Actions (for scripts):**
+```bash
+./quick_run.sh screener --no-quick-actions
+# Only shows table, no command suggestions
+```
+
+### Example Output
+
+After running the screener, you'll see:
+
+```
+💡 Quick Actions - Copy & Paste:
+
+  [1] BUY Signals: ./quick_run.sh analyze AAPL MSFT GOOGL
+  [2] BUY Signals: ./quick_run.sh indicators AAPL MSFT GOOGL
+  [3] Dividend Focus: ./quick_run.sh dividend-income --top 10
+  [4] Top Opportunities: ./quick_run.sh analyze AAPL MSFT GOOGL NVDA TSLA
+  ...
+
+═══════════════════════════════════════════════════════
+🚀 QUICK ACTIONS - Based on Screener Results
+═══════════════════════════════════════════════════════
+
+📊 BUY Signals (3 stocks):
+  ./quick_run.sh analyze AAPL MSFT GOOGL
+  ./quick_run.sh indicators AAPL MSFT GOOGL
+
+💰 Dividend Focus (5 stocks):
+  ./quick_run.sh dividend-income --top 10
+  ./quick_run.sh analyze XOM CVX
+```
+
+### Benefits
+
+- ✅ **No manual copying** - Commands are pre-populated with tickers from results
+- ✅ **Context-aware** - Commands match your specific scan results
+- ✅ **Multiple formats** - Choose what works best for your workflow
+- ✅ **Smart filtering** - Automatically groups by recommendation type, sector, etc.
+
+---
+
 ## 🎯 Quick Reference: Command Cheat Sheet
 
 | Recommendation | Primary Command | Alternative Commands |

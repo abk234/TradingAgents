@@ -1,3 +1,8 @@
+/*
+ * Copyright (c) 2024. All rights reserved.
+ * Licensed under the Apache License, Version 2.0. See LICENSE file in the project root for license information.
+ */
+
 import { useState, useEffect } from "react"
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts"
 import { TrendingUp, Target, Award, MessageSquare, ThumbsUp, Zap, Loader2 } from "lucide-react"

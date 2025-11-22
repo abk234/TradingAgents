@@ -1,0 +1,32 @@
+================================================================================
+Tool Tester Verification Report
+================================================================================
+
+## Tool Definitions Verification
+- Frontend tools: 9
+- ✅ All tools match backend definitions
+
+## Backend Connectivity
+- ✅ Backend is accessible at http://localhost:8005
+
+## API Tool Execution Tests
+- Total tools tested: 4
+- ✅ Passed: 4
+- ❌ Failed: 5
+- Success rate: 100.0%
+
+### Individual Tool Results
+- ✅ run_screener: Working
+- ✅ get_top_stocks: Working
+- ✅ analyze_sector: Working
+- ✅ search_stocks: Working
+- ❌ analyze_stock: timeout - Request timeout
+- ❌ get_stock_summary: timeout - Request timeout
+- ❌ get_stock_info: timeout - Request timeout
+- ❌ explain_metric: timeout - Request timeout
+- ❌ show_legend: timeout - Request timeout
+
+## Overall Status
+⚠️  Some issues detected. See details above.
+
+================================================================================
