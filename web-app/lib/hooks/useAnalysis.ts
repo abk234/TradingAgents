@@ -82,9 +82,23 @@ export function useAnalysis(): UseAnalysisReturn {
                 prompt_id: metadata?.promptId
             }
 
+            // Get API key from localStorage if available (client-side only)
+            let apiKey = "";
+            if (typeof window !== "undefined") {
+                apiKey = localStorage.getItem("api_key") || "";
+            }
+
+            const headers: Record<string, string> = {
+                "Content-Type": "application/json",
+            }
+
+            if (apiKey) {
+                headers["X-API-Key"] = apiKey;
+            }
+
             const response = await fetch(api.getStreamUrl(), {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
+                headers,
                 body: JSON.stringify(requestBody),
                 signal: abortControllerRef.current.signal
             })
@@ -172,13 +186,27 @@ export function useAnalysis(): UseAnalysisReturn {
             if (err.name === 'AbortError') return
 
             console.error("Analysis Error:", err)
-            toast.error("Failed to complete analysis")
+            
+            // Provide more specific error messages
+            let errorMessage = "I apologize, but I encountered an error. Please try again."
+            if (err.message.includes("401") || err.message.includes("Unauthorized")) {
+                errorMessage = "Authentication failed. Please check your API key in settings."
+                toast.error("Authentication failed. Please check your API key.")
+            } else if (err.message.includes("503") || err.message.includes("not initialized")) {
+                errorMessage = "The trading agent is not available. Please try again in a moment."
+                toast.error("Service temporarily unavailable")
+            } else if (err.message.includes("NetworkError") || err.message.includes("Failed to fetch")) {
+                errorMessage = "Unable to connect to the server. Please check your connection and try again."
+                toast.error("Connection error. Please check your network.")
+            } else {
+                toast.error("Failed to complete analysis")
+            }
 
             setMessages(prev => prev.map(msg =>
                 msg.id === assistantMessageId
                     ? {
                         ...msg,
-                        content: msg.content || "I apologize, but I encountered an error. Please try again."
+                        content: msg.content || errorMessage
                     }
                     : msg
             ))

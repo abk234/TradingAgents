@@ -5,7 +5,7 @@
 
 "use client"
 
-import { useState } from "react"
+import { useState, useRef, useEffect } from "react"
 import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
 import { motion, AnimatePresence } from "framer-motion"
@@ -17,11 +17,14 @@ import {
     Scale,
     CheckCircle2,
     Download,
-    Share2
+    Share2,
+    Volume2,
+    VolumeX
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { StockChart } from "./StockChart"
+import { api } from "@/lib/api/client"
 
 interface AnalysisData {
     summary?: string
@@ -42,6 +45,22 @@ interface AnalysisResultsProps {
 
 export function AnalysisResults({ ticker, data, isLoading }: AnalysisResultsProps) {
     const [activeTab, setActiveTab] = useState("summary")
+    const [isPlayingVoice, setIsPlayingVoice] = useState(false)
+    const audioRef = useRef<HTMLAudioElement | null>(null)
+    const audioUrlRef = useRef<string | null>(null)
+
+    // Cleanup audio on unmount
+    useEffect(() => {
+        return () => {
+            if (audioRef.current) {
+                audioRef.current.pause()
+                audioRef.current.src = ""
+            }
+            if (audioUrlRef.current) {
+                URL.revokeObjectURL(audioUrlRef.current)
+            }
+        }
+    }, [])
 
     if (isLoading) {
         return (
@@ -86,6 +105,84 @@ export function AnalysisResults({ ticker, data, isLoading }: AnalysisResultsProp
         window.print()
     }
 
+    const handlePlayVoice = async () => {
+        if (isPlayingVoice && audioRef.current) {
+            // Stop playback
+            audioRef.current.pause()
+            audioRef.current.currentTime = 0
+            setIsPlayingVoice(false)
+            return
+        }
+
+        try {
+            setIsPlayingVoice(true)
+
+            // Get the text content for the current tab
+            let textToSpeak = ""
+            switch (activeTab) {
+                case "summary":
+                    textToSpeak = `Executive Summary for ${ticker}. ${data.summary || "No summary available."}`
+                    break
+                case "analysts":
+                    textToSpeak = `Analyst Reports for ${ticker}. `
+                    Object.entries(data.analysts || {}).forEach(([role, content]) => {
+                        textToSpeak += `${role.replace("_", " ")} Analyst: ${content}. `
+                    })
+                    break
+                case "debate":
+                    textToSpeak = `Investment Debate for ${ticker}. `
+                    if (data.debate?.bullish) {
+                        textToSpeak += `Bullish Case: ${data.debate.bullish}. `
+                    }
+                    if (data.debate?.bearish) {
+                        textToSpeak += `Bearish Case: ${data.debate.bearish}. `
+                    }
+                    break
+                case "decision":
+                    textToSpeak = `Final Decision for ${ticker}. Recommendation: ${data.decision || "HOLD"}. ${data.recommendation || "Based on the analysis above."}`
+                    break
+                default:
+                    textToSpeak = `Analysis for ${ticker}. ${data.summary || "Analysis complete."}`
+            }
+
+            // Synthesize speech
+            const audioBlob = await api.synthesizeVoice(textToSpeak, "professional")
+            
+            // Verify blob is valid before creating URL
+            if (!audioBlob || audioBlob.size === 0) {
+                throw new Error("Invalid audio blob received")
+            }
+            
+            const audioUrl = URL.createObjectURL(audioBlob)
+            audioUrlRef.current = audioUrl
+
+            const audio = new Audio(audioUrl)
+            audioRef.current = audio
+
+            audio.onended = () => {
+                setIsPlayingVoice(false)
+                URL.revokeObjectURL(audioUrl)
+                audioUrlRef.current = null
+            }
+
+            audio.onerror = (e) => {
+                console.error("Audio playback error:", e)
+                setIsPlayingVoice(false)
+                URL.revokeObjectURL(audioUrl)
+                audioUrlRef.current = null
+            }
+
+            await audio.play()
+        } catch (error) {
+            console.error("Error playing voice:", error)
+            setIsPlayingVoice(false)
+            const errorMessage = error instanceof Error ? error.message : String(error)
+            if (errorMessage.includes("RIFF")) {
+                console.error("Audio format error - this should not happen with the fixed API client")
+            }
+        }
+    }
+
     return (
         <div className="space-y-6 print:space-y-4">
             {/* Header */}
@@ -99,6 +196,22 @@ export function AnalysisResults({ ticker, data, isLoading }: AnalysisResultsProp
                     </h2>
                 </div>
                 <div className="flex gap-2">
+                    <Button 
+                        variant="outline" 
+                        size="sm" 
+                        className="gap-2" 
+                        onClick={handlePlayVoice}
+                    >
+                        {isPlayingVoice ? (
+                            <>
+                                <VolumeX className="w-4 h-4" /> Stop Voice
+                            </>
+                        ) : (
+                            <>
+                                <Volume2 className="w-4 h-4" /> Play Voice
+                            </>
+                        )}
+                    </Button>
                     <Button variant="outline" size="sm" className="gap-2" onClick={handleExportJSON}>
                         <Download className="w-4 h-4" /> Export JSON
                     </Button>

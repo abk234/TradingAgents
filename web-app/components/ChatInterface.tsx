@@ -98,6 +98,12 @@ export function ChatInterface() {
             setPlayingAudio(prev => ({ ...prev, [messageId]: true }))
 
             const audioBlob = await api.synthesizeVoice(text)
+            
+            // Verify blob is valid before creating URL
+            if (!audioBlob || audioBlob.size === 0) {
+                throw new Error("Invalid audio blob received")
+            }
+            
             const audioUrl = URL.createObjectURL(audioBlob)
 
             const audio = new Audio(audioUrl)
@@ -124,16 +130,26 @@ export function ChatInterface() {
                 URL.revokeObjectURL(audioUrl)
             }
 
-            audio.onerror = () => {
+            audio.onerror = (e) => {
                 clearInterval(bargeInInterval)
+                console.error("Audio playback error:", e)
                 setPlayingAudio(prev => ({ ...prev, [messageId]: false }))
                 URL.revokeObjectURL(audioUrl)
+                // Show user-friendly error
+                if (typeof window !== "undefined" && (window as any).toast) {
+                    (window as any).toast.error("Failed to play audio. Please try again.")
+                }
             }
 
             await audio.play()
         } catch (error) {
             console.error("Error playing voice:", error)
             setPlayingAudio(prev => ({ ...prev, [messageId]: false }))
+            // Show user-friendly error message
+            const errorMessage = error instanceof Error ? error.message : String(error)
+            if (errorMessage.includes("RIFF")) {
+                console.error("Audio format error - this should not happen with the fixed API client")
+            }
         }
     }
 

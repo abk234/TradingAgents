@@ -13,6 +13,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"
 import { useAnalysis } from "@/lib/hooks/useAnalysis"
 import { AnalysisResults } from "./AnalysisResults"
+import { VoiceInput } from "./VoiceInput"
 import { cn } from "@/lib/utils"
 
 export function DirectAnalysis() {
@@ -33,6 +34,7 @@ export function DirectAnalysis() {
         fundamentals: true
     })
     const [showResults, setShowResults] = useState(false)
+    const [voiceError, setVoiceError] = useState<string | null>(null)
 
     const handleAnalyze = async (e: React.FormEvent) => {
         e.preventDefault()
@@ -73,17 +75,47 @@ export function DirectAnalysis() {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div className="space-y-2">
                             <Label htmlFor="ticker">Stock Ticker</Label>
-                            <div className="relative">
-                                <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                                <Input
-                                    id="ticker"
-                                    placeholder="e.g. NVDA, AAPL, TSLA"
-                                    className="pl-10 h-12 text-lg font-mono uppercase"
-                                    value={ticker}
-                                    onChange={(e) => setTicker(e.target.value.toUpperCase())}
-                                    disabled={isLoading}
+                            <div className="flex gap-2">
+                                <div className="relative flex-1">
+                                    <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                                    <Input
+                                        id="ticker"
+                                        placeholder="e.g. NVDA, AAPL, TSLA"
+                                        className="pl-10 h-12 text-lg font-mono uppercase"
+                                        value={ticker}
+                                        onChange={(e) => setTicker(e.target.value.toUpperCase())}
+                                        disabled={isLoading}
+                                    />
+                                </div>
+                                <VoiceInput
+                                    onTranscription={(text) => {
+                                        // Extract ticker from transcription (e.g., "analyze AAPL" -> "AAPL")
+                                        const tickerMatch = text.match(/\b([A-Z]{1,5})\b/)
+                                        if (tickerMatch) {
+                                            setTicker(tickerMatch[1].toUpperCase())
+                                        } else {
+                                            // If no ticker found, try to use the whole text if it's short
+                                            const cleaned = text.trim().toUpperCase().replace(/[^A-Z]/g, '')
+                                            if (cleaned.length <= 5 && cleaned.length > 0) {
+                                                setTicker(cleaned)
+                                            } else {
+                                                setTicker(text.trim().toUpperCase().split(/\s+/)[0].substring(0, 5))
+                                            }
+                                        }
+                                        setVoiceError(null)
+                                    }}
+                                    onError={(error) => {
+                                        setVoiceError(error)
+                                        setTimeout(() => setVoiceError(null), 8000)
+                                    }}
+                                    className="h-12"
                                 />
                             </div>
+                            {voiceError && (
+                                <div className="p-2 bg-destructive/10 border border-destructive/20 rounded text-xs text-destructive">
+                                    {voiceError}
+                                </div>
+                            )}
                         </div>
 
                         <div className="space-y-2">

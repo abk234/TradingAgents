@@ -112,22 +112,51 @@ class ApiClient {
 
     // Voice Endpoints
     async synthesizeVoice(text: string, tone: string = "professional"): Promise<Blob> {
-        const response = await fetch(`${this.baseUrl}/voice/synthesize`, {
+        // Use query parameters like DevToolsView does (proven to work)
+        const apiKey = typeof window !== "undefined" ? localStorage.getItem("api_key") || "" : ""
+        const url = `${this.baseUrl}/voice/synthesize?text=${encodeURIComponent(text)}&tone=${encodeURIComponent(tone)}&return_base64=true`
+        
+        const response = await fetch(url, {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
-                ...(typeof window !== "undefined" && localStorage.getItem("api_key")
-                    ? { "X-API-Key": localStorage.getItem("api_key") || "" }
-                    : {})
-            },
-            body: JSON.stringify({ text, tone, return_base64: false }),
+                ...(apiKey ? { "X-API-Key": apiKey } : {})
+            }
         })
 
         if (!response.ok) {
-            throw new Error("Failed to synthesize voice")
+            const errorText = await response.text()
+            throw new Error(`Failed to synthesize voice: ${errorText}`)
         }
 
-        return response.blob()
+        // Parse JSON response with base64 audio
+        const data = await response.json()
+        if (data.audio_base64) {
+            // Convert base64 to blob
+            try {
+                const binaryString = atob(data.audio_base64)
+                const bytes = new Uint8Array(binaryString.length)
+                for (let i = 0; i < binaryString.length; i++) {
+                    bytes[i] = binaryString.charCodeAt(i)
+                }
+                
+                // Verify RIFF header before creating blob
+                if (bytes.length >= 4) {
+                    const header = String.fromCharCode(bytes[0], bytes[1], bytes[2], bytes[3])
+                    if (header !== "RIFF") {
+                        console.error("Invalid audio header:", header, "Expected: RIFF")
+                        throw new Error("Invalid audio format: file does not start with RIFF header")
+                    }
+                }
+                
+                return new Blob([bytes], { type: "audio/wav" })
+            } catch (error) {
+                console.error("Error converting base64 to blob:", error)
+                throw new Error(`Failed to process audio data: ${error instanceof Error ? error.message : String(error)}`)
+            }
+        } else {
+            throw new Error("No audio data in response")
+        }
     }
 
     // Helper for streaming chat
