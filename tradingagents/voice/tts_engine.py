@@ -224,6 +224,82 @@ class TTSEngineFallback:
             logger.warning("pyttsx3 not available. TTS will be disabled.")
             self._engine = None
     
+    def _convert_to_wav(self, audio_path: str) -> bytes:
+        """Convert AIFF (macOS pyttsx3 default) to WAV format."""
+        import os
+        import io
+        
+        # Check if file is AIFF
+        with open(audio_path, 'rb') as f:
+            header = f.read(4)
+        
+        if header != b'FORM':
+            # Already WAV or other format, read as-is
+            with open(audio_path, 'rb') as f:
+                return f.read()
+        
+        # It's AIFF, convert to WAV
+        try:
+            # Method 1: Try using afconvert (macOS built-in tool)
+            import subprocess
+            import tempfile
+            
+            with tempfile.NamedTemporaryFile(delete=False, suffix='.wav') as tmp_wav:
+                wav_path = tmp_wav.name
+            
+            try:
+                result = subprocess.run(
+                    ['afconvert', '-f', 'WAVE', '-d', 'LEI16', audio_path, wav_path],
+                    capture_output=True,
+                    timeout=10,
+                    check=False
+                )
+                if result.returncode == 0 and os.path.exists(wav_path):
+                    with open(wav_path, 'rb') as f:
+                        wav_data = f.read()
+                    os.unlink(wav_path)
+                    logger.info("Successfully converted AIFF to WAV using afconvert")
+                    return wav_data
+            except (subprocess.TimeoutExpired, FileNotFoundError) as e:
+                logger.warning(f"afconvert not available: {e}")
+            finally:
+                if os.path.exists(wav_path):
+                    try:
+                        os.unlink(wav_path)
+                    except:
+                        pass
+        except Exception as e:
+            logger.warning(f"afconvert method failed: {e}")
+        
+        # Method 2: Try using aifc (works with standard-aifc package on Python 3.13)
+        try:
+            import aifc
+            import wave
+            
+            with aifc.open(audio_path, 'rb') as aiff_file:
+                frames = aiff_file.getnframes()
+                sample_rate = aiff_file.getframerate()
+                sample_width = aiff_file.getsampwidth()
+                channels = aiff_file.getnchannels()
+                audio_data = aiff_file.readframes(frames)
+            
+            wav_buffer = io.BytesIO()
+            with wave.open(wav_buffer, 'wb') as wav_file:
+                wav_file.setnchannels(channels)
+                wav_file.setsampwidth(sample_width)
+                wav_file.setframerate(sample_rate)
+                wav_file.writeframes(audio_data)
+            
+            logger.info("Successfully converted AIFF to WAV using aifc")
+            return wav_buffer.getvalue()
+        except Exception as e:
+            logger.error(f"aifc conversion failed: {e}")
+        
+        # Fallback: return raw AIFF (browser might not play it, but better than nothing)
+        logger.warning("Could not convert AIFF to WAV, returning raw AIFF file")
+        with open(audio_path, 'rb') as f:
+            return f.read()
+    
     def synthesize(
         self,
         text: str,
@@ -256,13 +332,33 @@ class TTSEngineFallback:
                 self._engine.runAndWait()
                 
                 if return_bytes:
-                    with open(output_path, 'rb') as f:
-                        return f.read()
+                    # Convert AIFF to WAV if needed (pyttsx3 on macOS generates AIFF)
+                    audio_bytes = self._convert_to_wav(output_path)
+                    return audio_bytes
                 return None
             else:
-                # Can't return bytes directly with pyttsx3
-                logger.warning("pyttsx3 doesn't support returning bytes. Use output_path.")
-                return None
+                # Can't return bytes directly with pyttsx3, need temp file
+                if return_bytes:
+                    import tempfile
+                    import os
+                    # Use .aiff extension since pyttsx3 on macOS generates AIFF
+                    with tempfile.NamedTemporaryFile(delete=False, suffix='.aiff') as tmp_file:
+                        tmp_path = tmp_file.name
+                    try:
+                        self._engine.save_to_file(text, tmp_path)
+                        self._engine.runAndWait()
+                        
+                        # Convert AIFF to WAV
+                        audio_bytes = self._convert_to_wav(tmp_path)
+                        os.unlink(tmp_path)
+                        return audio_bytes
+                    except Exception as e:
+                        if os.path.exists(tmp_path):
+                            os.unlink(tmp_path)
+                        raise
+                else:
+                    logger.warning("pyttsx3 requires output_path when return_bytes=False")
+                    return None
                 
         except Exception as e:
             logger.error(f"Error in fallback TTS: {e}")

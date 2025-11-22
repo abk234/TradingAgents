@@ -30,6 +30,8 @@ from tradingagents.default_config import DEFAULT_CONFIG
 from tradingagents.database.learning_ops import LearningOperations
 from tradingagents.database.system_ops import SystemOperations
 from tradingagents.database.ticker_ops import TickerOperations
+from tradingagents.database.rag_ops import RAGOperations
+from tradingagents.rag.embeddings import EmbeddingGenerator
 from tradingagents.monitoring.langfuse_integration import get_langfuse_tracer
 from tradingagents.monitoring.metrics import TradingMetrics
 
@@ -461,8 +463,10 @@ async def synthesize_speech(
         Audio file (WAV) or base64 string
     """
     try:
-        from tradingagents.voice import get_tts_engine, EmotionalTone
+        from tradingagents.voice import get_tts_engine, EmotionalTone, TTSEngineFallback
         import base64
+        import tempfile
+        import os
         
         # Map tone string to enum
         tone_map = {
@@ -475,9 +479,15 @@ async def synthesize_speech(
         
         tone_enum = tone_map.get(tone.lower(), EmotionalTone.PROFESSIONAL)
         
-        # Synthesize
-        tts_engine = get_tts_engine()
-        audio_bytes = tts_engine.synthesize(text, tone=tone_enum, return_bytes=True)
+        # Try to get TTS engine, fallback if Coqui not available
+        try:
+            tts_engine = get_tts_engine()
+            audio_bytes = tts_engine.synthesize(text, tone=tone_enum, return_bytes=True)
+        except (ImportError, Exception) as e:
+            logger.warning(f"Primary TTS not available ({e}), trying fallback...")
+            # Use fallback engine
+            tts_engine = get_tts_engine(use_fallback=True)
+            audio_bytes = tts_engine.synthesize(text, tone=tone_enum, return_bytes=True)
         
         if audio_bytes:
             if return_base64:
@@ -908,21 +918,106 @@ async def execute_tool(tool_name: str, args: Dict[str, Any]):
         return {"status": "error", "tool": tool_name, "error": str(e)}
 
 @app.post("/debug/rag_search")
-async def rag_search(query: str, limit: int = 5):
+async def rag_search(query: str, limit: int = 5, similarity_threshold: float = 0.5):
     """
     Query the RAG vector database directly (Debug only).
-    """
-    # Placeholder for RAG search until RAGOperations is fully integrated
-    # In a real implementation, this would call rag_ops.search(query)
     
-    return {
-        "status": "success", 
-        "query": query, 
-        "results": [
-            {"content": "Sample RAG result 1 for " + query, "metadata": {"source": "doc1"}},
-            {"content": "Sample RAG result 2 for " + query, "metadata": {"source": "doc2"}}
-        ]
-    }
+    Searches for similar past analyses using vector similarity search.
+    The query text is converted to an embedding and matched against
+    stored analysis embeddings in the database.
+    
+    Args:
+        query: Natural language query (e.g., "AAPL showing strong momentum")
+        limit: Maximum number of results to return (default: 5)
+        similarity_threshold: Minimum similarity score 0-1 (default: 0.5)
+    
+    Returns:
+        List of similar analyses with similarity scores and metadata
+    """
+    try:
+        # Initialize embedding generator and RAG operations
+        embedding_gen = EmbeddingGenerator()
+        rag_ops = RAGOperations()
+        
+        # Test embedding service connection
+        if not embedding_gen.test_connection():
+            logger.warning("Embedding service not available, returning empty results")
+            return {
+                "status": "error",
+                "query": query,
+                "error": "Embedding service (Ollama) not available. Make sure Ollama is running with nomic-embed-text model.",
+                "results": []
+            }
+        
+        # Generate embedding for the query
+        query_embedding = embedding_gen.generate(query)
+        if not query_embedding:
+            return {
+                "status": "error",
+                "query": query,
+                "error": "Failed to generate embedding for query",
+                "results": []
+            }
+        
+        # Search for similar analyses
+        similar_analyses = rag_ops.find_similar_analyses(
+            query_embedding=query_embedding,
+            limit=limit,
+            similarity_threshold=similarity_threshold
+        )
+        
+        # Format results with ticker information
+        formatted_results = []
+        for analysis in similar_analyses:
+            # Get ticker symbol
+            symbol = f"Ticker_{analysis.get('ticker_id')}"
+            if ticker_ops:
+                ticker_info = ticker_ops.get_ticker(ticker_id=analysis.get('ticker_id'))
+                if ticker_info:
+                    symbol = ticker_info['symbol']
+            
+            # Build content from analysis
+            content_parts = []
+            if analysis.get('executive_summary'):
+                content_parts.append(f"Summary: {analysis['executive_summary']}")
+            if analysis.get('final_decision'):
+                content_parts.append(f"Decision: {analysis['final_decision']}")
+            if analysis.get('confidence_score'):
+                content_parts.append(f"Confidence: {analysis['confidence_score']}/100")
+            
+            content = " | ".join(content_parts) if content_parts else "Analysis available"
+            
+            formatted_results.append({
+                "content": content,
+                "metadata": {
+                    "source": "analysis",
+                    "analysis_id": analysis.get('analysis_id'),
+                    "ticker": symbol,
+                    "ticker_id": analysis.get('ticker_id'),
+                    "analysis_date": str(analysis.get('analysis_date')) if analysis.get('analysis_date') else None,
+                    "final_decision": analysis.get('final_decision'),
+                    "confidence_score": analysis.get('confidence_score'),
+                    "similarity": round(analysis.get('similarity', 0), 3) if analysis.get('similarity') else None
+                }
+            })
+        
+        logger.info(f"RAG search for '{query}' returned {len(formatted_results)} results")
+        
+        return {
+            "status": "success",
+            "query": query,
+            "results": formatted_results,
+            "count": len(formatted_results)
+        }
+        
+    except Exception as e:
+        logger.error(f"Error in RAG search: {e}", exc_info=True)
+        return {
+            "status": "error",
+            "query": query,
+            "error": str(e),
+            "results": []
+        }
 
 if __name__ == "__main__":
     uvicorn.run("tradingagents.api.main:app", host="0.0.0.0", port=8005, reload=True, loop="asyncio")

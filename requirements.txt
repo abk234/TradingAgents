@@ -64,7 +64,7 @@ psutil>=5.9.0
 # TTS>=0.20.0  # Coqui TTS - Primary voice synthesis engine (requires Python <= 3.12)
 # Note: TTS package doesn't support Python 3.13+. System will use pyttsx3 fallback.
 # To install TTS, use Python 3.12 or earlier: python3.12 -m venv venv
-pyttsx3>=2.90  # Fallback TTS - System TTS fallback
+pyttsx3>=2.90  # Fallback TTS - System TTS fallback (works with Python 3.13+)
 faster-whisper>=1.0.0  # Speech-to-Text (STT) - Low latency transcription
 SpeechRecognition>=3.10.0  # Fallback STT engine
 

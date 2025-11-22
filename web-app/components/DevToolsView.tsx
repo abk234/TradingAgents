@@ -104,25 +104,45 @@ export function DevToolsView() {
     const synthesizeSpeech = async () => {
         if (!ttsText) return
         setTtsLoading(true)
+        setAudioUrl(null) // Clear previous audio
         try {
             const apiKey = localStorage.getItem("api_key") || "";
+            if (!apiKey) {
+                toast.error("API key not found. Please set it in Settings or login page.")
+                setTtsLoading(false)
+                return
+            }
+            
             const response = await fetch(`http://localhost:8005/voice/synthesize?text=${encodeURIComponent(ttsText)}&tone=${ttsTone}&return_base64=true`, {
                 method: "POST",
                 headers: {
-                    ...(apiKey ? { "X-API-Key": apiKey } : {})
+                    "Content-Type": "application/json",
+                    "X-API-Key": apiKey
                 }
             })
 
             if (response.ok) {
                 const data = await response.json()
-                const audioSrc = `data:audio/wav;base64,${data.audio_base64}`
-                setAudioUrl(audioSrc)
-                toast.success("Speech synthesized")
+                if (data.audio_base64 && data.audio_base64.length > 0) {
+                    const audioSrc = `data:audio/wav;base64,${data.audio_base64}`
+                    setAudioUrl(audioSrc)
+                    toast.success("Speech synthesized successfully")
+                } else {
+                    console.error("No audio data in response:", data)
+                    toast.error("No audio data received")
+                }
             } else {
-                toast.error("Failed to synthesize speech")
+                const errorText = await response.text()
+                console.error("API Error:", response.status, errorText)
+                if (response.status === 401) {
+                    toast.error("Unauthorized - API key is invalid or missing. Check Settings.")
+                } else {
+                    toast.error(`Failed to synthesize speech: ${errorText}`)
+                }
             }
         } catch (error) {
-            toast.error("Error connecting to TTS service")
+            console.error("TTS Error:", error)
+            toast.error(`Error connecting to TTS service: ${error}`)
         } finally {
             setTtsLoading(false)
         }
@@ -260,7 +280,19 @@ export function DevToolsView() {
                             {audioUrl && (
                                 <div className="mt-6 p-4 border rounded-lg bg-accent/20">
                                     <Label className="mb-2 block">Audio Output</Label>
-                                    <audio controls src={audioUrl} className="w-full" autoPlay />
+                                    <audio 
+                                        controls 
+                                        src={audioUrl} 
+                                        className="w-full" 
+                                        autoPlay
+                                        onError={(e) => {
+                                            console.error("Audio loading error:", e)
+                                            toast.error("Failed to load audio. Check console for details.")
+                                        }}
+                                        onLoadedData={() => {
+                                            console.log("Audio loaded successfully")
+                                        }}
+                                    />
                                 </div>
                             )}
                         </CardContent>
