@@ -13,7 +13,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Terminal, Mic, Search, Play, FileAudio, Loader2 } from "lucide-react"
+import { Terminal, Mic, Search, Play, FileAudio, Loader2, MicOff, Upload } from "lucide-react"
 import { toast } from "react-hot-toast"
 
 export function DevToolsView() {
@@ -30,6 +30,13 @@ export function DevToolsView() {
     const [ttsTone, setTtsTone] = useState("professional")
     const [ttsLoading, setTtsLoading] = useState(false)
     const [audioUrl, setAudioUrl] = useState<string | null>(null)
+    
+    // STT State
+    const [isRecording, setIsRecording] = useState(false)
+    const [transcription, setTranscription] = useState("")
+    const [sttLoading, setSttLoading] = useState(false)
+    const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null)
+    const [audioChunks, setAudioChunks] = useState<Blob[]>([])
 
     // RAG Tester State
     const [ragQuery, setRagQuery] = useState("")
@@ -174,6 +181,261 @@ export function DevToolsView() {
         }
     }
 
+    const checkMicrophonePermission = async (): Promise<boolean> => {
+        try {
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                toast.error("Microphone access not available in this browser. Please use Chrome, Firefox, or Safari.")
+                return false
+            }
+
+            // Check permission status
+            if (navigator.permissions) {
+                const permissionStatus = await navigator.permissions.query({ name: 'microphone' as PermissionName })
+                if (permissionStatus.state === 'denied') {
+                    toast.error("Microphone permission denied. Please enable it in your browser settings.")
+                    return false
+                }
+            }
+
+            return true
+        } catch (error) {
+            // Permission API might not be supported, continue anyway
+            return true
+        }
+    }
+
+    const startRecording = async () => {
+        try {
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                toast.error("Microphone access not available in this browser. Please use Chrome, Firefox, or Safari.")
+                return
+            }
+
+            // Check permissions first
+            const hasPermission = await checkMicrophonePermission()
+            if (!hasPermission) {
+                return
+            }
+
+            const stream = await navigator.mediaDevices.getUserMedia({ 
+                audio: {
+                    echoCancellation: true,
+                    noiseSuppression: true,
+                    autoGainControl: true
+                }
+            })
+            
+            const recorder = new MediaRecorder(stream, {
+                mimeType: MediaRecorder.isTypeSupported("audio/webm;codecs=opus") 
+                    ? "audio/webm;codecs=opus"
+                    : MediaRecorder.isTypeSupported("audio/webm")
+                    ? "audio/webm"
+                    : "audio/mp4"
+            })
+            
+            const chunks: Blob[] = []
+            recorder.ondataavailable = (event) => {
+                if (event.data.size > 0) {
+                    chunks.push(event.data)
+                }
+            }
+
+            recorder.onstop = async () => {
+                stream.getTracks().forEach(track => track.stop())
+                if (chunks.length > 0) {
+                    const audioBlob = new Blob(chunks, { type: recorder.mimeType })
+                    await transcribeAudio(audioBlob)
+                }
+                setAudioChunks([])
+            }
+
+            recorder.onerror = (event) => {
+                console.error("MediaRecorder error:", event)
+                toast.error("Recording error occurred. Please try again.")
+                setIsRecording(false)
+            }
+
+            recorder.start(100) // Collect data every 100ms
+            setMediaRecorder(recorder)
+            setIsRecording(true)
+            setTranscription("")
+            toast.success("Recording started - speak now")
+        } catch (error: any) {
+            console.error("Recording error:", error)
+            setIsRecording(false)
+            
+            let errorMessage = "Failed to start recording. "
+            
+            if (error.name === "NotAllowedError" || error.name === "PermissionDeniedError") {
+                errorMessage += "Microphone permission denied. Please:\n" +
+                    "1. Click the microphone icon in your browser's address bar\n" +
+                    "2. Select 'Allow' for microphone access\n" +
+                    "3. Refresh the page and try again"
+                toast.error(errorMessage, { duration: 6000 })
+            } else if (error.name === "NotFoundError" || error.name === "DevicesNotFoundError") {
+                errorMessage += "No microphone found. Please connect a microphone and try again."
+                toast.error(errorMessage)
+            } else if (error.name === "NotReadableError" || error.name === "TrackStartError") {
+                errorMessage += "Microphone is being used by another application. Please close other apps using the microphone."
+                toast.error(errorMessage)
+            } else {
+                errorMessage += error.message || "Unknown error occurred."
+                toast.error(errorMessage)
+            }
+        }
+    }
+
+    const stopRecording = () => {
+        if (mediaRecorder && mediaRecorder.state !== "inactive") {
+            mediaRecorder.stop()
+            setIsRecording(false)
+            toast.success("Recording stopped")
+        }
+    }
+
+    const convertWebmToWav = async (webmBlob: Blob): Promise<Blob> => {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader()
+            reader.onload = async (e) => {
+                try {
+                    const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)()
+                    const arrayBuffer = e.target?.result as ArrayBuffer
+                    const audioBuffer = await audioContext.decodeAudioData(arrayBuffer)
+                    
+                    // Convert to WAV
+                    const wav = audioBufferToWav(audioBuffer)
+                    const wavBlob = new Blob([wav], { type: "audio/wav" })
+                    resolve(wavBlob)
+                } catch (error) {
+                    reject(error)
+                }
+            }
+            reader.onerror = reject
+            reader.readAsArrayBuffer(webmBlob)
+        })
+    }
+
+    const audioBufferToWav = (buffer: AudioBuffer): ArrayBuffer => {
+        const length = buffer.length
+        const numberOfChannels = buffer.numberOfChannels
+        const sampleRate = buffer.sampleRate
+        const bytesPerSample = 2
+        const blockAlign = numberOfChannels * bytesPerSample
+        const byteRate = sampleRate * blockAlign
+        const dataSize = length * blockAlign
+        const bufferSize = 44 + dataSize
+        const arrayBuffer = new ArrayBuffer(bufferSize)
+        const view = new DataView(arrayBuffer)
+
+        // WAV header
+        const writeString = (offset: number, string: string) => {
+            for (let i = 0; i < string.length; i++) {
+                view.setUint8(offset + i, string.charCodeAt(i))
+            }
+        }
+
+        writeString(0, "RIFF")
+        view.setUint32(4, bufferSize - 8, true)
+        writeString(8, "WAVE")
+        writeString(12, "fmt ")
+        view.setUint32(16, 16, true)
+        view.setUint16(20, 1, true)
+        view.setUint16(22, numberOfChannels, true)
+        view.setUint32(24, sampleRate, true)
+        view.setUint32(28, byteRate, true)
+        view.setUint16(32, blockAlign, true)
+        view.setUint16(34, 16, true)
+        writeString(36, "data")
+        view.setUint32(40, dataSize, true)
+
+        // Convert audio data
+        let offset = 44
+        for (let i = 0; i < length; i++) {
+            for (let channel = 0; channel < numberOfChannels; channel++) {
+                const sample = Math.max(-1, Math.min(1, buffer.getChannelData(channel)[i]))
+                view.setInt16(offset, sample < 0 ? sample * 0x8000 : sample * 0x7FFF, true)
+                offset += 2
+            }
+        }
+
+        return arrayBuffer
+    }
+
+    const transcribeAudio = async (audioBlob: Blob) => {
+        setSttLoading(true)
+        try {
+            const apiKey = localStorage.getItem("api_key") || "";
+            if (!apiKey) {
+                toast.error("API key not found. Please set it in Settings or login page.")
+                setSttLoading(false)
+                return
+            }
+
+            // Convert WebM to WAV if needed
+            let wavBlob = audioBlob
+            if (audioBlob.type.includes("webm") || audioBlob.type.includes("ogg")) {
+                // Show loading toast for conversion
+                const loadingToast = toast.loading("Converting audio format...")
+                try {
+                    wavBlob = await convertWebmToWav(audioBlob)
+                    toast.dismiss(loadingToast)
+                } catch (error) {
+                    toast.dismiss(loadingToast)
+                    throw error
+                }
+            }
+
+            const formData = new FormData()
+            formData.append("audio", wavBlob, "recording.wav")
+            formData.append("audio_format", "wav")
+            formData.append("sample_rate", "16000")
+
+            const response = await fetch("http://localhost:8005/voice/transcribe", {
+                method: "POST",
+                headers: {
+                    "X-API-Key": apiKey
+                },
+                body: formData
+            })
+
+            if (response.ok) {
+                const data = await response.json()
+                const transcribedText = data.text || data.transcription || ""
+                setTranscription(transcribedText)
+                toast.success("Transcription completed")
+            } else {
+                const errorText = await response.text()
+                console.error("STT Error:", response.status, errorText)
+                toast.error(`Transcription failed: ${response.status === 401 ? "Unauthorized" : errorText}`)
+            }
+        } catch (error) {
+            console.error("STT Error:", error)
+            toast.error(`Error transcribing audio: ${error}`)
+        } finally {
+            setSttLoading(false)
+        }
+    }
+
+    const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0]
+        if (!file) return
+
+        if (!file.type.startsWith("audio/")) {
+            toast.error("Please upload an audio file")
+            return
+        }
+
+        const audioBlob = new Blob([file], { type: file.type })
+        await transcribeAudio(audioBlob)
+    }
+
+    const useTranscriptionForTTS = () => {
+        if (transcription) {
+            setTtsText(transcription)
+            toast.success("Transcription copied to TTS input")
+        }
+    }
+
     return (
         <div className="space-y-6 p-6 h-full overflow-y-auto">
             <div className="flex justify-between items-center">
@@ -295,6 +557,98 @@ export function DevToolsView() {
                                     />
                                 </div>
                             )}
+                        </CardContent>
+                    </Card>
+
+                    {/* Speech-to-Text Section */}
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Speech to Text (STT)</CardTitle>
+                            <CardDescription>Convert audio to text using the backend engine</CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                            <div className="grid gap-4">
+                                <div className="flex gap-2">
+                                    <Button 
+                                        onClick={isRecording ? stopRecording : startRecording}
+                                        disabled={sttLoading}
+                                        variant={isRecording ? "destructive" : "default"}
+                                        className="flex-1"
+                                    >
+                                        {sttLoading ? (
+                                            <>
+                                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                                Processing...
+                                            </>
+                                        ) : isRecording ? (
+                                            <>
+                                                <MicOff className="mr-2 h-4 w-4" />
+                                                Stop Recording
+                                            </>
+                                        ) : (
+                                            <>
+                                                <Mic className="mr-2 h-4 w-4" />
+                                                Start Recording
+                                            </>
+                                        )}
+                                    </Button>
+                                    <div className="relative">
+                                        <Input
+                                            type="file"
+                                            accept="audio/*"
+                                            onChange={handleFileUpload}
+                                            className="hidden"
+                                            id="audio-upload"
+                                            disabled={sttLoading || isRecording}
+                                        />
+                                        <Button
+                                            variant="outline"
+                                            onClick={() => document.getElementById("audio-upload")?.click()}
+                                            disabled={sttLoading || isRecording}
+                                        >
+                                            <Upload className="mr-2 h-4 w-4" />
+                                            Upload Audio
+                                        </Button>
+                                    </div>
+                                </div>
+
+                                {!navigator.mediaDevices && (
+                                    <div className="p-3 border border-yellow-500/50 rounded-lg bg-yellow-500/10 text-sm text-yellow-600 dark:text-yellow-400">
+                                        <strong>Note:</strong> Microphone access requires HTTPS or localhost. If you're having permission issues:
+                                        <ul className="list-disc list-inside mt-2 space-y-1">
+                                            <li>Check your browser's address bar for a microphone icon</li>
+                                            <li>Click it and select "Allow" for microphone access</li>
+                                            <li>Or use the "Upload Audio" button to test with audio files</li>
+                                        </ul>
+                                    </div>
+                                )}
+
+                                {transcription && (
+                                    <div className="space-y-2">
+                                        <div className="flex items-center justify-between">
+                                            <Label>Transcription</Label>
+                                            <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                onClick={useTranscriptionForTTS}
+                                            >
+                                                Use for TTS →
+                                            </Button>
+                                        </div>
+                                        <div className="p-4 border rounded-lg bg-muted/50 min-h-[100px]">
+                                            <p className="text-sm whitespace-pre-wrap">{transcription}</p>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {!transcription && !sttLoading && (
+                                    <div className="p-4 border rounded-lg bg-muted/20 text-center text-muted-foreground text-sm">
+                                        {isRecording 
+                                            ? "Recording... Click 'Stop Recording' when done."
+                                            : "Record audio or upload a file to transcribe"}
+                                    </div>
+                                )}
+                            </div>
                         </CardContent>
                     </Card>
                 </TabsContent>
