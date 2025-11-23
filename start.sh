@@ -241,6 +241,24 @@ if check_command psql; then
     # Try to connect to default database
     if psql -U $USER -d postgres -c '\l' &>/dev/null 2>&1; then
         print_success "PostgreSQL is running and accessible"
+        
+        # Check if new tables exist (for AnythingLLM features)
+        if [ -f "database/migrations/002_add_documents_table.sql" ] || [ -f "database/migrations/003_add_workspaces_table.sql" ]; then
+            print_info "Checking for AnythingLLM integration tables..."
+            # Get database name from environment or use default
+            DB_NAME="${DB_NAME:-investment_intelligence}"
+            # Note: We don't auto-run migrations, just inform user
+            if psql -U $USER -d "$DB_NAME" -c "\d documents" &>/dev/null 2>&1; then
+                print_success "Documents table exists"
+            else
+                print_warning "Documents table not found. Run migration: python3 run_migrations.py"
+            fi
+            if psql -U $USER -d "$DB_NAME" -c "\d workspaces" &>/dev/null 2>&1; then
+                print_success "Workspaces table exists"
+            else
+                print_warning "Workspaces table not found. Run migration: python3 run_migrations.py"
+            fi
+        fi
     else
         print_warning "PostgreSQL installed but cannot connect. Database features may not work."
     fi
@@ -377,6 +395,10 @@ echo ""
 echo -e "${BLUE}💡 Tips:${NC}"
 echo -e "   - View API documentation at http://localhost:$BACKEND_PORT/docs"
 echo -e "   - Access the trading dashboard at http://localhost:$FRONTEND_PORT"
+echo -e "   - New features available:"
+echo -e "     • Documents: Upload and analyze financial documents"
+echo -e "     • Workspaces: Organize multiple trading strategies"
+echo -e "     • MCP Tools: Execute and manage MCP-compatible tools"
 echo -e "   - Press ${YELLOW}Ctrl+C${NC} to stop all services"
 echo ""
 echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"

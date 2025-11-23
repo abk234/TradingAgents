@@ -29,7 +29,14 @@ export function RiskDashboard() {
     }, [positions, totalValue])
 
     // Use API metrics if available, otherwise fall back to local calculation
-    const riskMetrics = apiRiskMetrics || localRiskMetrics
+    // Normalize API response to match local format
+    const riskMetrics = apiRiskMetrics ? {
+        var: apiRiskMetrics.var,
+        sharpeRatio: apiRiskMetrics.sharpe_ratio,
+        beta: apiRiskMetrics.beta,
+        volatility: apiRiskMetrics.volatility > 25 ? "High" as const : apiRiskMetrics.volatility > 15 ? "Medium" as const : "Low" as const,
+        sectorExposure: apiRiskMetrics.sector_concentration
+    } : localRiskMetrics
 
     const handleRunAnalysis = async () => {
         if (positions.length === 0) {

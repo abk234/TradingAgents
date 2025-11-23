@@ -338,7 +338,7 @@ export function SystemView() {
                                                 <span className="text-muted-foreground text-xs">Last: {item.last_scan || "Never"}</span>
                                             </div>
                                         ))}
-                                        {status?.missing_data?.missing_scans?.length > 5 && (
+                                        {status?.missing_data?.missing_scans && status.missing_data.missing_scans.length > 5 && (
                                             <div className="text-xs text-center text-muted-foreground pt-2">
                                                 + {status.missing_data.missing_scans.length - 5} more
                                             </div>
@@ -371,7 +371,7 @@ export function SystemView() {
                                                 <span className="text-muted-foreground text-xs">Last: {item.last_analysis || "Never"}</span>
                                             </div>
                                         ))}
-                                        {status?.missing_data?.missing_analysis?.length > 5 && (
+                                        {status?.missing_data?.missing_analysis && status.missing_data.missing_analysis.length > 5 && (
                                             <div className="text-xs text-center text-muted-foreground pt-2">
                                                 + {status.missing_data.missing_analysis.length - 5} more
                                             </div>

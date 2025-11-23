@@ -16,6 +16,9 @@ import { AnalyticsView } from "@/components/AnalyticsView"
 import { SettingsView } from "@/components/SettingsView"
 import { SystemView } from "@/components/SystemView"
 import { DevToolsView } from "@/components/DevToolsView"
+import { DocumentsView } from "@/components/DocumentsView"
+import { WorkspacesView } from "@/components/WorkspacesView"
+import { MCPToolsView } from "@/components/MCPToolsView"
 import { ViewPlaceholder } from "@/components/ViewPlaceholder"
 import { Toaster } from "react-hot-toast"
 
@@ -36,6 +39,12 @@ export default function Home() {
         return <HistoricalView />
       case "analytics":
         return <AnalyticsView />
+      case "documents":
+        return <DocumentsView />
+      case "workspaces":
+        return <WorkspacesView />
+      case "mcp":
+        return <MCPToolsView />
       case "settings":
         return <SettingsView />
       case "system":

@@ -19,7 +19,10 @@ import {
     Activity,
     Terminal,
     Bot,
-    Database
+    Database,
+    FileText,
+    Folder,
+    Plug
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -39,6 +42,9 @@ export function Sidebar({ activeView, onViewChange, isCollapsed, toggleCollapse 
         { id: "risk", label: "Risk Dashboard", icon: ShieldAlert },
         { id: "history", label: "History", icon: History },
         { id: "analytics", label: "Analytics", icon: BarChart3 },
+        { id: "documents", label: "Documents", icon: FileText },
+        { id: "workspaces", label: "Workspaces", icon: Folder },
+        { id: "mcp", label: "MCP Tools", icon: Plug },
         { id: "system", label: "System & Data", icon: Database },
         { id: "devtools", label: "Developer Tools", icon: Terminal },
         { id: "settings", label: "Settings", icon: Settings },

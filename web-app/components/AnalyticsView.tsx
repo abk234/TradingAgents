@@ -154,7 +154,7 @@ export function AnalyticsView() {
                     <ResponsiveContainer width="100%" height="85%">
                         <PieChart>
                             <Pie
-                                data={portfolioPerformance?.sector_allocation || []}
+                                data={(portfolioPerformance?.sector_allocation || []) as any}
                                 cx="50%"
                                 cy="50%"
                                 innerRadius={60}

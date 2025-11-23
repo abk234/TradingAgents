@@ -163,6 +163,131 @@ class ApiClient {
     getStreamUrl(): string {
         return `${this.baseUrl}/chat/stream`
     }
+
+    // =============================================================================
+    // MCP Endpoints
+    // =============================================================================
+    
+    async getMCPCapabilities() {
+        return this.request("/mcp/capabilities")
+    }
+
+    async listMCPTools() {
+        return this.request<{ tools: any[], count: number }>("/mcp/tools")
+    }
+
+    async getMCPCapabilities() {
+        return this.request("/mcp/capabilities")
+    }
+
+    async callMCPTool(toolName: string, toolArguments: Record<string, any>) {
+        return this.request(`/mcp/tools/${toolName}`, {
+            method: "POST",
+            body: JSON.stringify({ arguments: toolArguments }),
+        })
+    }
+
+    // =============================================================================
+    // Document Endpoints
+    // =============================================================================
+    
+    async uploadDocument(file: File, ticker?: string, workspaceId?: number) {
+        const formData = new FormData()
+        formData.append("file", file)
+        if (ticker) formData.append("ticker", ticker)
+        if (workspaceId) formData.append("workspace_id", workspaceId.toString())
+
+        const apiKey = typeof window !== "undefined" ? localStorage.getItem("api_key") || "" : ""
+        const headers: Record<string, string> = {}
+        if (apiKey) {
+            headers["X-API-Key"] = apiKey
+        }
+
+        const response = await fetch(`${this.baseUrl}/documents/upload`, {
+            method: "POST",
+            headers,
+            body: formData,
+        })
+
+        if (!response.ok) {
+            const errorText = await response.text()
+            throw new Error(`API Error ${response.status}: ${errorText}`)
+        }
+
+        return response.json()
+    }
+
+    async listDocuments(ticker?: string, workspaceId?: number, documentType?: string, status?: string) {
+        const params = new URLSearchParams()
+        if (ticker) params.append("ticker", ticker)
+        if (workspaceId) params.append("workspace_id", workspaceId.toString())
+        if (documentType) params.append("document_type", documentType)
+        if (status) params.append("status", status)
+
+        return this.request<{ documents: any[], count: number }>(`/documents?${params.toString()}`)
+    }
+
+    async getDocument(documentId: number) {
+        return this.request(`/documents/${documentId}`)
+    }
+
+    async getDocumentInsights(documentId: number, analysisId?: number, tickerId?: number) {
+        const params = new URLSearchParams()
+        if (analysisId) params.append("analysis_id", analysisId.toString())
+        if (tickerId) params.append("ticker_id", tickerId.toString())
+
+        return this.request<{ insights: any[], count: number }>(`/documents/${documentId}/insights?${params.toString()}`)
+    }
+
+    async deleteDocument(documentId: number) {
+        return this.request(`/documents/${documentId}`, {
+            method: "DELETE",
+        })
+    }
+
+    // =============================================================================
+    // Workspace Endpoints
+    // =============================================================================
+    
+    async createWorkspace(data: { name: string; description?: string; is_default?: boolean }) {
+        return this.request("/workspaces", {
+            method: "POST",
+            body: JSON.stringify(data),
+        })
+    }
+
+    async listWorkspaces(activeOnly: boolean = true) {
+        return this.request<{ workspaces: any[], count: number }>(`/workspaces?active_only=${activeOnly}`)
+    }
+
+    async getDefaultWorkspace() {
+        return this.request("/workspaces/default")
+    }
+
+    async getWorkspace(workspaceId: number) {
+        return this.request(`/workspaces/${workspaceId}`)
+    }
+
+    async updateWorkspace(workspaceId: number, data: Partial<{ name: string; description: string; is_default: boolean; is_active: boolean }>) {
+        return this.request(`/workspaces/${workspaceId}`, {
+            method: "PUT",
+            body: JSON.stringify(data),
+        })
+    }
+
+    async deleteWorkspace(workspaceId: number, softDelete: boolean = true) {
+        return this.request(`/workspaces/${workspaceId}?soft_delete=${softDelete}`, {
+            method: "DELETE",
+        })
+    }
+
+    async getWorkspaceTickers(workspaceId: number) {
+        return this.request<{ tickers: any[], count: number }>(`/workspaces/${workspaceId}/tickers`)
+    }
+
+    async getWorkspaceAnalyses(workspaceId: number, limit: number = 50, offset: number = 0) {
+        return this.request<{ analyses: any[], count: number }>(`/workspaces/${workspaceId}/analyses?limit=${limit}&offset=${offset}`)
+    }
 }
 
 export const api = new ApiClient(API_BASE_URL)

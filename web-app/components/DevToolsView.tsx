@@ -572,7 +572,7 @@ export function DevToolsView() {
                                     <Button 
                                         onClick={isRecording ? stopRecording : startRecording}
                                         disabled={sttLoading}
-                                        variant={isRecording ? "destructive" : "default"}
+                                        variant={isRecording ? "secondary" : "default"}
                                         className="flex-1"
                                     >
                                         {sttLoading ? (
